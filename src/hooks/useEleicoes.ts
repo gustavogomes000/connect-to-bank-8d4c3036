@@ -29,46 +29,42 @@ export function useKPIs() {
   return useQuery({
     queryKey: ['kpis', filters],
     queryFn: async () => {
+      // Count candidatos
       let cq = supabase.from(TABELA_CANDIDATOS).select('id', { count: 'exact', head: true });
       cq = applyFilters(cq, filters, 'candidatos');
-      const { count: totalCandidatos } = await cq;
-
-      // Total votes
-      let totalVotos = 0;
-      let page = 0;
-      const pageSize = 1000;
-      while (true) {
-        let q = supabase.from(TABELA_VOTOS).select('total_votos').range(page * pageSize, (page + 1) * pageSize - 1);
-        q = applyFilters(q, filters, 'votacao');
-        const { data } = await q;
-        if (!data || data.length === 0) break;
-        totalVotos += data.reduce((sum: number, r: any) => sum + (r.total_votos || 0), 0);
-        if (data.length < pageSize) break;
-        page++;
-      }
 
       // Count elected
       let eq2 = supabase.from(TABELA_CANDIDATOS).select('id', { count: 'exact', head: true }).ilike('situacao_final', '%ELEITO%').not('situacao_final', 'ilike', '%NÃO ELEITO%');
       eq2 = applyFilters(eq2, filters, 'candidatos');
-      const { count: totalEleitos } = await eq2;
 
-      // Comparecimento
-      let totalApto = 0;
-      let totalComp = 0;
-      let compPage = 0;
-      while (true) {
-        let compQ = supabase.from(TABELA_COMPARECIMENTO).select('eleitorado_apto, comparecimento').range(compPage * pageSize, (compPage + 1) * pageSize - 1);
-        compQ = applyFilters(compQ, filters, 'comparecimento');
-        const { data: compData } = await compQ;
-        if (!compData || compData.length === 0) break;
-        totalApto += compData.reduce((s: number, r: any) => s + (r.eleitorado_apto || 0), 0);
-        totalComp += compData.reduce((s: number, r: any) => s + (r.comparecimento || 0), 0);
-        if (compData.length < pageSize) break;
-        compPage++;
-      }
+      // Comparecimento (single page, aggregated)
+      let compQ = supabase.from(TABELA_COMPARECIMENTO).select('eleitorado_apto, comparecimento').limit(1000);
+      compQ = applyFilters(compQ, filters, 'comparecimento');
+
+      // Run all in parallel
+      const [candRes, eleitosRes, compRes] = await Promise.all([cq, eq2, compQ]);
+
+      const totalCandidatos = candRes.count || 0;
+      const totalEleitos = eleitosRes.count || 0;
+
+      let totalApto = 0, totalComp = 0;
+      (compRes.data || []).forEach((r: any) => {
+        totalApto += r.eleitorado_apto || 0;
+        totalComp += r.comparecimento || 0;
+      });
       const pctComparecimento = totalApto > 0 ? (totalComp / totalApto) * 100 : 0;
 
-      return { totalCandidatos: totalCandidatos || 0, totalVotos, totalEleitos: totalEleitos || 0, pctComparecimento };
+      // Total votos: use votacao_partido (much fewer rows than munzona)
+      let vq = supabase.from('bd_eleicoes_votacao_partido' as any).select('total_votos').limit(1000);
+      if (filters.ano) vq = vq.eq('ano', filters.ano);
+      if (filters.turno) vq = vq.eq('turno', filters.turno);
+      if (filters.cargo) vq = (vq as any).ilike('cargo', filters.cargo);
+      if (filters.municipio) vq = vq.eq('municipio', filters.municipio);
+      if (filters.partido) vq = vq.eq('sigla_partido', filters.partido);
+      const { data: votosData } = await vq;
+      const totalVotos = (votosData || []).reduce((sum: number, r: any) => sum + (r.total_votos || 0), 0);
+
+      return { totalCandidatos, totalVotos, totalEleitos, pctComparecimento };
     },
   });
 }
