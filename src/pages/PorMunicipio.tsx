@@ -172,7 +172,7 @@ export default function PorMunicipio() {
                   <div key={cargo} className="bg-card rounded-xl border p-4">
                     <h4 className="font-semibold mb-3">{cargo}</h4>
                     <div className="space-y-2">
-                      {candidatos.slice(0, 5).map((c: any, i: number) => (
+                      {(candidatos as any[]).slice(0, 5).map((c: any, i: number) => (
                         <div key={c.id} className="flex items-center justify-between text-sm">
                           <span className="flex items-center gap-2">
                             <span className="text-muted-foreground w-5">{i + 1}.</span>
