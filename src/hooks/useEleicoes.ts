@@ -29,23 +29,23 @@ export function useKPIs() {
   return useQuery({
     queryKey: ['kpis', filters],
     queryFn: async () => {
-      // Count candidatos via SELECT count
-      let cq = (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact', head: true });
+      // Count candidatos - fetch minimal data
+      let cq = (supabase.from(TABELA_CANDIDATOS) as any).select('id, situacao_final').limit(1000);
       cq = applyFilters(cq, filters, 'candidatos');
 
-      // Count elected
-      let eq2 = (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact', head: true }).ilike('situacao_final', '%ELEITO%').not('situacao_final', 'ilike', '%NÃO ELEITO%');
-      eq2 = applyFilters(eq2, filters, 'candidatos');
-
-      // Comparecimento (single page, aggregated)
+      // Comparecimento
       let compQ = (supabase.from(TABELA_COMPARECIMENTO) as any).select('eleitorado_apto, comparecimento').limit(1000);
       compQ = applyFilters(compQ, filters, 'comparecimento');
 
-      // Run all in parallel
-      const [candRes, eleitosRes, compRes] = await Promise.all([cq, eq2, compQ]);
+      // Run in parallel
+      const [candRes, compRes] = await Promise.all([cq, compQ]);
 
-      const totalCandidatos = candRes.count || 0;
-      const totalEleitos = eleitosRes.count || 0;
+      const candData = candRes.data || [];
+      const totalCandidatos = candData.length;
+      const totalEleitos = candData.filter((c: any) => {
+        const s = (c.situacao_final || '').toUpperCase();
+        return s.includes('ELEITO') && !s.includes('NÃO ELEITO');
+      }).length;
 
       let totalApto = 0, totalComp = 0;
       (compRes.data || []).forEach((r: any) => {
