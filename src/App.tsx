@@ -22,7 +22,7 @@ const queryClient = new QueryClient();
 
 function Layout() {
   const location = useLocation();
-  const hideFilters = location.pathname === '/importar' || location.pathname === '/ajuda';
+  const hideFilters = location.pathname === '/importar' || location.pathname === '/ajuda' || location.pathname === '/bairro' || location.pathname === '/patrimonio';
 
   return (
     <SidebarProvider>
