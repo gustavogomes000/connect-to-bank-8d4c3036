@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const FETCH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': '*/*',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
+  'Referer': 'https://dadosabertos.tse.jus.br/',
+  'Connection': 'keep-alive',
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -29,7 +38,7 @@ Deno.serve(async (req) => {
     const url = `https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_${ano}.zip`
     console.log(`Downloading: ${url}`)
 
-    const response = await fetch(url, { signal: AbortSignal.timeout(180000) })
+    const response = await fetch(url, { signal: AbortSignal.timeout(180000), headers: FETCH_HEADERS })
     if (!response.ok) throw new Error(`Download falhou: ${response.status} ${response.statusText}`)
 
     const zipBuffer = new Uint8Array(await response.arrayBuffer())

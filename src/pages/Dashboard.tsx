@@ -138,7 +138,7 @@ export default function Dashboard() {
                     <tr key={c.id} className="border-b last:border-0">
                       <td className="py-2"><CandidatoAvatar nome={c.nome_urna} fotoUrl={c.foto_url} size={32} /></td>
                       <td className="py-2 font-medium">{c.nome_urna}</td>
-                      <td className="py-2">{c.partido}</td>
+                      <td className="py-2">{c.sigla_partido || c.partido}</td>
                       <td className="py-2">{c.cargo}</td>
                       <td className="py-2"><SituacaoBadge situacao={c.situacao_final} /></td>
                     </tr>

@@ -15,15 +15,15 @@ export default function PorPartido() {
     queryKey: ['partidosResumo', ano, turno, cargo, municipio],
     queryFn: async () => {
       // Get candidatos
-      let cq = (supabase.from('bd_eleicoes_candidatos' as any) as any).select('partido, situacao_final');
+      let cq = (supabase.from('bd_eleicoes_candidatos' as any) as any).select('sigla_partido, situacao_final');
       if (ano) cq = cq.eq('ano', ano);
       if (turno) cq = cq.eq('turno', turno);
       if (cargo) cq = cq.ilike('cargo', cargo);
       if (municipio) cq = cq.eq('municipio', municipio);
       const { data: candidatos } = await cq.limit(1000);
 
-      // Get votos
-      let vq = (supabase.from('bd_eleicoes_votacao' as any) as any).select('partido, total_votos');
+      // Get votos from partido table
+      let vq = (supabase.from('bd_eleicoes_votacao_partido' as any) as any).select('sigla_partido, total_votos');
       if (ano) vq = vq.eq('ano', ano);
       if (turno) vq = vq.eq('turno', turno);
       if (cargo) vq = vq.ilike('cargo', cargo);
@@ -33,7 +33,7 @@ export default function PorPartido() {
       const map = new Map<string, { candidatos: number; votos: number; eleitos: number }>();
       
       (candidatos || []).forEach((c: any) => {
-        const p = c.partido || 'OUTROS';
+        const p = c.sigla_partido || 'OUTROS';
         const cur = map.get(p) || { candidatos: 0, votos: 0, eleitos: 0 };
         cur.candidatos++;
         const sit = (c.situacao_final || '').toUpperCase();
@@ -42,7 +42,7 @@ export default function PorPartido() {
       });
 
       (votos || []).forEach((v: any) => {
-        const p = v.partido || 'OUTROS';
+        const p = v.sigla_partido || 'OUTROS';
         const cur = map.get(p) || { candidatos: 0, votos: 0, eleitos: 0 };
         cur.votos += v.total_votos || 0;
         map.set(p, cur);
@@ -54,14 +54,13 @@ export default function PorPartido() {
     },
   });
 
-  // Expanded partido detail
   const { data: detalhe } = useQuery({
     queryKey: ['partidoDetalhe', expanded, ano, turno, cargo, municipio],
     queryFn: async () => {
       if (!expanded) return [];
-      let q = (supabase.from('bd_eleicoes_votacao' as any) as any)
-        .select('nome_candidato, cargo, municipio, total_votos, partido')
-        .eq('partido', expanded)
+      let q = (supabase.from('bd_eleicoes_votacao_munzona' as any) as any)
+        .select('nome_candidato, cargo, municipio, total_votos, sigla_partido')
+        .eq('sigla_partido', expanded)
         .order('total_votos', { ascending: false })
         .limit(50);
       if (ano) q = q.eq('ano', ano);

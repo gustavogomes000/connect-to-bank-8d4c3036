@@ -6,6 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const FETCH_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+  'Accept': '*/*',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
+  'Referer': 'https://dadosabertos.tse.jus.br/',
+  'Connection': 'keep-alive',
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -26,11 +35,10 @@ Deno.serve(async (req) => {
       ano, tipo, status: 'importando', iniciado_em: new Date().toISOString()
     })
 
-    // Arquivo já específico de GO
     const url = `https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_secao/votacao_secao_${ano}_GO.zip`
     console.log(`Downloading: ${url}`)
 
-    const response = await fetch(url, { signal: AbortSignal.timeout(180000) })
+    const response = await fetch(url, { signal: AbortSignal.timeout(180000), headers: FETCH_HEADERS })
     if (!response.ok) throw new Error(`Download falhou: ${response.status} ${response.statusText}`)
 
     const zipBuffer = new Uint8Array(await response.arrayBuffer())
@@ -38,7 +46,6 @@ Deno.serve(async (req) => {
 
     const files = unzipSync(zipBuffer)
 
-    // Para arquivo GO-específico, pegar primeiro CSV/TXT
     const csvFile = Object.keys(files).find(n =>
       (n.includes('_GO') || n.includes('_go')) && (n.endsWith('.csv') || n.endsWith('.txt'))
     ) || Object.keys(files).find(n => n.endsWith('.csv') || n.endsWith('.txt'))
@@ -72,7 +79,6 @@ Deno.serve(async (req) => {
       const uf = getVal(row, 'SG_UF')
       if (uf && uf !== 'GO') continue
 
-      // votacao_secao usa NM_VOTAVEL e NR_VOTAVEL em vez de NM_URNA_CANDIDATO e NR_CANDIDATO
       const nomeCand = getVal(row, 'NM_VOTAVEL') || getVal(row, 'NM_URNA_CANDIDATO')
       const numUrna = getInt(row, 'NR_VOTAVEL') || getInt(row, 'NR_CANDIDATO')
 
@@ -97,7 +103,6 @@ Deno.serve(async (req) => {
 
     await supabase.from(tableName).delete().eq('ano', ano)
 
-    // Lotes menores com delay menor para arquivos grandes
     const batchSize = 1000
     let inserted = 0
     for (let i = 0; i < records.length; i += batchSize) {

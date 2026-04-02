@@ -17,7 +17,6 @@ export default function Ranking() {
   const [sortAsc, setSortAsc] = useState(false);
   const navigate = useNavigate();
 
-  // Debounce
   const [timer, setTimer] = useState<any>(null);
   const handleSearch = (v: string) => {
     setSearch(v);
@@ -76,7 +75,7 @@ export default function Ranking() {
                   <th className="pb-3 pt-3 font-medium w-12"></th>
                   <SortHeader col="nome_candidato" label="Nome" />
                   <SortHeader col="numero_urna" label="Número" />
-                  <SortHeader col="partido" label="Partido" />
+                  <SortHeader col="sigla_partido" label="Partido" />
                   <SortHeader col="cargo" label="Cargo" />
                   <SortHeader col="municipio" label="Município" />
                   <SortHeader col="total_votos" label="Votos" />
@@ -98,7 +97,7 @@ export default function Ranking() {
                       </td>
                       <td className="py-3 font-medium">{r.nome_candidato}</td>
                       <td className="py-3">{r.numero_urna}</td>
-                      <td className="py-3">{r.partido}</td>
+                      <td className="py-3">{r.sigla_partido}</td>
                       <td className="py-3">{r.cargo}</td>
                       <td className="py-3">{r.municipio}</td>
                       <td className="py-3">
@@ -119,7 +118,6 @@ export default function Ranking() {
             </table>
           </div>
 
-          {/* Pagination */}
           <div className="flex items-center justify-between px-4 py-3 border-t">
             <span className="text-sm text-muted-foreground">
               {formatNumber(data?.count || 0)} resultados — Página {page + 1} de {totalPages || 1}

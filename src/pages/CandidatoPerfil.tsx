@@ -31,18 +31,17 @@ export default function CandidatoPerfil() {
     enabled: !!candidato,
   });
 
-  // Votos by municipality aggregated
+  // Votos by municipality aggregated - using munzona table
   const { data: votosMun } = useQuery({
     queryKey: ['votosMunicipio', candidato?.nome_urna, candidato?.ano],
     queryFn: async () => {
       if (!candidato) return [];
-      const { data } = await (supabase.from('bd_eleicoes_votacao' as any) as any)
+      const { data } = await (supabase.from('bd_eleicoes_votacao_munzona' as any) as any)
         .select('municipio, zona, total_votos')
         .eq('nome_candidato', candidato.nome_urna)
         .eq('ano', candidato.ano)
         .order('total_votos', { ascending: false });
       
-      // Aggregate by municipio
       const map = new Map<string, { municipio: string; votos: number; zonas: Set<number> }>();
       (data || []).forEach((r: any) => {
         const cur = map.get(r.municipio) || { municipio: r.municipio, votos: 0, zonas: new Set() };
@@ -64,13 +63,6 @@ export default function CandidatoPerfil() {
   const votosMunPaged = (votosMun || []).slice(votosPage * votosMunPageSize, (votosPage + 1) * votosMunPageSize);
   const totalVotosMunPages = Math.ceil((votosMun || []).length / votosMunPageSize);
 
-  // Evolution chart data
-  const evolucao = (historico || []).reduce((acc: any[], h: any) => {
-    const existing = acc.find(a => a.ano === h.ano);
-    if (!existing) acc.push({ ano: h.ano, cargo: h.cargo });
-    return acc;
-  }, []);
-
   return (
     <div className="space-y-6">
       {/* Hero */}
@@ -83,7 +75,7 @@ export default function CandidatoPerfil() {
               <span className="text-muted-foreground">{candidato.nome_urna}</span>
               <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-sm font-bold">{candidato.numero_urna}</span>
             </div>
-            <p className="text-muted-foreground mt-2">{candidato.partido} • {candidato.cargo} • {candidato.municipio}</p>
+            <p className="text-muted-foreground mt-2">{candidato.sigla_partido || candidato.partido} • {candidato.cargo} • {candidato.municipio}</p>
             <div className="mt-3"><SituacaoBadge situacao={candidato.situacao_final} /></div>
           </div>
         </div>
@@ -129,7 +121,7 @@ export default function CandidatoPerfil() {
                   <tr key={i} className="border-b last:border-0">
                     <td className="py-2">{h.ano}</td>
                     <td className="py-2">{h.cargo}</td>
-                    <td className="py-2">{h.partido}</td>
+                    <td className="py-2">{h.sigla_partido || h.partido}</td>
                     <td className="py-2">{h.municipio}</td>
                     <td className="py-2"><SituacaoBadge situacao={h.situacao_final} /></td>
                   </tr>

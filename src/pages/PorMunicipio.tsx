@@ -20,7 +20,6 @@ export default function PorMunicipio() {
     m.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 10);
 
-  // Summary data
   const { data: resumo, isLoading: loadingResumo } = useQuery({
     queryKey: ['municipioResumo', selected],
     queryFn: async () => {
@@ -34,7 +33,6 @@ export default function PorMunicipio() {
         abst: acc.abst + (r.abstencoes || 0),
       }), { apto: 0, comp: 0, abst: 0 });
 
-      // Historical
       const map = new Map<number, any>();
       (data || []).forEach((r: any) => {
         const cur = map.get(r.ano) || { ano: r.ano, apto: 0, comp: 0, abst: 0 };
@@ -52,11 +50,11 @@ export default function PorMunicipio() {
     enabled: !!selected,
   });
 
-  // Votação data
+  // Use munzona table
   const { data: votacao, isLoading: loadingVotacao } = useQuery({
     queryKey: ['municipioVotacao', selected],
     queryFn: async () => {
-      const { data } = await (supabase.from('bd_eleicoes_votacao' as any) as any)
+      const { data } = await (supabase.from('bd_eleicoes_votacao_munzona' as any) as any)
         .select('*')
         .eq('municipio', selected)
         .order('total_votos', { ascending: false })
@@ -66,7 +64,6 @@ export default function PorMunicipio() {
     enabled: !!selected,
   });
 
-  // Group by cargo
   const porCargo = (votacao || []).reduce((acc: Record<string, any[]>, r: any) => {
     const cargo = r.cargo || 'Outros';
     if (!acc[cargo]) acc[cargo] = [];
@@ -82,7 +79,7 @@ export default function PorMunicipio() {
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          onChange={(e) => { setSearch(e.target.value); if (selected) setSelected(null); }}
           placeholder="Buscar município..."
           className="pl-9"
         />
@@ -155,7 +152,7 @@ export default function PorMunicipio() {
                         <tr key={r.id} className="border-b last:border-0">
                           <td className="py-2 font-medium">{i + 1}</td>
                           <td className="py-2 font-medium">{r.nome_candidato}</td>
-                          <td className="py-2">{r.partido}</td>
+                          <td className="py-2">{r.sigla_partido}</td>
                           <td className="py-2">{r.cargo}</td>
                           <td className="py-2">{formatNumber(r.total_votos)}</td>
                         </tr>
@@ -177,7 +174,7 @@ export default function PorMunicipio() {
                           <span className="flex items-center gap-2">
                             <span className="text-muted-foreground w-5">{i + 1}.</span>
                             <span className="font-medium">{c.nome_candidato}</span>
-                            <span className="text-muted-foreground">{c.partido}</span>
+                            <span className="text-muted-foreground">{c.sigla_partido}</span>
                           </span>
                           <span className="font-medium">{formatNumber(c.total_votos)}</span>
                         </div>
@@ -212,7 +209,7 @@ export default function PorMunicipio() {
                     </tr>
                   </thead>
                   <tbody>
-                {((resumo?.historico as any[]) || []).map((h: any) => (
+                    {((resumo?.historico as any[]) || []).map((h: any) => (
                       <tr key={h.ano} className="border-b last:border-0">
                         <td className="py-2">{h.ano}</td>
                         <td className="py-2">{formatNumber(h.apto)}</td>
