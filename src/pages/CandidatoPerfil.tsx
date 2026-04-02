@@ -15,6 +15,8 @@ export default function CandidatoPerfil() {
   const { id } = useParams<{ id: string }>();
   const { data: candidato, isLoading } = useCandidato(id || '');
   const { data: votos, isLoading: loadingVotos } = useCandidatoVotos(candidato?.nome_urna || '', candidato?.ano || 0);
+  const { data: bens } = usePatrimonioCandidato(candidato?.sequencial_candidato || '');
+  const { data: evolucaoPatrimonio } = useEvolucaoPatrimonio(candidato?.nome_urna || '');
   const [votosPage, setVotosPage] = useState(0);
 
   // Historical
