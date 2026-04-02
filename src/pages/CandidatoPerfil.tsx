@@ -103,6 +103,10 @@ export default function CandidatoPerfil() {
           <p className="text-sm text-muted-foreground">Municípios c/ Votos</p>
           <p className="text-2xl font-bold">{totalMunicipios}</p>
         </div>
+        <div className="bg-card rounded-xl border p-4">
+          <p className="text-sm text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" /> Patrimônio</p>
+          <p className="text-2xl font-bold">{formatBRL(totalPatrimonio)}</p>
+        </div>
       </div>
 
       {/* Histórico */}
