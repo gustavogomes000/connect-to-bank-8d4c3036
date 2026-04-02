@@ -1,7 +1,7 @@
 // Cores por partido para gráficos
 export const PARTIDO_CORES: Record<string, string> = {
   PT: '#e02424',
-  PL: '#1a56db',
+  PL: '#1e3a5f',
   'UNIÃO': '#38bdf8',
   'UNIÃO BRASIL': '#38bdf8',
   MDB: '#16a34a',

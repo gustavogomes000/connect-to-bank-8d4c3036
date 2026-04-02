@@ -5,8 +5,8 @@ import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis
 import { Users } from 'lucide-react';
 
 const COLORS = [
-  'hsl(221, 83%, 48%)', 'hsl(187, 74%, 44%)', 'hsl(156, 72%, 34%)', 'hsl(45, 93%, 46%)',
-  'hsl(0, 79%, 52%)', 'hsl(262, 52%, 47%)', 'hsl(25, 95%, 53%)', 'hsl(340, 82%, 52%)',
+  'hsl(338, 72%, 60%)', 'hsl(38, 60%, 58%)', 'hsl(156, 72%, 34%)', 'hsl(45, 93%, 46%)',
+  'hsl(0, 79%, 52%)', 'hsl(280, 50%, 55%)', 'hsl(25, 95%, 53%)', 'hsl(340, 82%, 52%)',
   'hsl(180, 70%, 40%)', 'hsl(120, 40%, 45%)', 'hsl(300, 50%, 45%)', 'hsl(60, 70%, 40%)',
 ];
 

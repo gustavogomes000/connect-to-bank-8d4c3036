@@ -193,7 +193,7 @@ export default function PorMunicipio() {
                     <YAxis tickFormatter={(v: number) => formatNumber(v)} />
                     <Tooltip formatter={(v: number) => formatNumber(v)} />
                     <Legend />
-                    <Line type="monotone" dataKey="apto" name="Eleitorado Apto" stroke="hsl(221, 83%, 48%)" strokeWidth={2} />
+                    <Line type="monotone" dataKey="apto" name="Eleitorado Apto" stroke="hsl(338, 72%, 60%)" strokeWidth={2} />
                     <Line type="monotone" dataKey="comp" name="Comparecimento" stroke="hsl(156, 72%, 34%)" strokeWidth={2} />
                     <Line type="monotone" dataKey="abst" name="Abstenções" stroke="hsl(0, 79%, 52%)" strokeWidth={2} />
                   </LineChart>
