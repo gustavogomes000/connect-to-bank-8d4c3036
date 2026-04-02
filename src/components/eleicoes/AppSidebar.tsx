@@ -19,6 +19,9 @@ const menuItems = [
   { title: 'Candidatos', url: '/candidatos', icon: Users },
   { title: 'Por Município', url: '/municipio', icon: Building2 },
   { title: 'Por Partido', url: '/partido', icon: Target },
+  { title: 'Por Bairro', url: '/bairro', icon: MapPin },
+  { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
+  { title: 'Perfil Candidatos', url: '/perfil-candidatos', icon: UserCheck },
   { title: 'Importar Dados', url: '/importar', icon: Download },
   { title: 'Ajuda', url: '/ajuda', icon: HelpCircle },
 ];

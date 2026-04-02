@@ -42,6 +42,9 @@ function Layout() {
               <Route path="/candidato/:id" element={<CandidatoPerfil />} />
               <Route path="/municipio" element={<PorMunicipio />} />
               <Route path="/partido" element={<PorPartido />} />
+              <Route path="/bairro" element={<AnaliseBairro />} />
+              <Route path="/patrimonio" element={<Patrimonio />} />
+              <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
               <Route path="/importar" element={<ImportarDados />} />
               <Route path="/ajuda" element={<Ajuda />} />
               <Route path="*" element={<NotFound />} />
