@@ -258,7 +258,7 @@ export default function ImportarDados() {
                     <td className="py-2">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
                         log.status === 'sucesso' ? 'bg-green-100 text-green-800'
-                        : log.status === 'importando' ? 'bg-blue-100 text-blue-800'
+                        : log.status === 'importando' ? 'bg-accent text-accent-foreground'
                         : 'bg-red-100 text-red-800'
                       }`}>
                         {log.status}
