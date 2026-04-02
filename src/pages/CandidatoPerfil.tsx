@@ -1,5 +1,5 @@
 import { useParams } from 'react-router-dom';
-import { useCandidato, useCandidatoVotos } from '@/hooks/useEleicoes';
+import { useCandidato, useCandidatoVotos, usePatrimonioCandidato, useEvolucaoPatrimonio } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent } from '@/lib/eleicoes';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 
 export default function CandidatoPerfil() {
   const { id } = useParams<{ id: string }>();
