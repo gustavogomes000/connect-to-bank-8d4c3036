@@ -212,7 +212,7 @@ export default function PorMunicipio() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(resumo?.historico || []).map((h: any) => (
+                {((resumo?.historico as any[]) || []).map((h: any) => (
                       <tr key={h.ano} className="border-b last:border-0">
                         <td className="py-2">{h.ano}</td>
                         <td className="py-2">{formatNumber(h.apto)}</td>
