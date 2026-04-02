@@ -31,7 +31,8 @@ function Layout() {
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-12 flex items-center border-b bg-card px-4 shrink-0">
             <SidebarTrigger />
-            <span className="ml-3 text-sm font-medium text-muted-foreground">EleiçõesGO — Inteligência Eleitoral</span>
+            <span className="ml-3 text-sm font-semibold text-foreground" style={{ fontFamily: 'Poppins, sans-serif' }}>Dra. Sarelli</span>
+            <span className="ml-1.5 text-xs text-muted-foreground">— Inteligência Eleitoral GO</span>
           </header>
           {!hideFilters && <GlobalFilters />}
           <main className="flex-1 p-4 md:p-6 overflow-auto">

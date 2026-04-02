@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, Trophy, Users, Building2, Target, Download, HelpCircle, Vote, MapPin, DollarSign, UserCheck } from 'lucide-react';
+import { BarChart3, Trophy, Users, Building2, Target, Download, HelpCircle, MapPin, DollarSign, UserCheck } from 'lucide-react';
 import {
   Sidebar,
   SidebarContent,
@@ -34,12 +34,19 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
-        <Link to="/" className="flex items-center gap-2">
-          <Vote className="w-7 h-7 text-sidebar-primary-foreground" />
+        <Link to="/" className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
+            <span className="text-primary-foreground font-bold text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>S</span>
+          </div>
           {!collapsed && (
-            <span className="text-lg font-bold text-sidebar-foreground tracking-tight">
-              EleiçõesGO
-            </span>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold text-sidebar-foreground tracking-tight" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Dra. Sarelli
+              </span>
+              <span className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">
+                Inteligência Eleitoral
+              </span>
+            </div>
           )}
         </Link>
       </SidebarHeader>
@@ -57,7 +64,7 @@ export function AppSidebar() {
                         className={cn(
                           'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm',
                           isActive
-                            ? 'bg-sidebar-accent text-sidebar-primary-foreground font-semibold'
+                            ? 'bg-primary/20 text-primary font-semibold'
                             : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
                         )}
                       >
