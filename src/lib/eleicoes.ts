@@ -77,7 +77,7 @@ export function formatDate(date: string | null | undefined): string {
 export function getSituacaoBadge(situacao: string | null): { bg: string; text: string; label: string } {
   const s = (situacao || '').toUpperCase().trim();
   if (s.includes('ELEITO') && s.includes('QP'))
-    return { bg: 'bg-blue-100', text: 'text-blue-800', label: 'ELEITO POR QP' };
+    return { bg: 'bg-accent', text: 'text-accent-foreground', label: 'ELEITO POR QP' };
   if (s.includes('ELEITO') && !s.includes('NÃO'))
     return { bg: 'bg-green-100', text: 'text-green-800', label: 'ELEITO' };
   if (s.includes('SUPLENTE'))
