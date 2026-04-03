@@ -61,24 +61,13 @@ def is_municipio_foco_nome(nome: str) -> bool:
 
 def filtrar_records_municipio(records: List[Dict], item: dict) -> List[Dict]:
     """Filtra registros para conter apenas Goiânia e Aparecida.
-    
-    Estratégia por fonte:
-    - IBGE agregados: filtra por localidade_id
-    - DataSUS: filtra por codigo_municipio_ibge ou nome
-    - Transparência: já são APIs específicas por município, não filtra
-    - INEP: filtra por co_municipio (código IBGE)
-    - Malhas GeoJSON: já são específicas por município, não filtra
+    Se skip_filtro_municipal=true no item, retorna sem filtrar.
     """
+    if item.get("skip_filtro_municipal", False):
+        return records
+    
     fonte = item.get("fonte", "")
     tipo = item.get("tipo", "")
-    
-    # Transparência Goiânia/Aparecida: já são API específica do município
-    if fonte.startswith("transparencia_"):
-        return records
-    
-    # Malhas específicas por município (URL já tem código IBGE)
-    if tipo == "malha_setores":
-        return records
     
     # IBGE agregados: filtrar por localidade_id
     if fonte == "ibge":
