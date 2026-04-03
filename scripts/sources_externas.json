@@ -1,9 +1,7 @@
 {
-  "versao": "2.0",
-  "descricao": "Fontes externas (não-TSE) → BigQuery — SOMENTE Goiânia e Aparecida de Goiânia",
-  "filtro_uf": "GO",
+  "versao": "3.0",
+  "descricao": "Fontes externas → BigQuery — SOMENTE Goiânia (5208707) e Aparecida (5201405)",
   "municipios_foco": ["5208707", "5201405"],
-  "municipios_nomes": {"5208707": "Goiânia", "5201405": "Aparecida de Goiânia"},
   "municipios_datasus": ["520870", "520140"],
   "items": [
     {
@@ -14,107 +12,113 @@
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "pib", "formato": "api_json",
+      "fonte": "ibge", "tipo": "pib_va", "formato": "api_json",
       "url": "https://servicodados.ibge.gov.br/api/v3/agregados/5938/periodos/-6/variaveis/37?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_pib_va",
-      "descricao": "PIB - Valor adicionado bruto - Goiânia e Aparecida",
+      "descricao": "PIB - Valor adicionado bruto",
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "pib", "formato": "api_json",
+      "fonte": "ibge", "tipo": "pib_total", "formato": "api_json",
       "url": "https://servicodados.ibge.gov.br/api/v3/agregados/5938/periodos/-6/variaveis/513?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_pib_total",
-      "descricao": "PIB total - Goiânia e Aparecida",
+      "descricao": "PIB total",
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "pib", "formato": "api_json",
+      "fonte": "ibge", "tipo": "pib_impostos", "formato": "api_json",
       "url": "https://servicodados.ibge.gov.br/api/v3/agregados/5938/periodos/-6/variaveis/517?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_pib_impostos",
-      "descricao": "PIB - Impostos líquidos - Goiânia e Aparecida",
+      "descricao": "PIB - Impostos líquidos",
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "pib", "formato": "api_json",
+      "fonte": "ibge", "tipo": "pib_percapita", "formato": "api_json",
       "url": "https://servicodados.ibge.gov.br/api/v3/agregados/5938/periodos/-6/variaveis/525?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_pib_percapita",
-      "descricao": "PIB per capita - Goiânia e Aparecida",
+      "descricao": "PIB per capita",
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "censo_populacao", "formato": "api_json",
-      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4714/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D&classificacao=2%5B6794%2C6795%5D",
+      "fonte": "ibge", "tipo": "censo_pop", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4714/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_censo_pop",
-      "descricao": "Censo 2022 - população por sexo - Goiânia e Aparecida",
+      "descricao": "Censo 2022 - população residente total",
       "prioridade": 1
     },
     {
       "fonte": "ibge", "tipo": "censo_educacao", "formato": "api_json",
-      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D&classificacao=2%5B6794%2C6795%5D%7C86%5B2776%2C2777%2C2778%2C2779%2C2780%2C2781%2C2782%2C2783%2C2784%5D",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_censo_educacao",
-      "descricao": "Censo 2022 - nível de instrução por sexo - Goiânia e Aparecida",
+      "descricao": "Censo 2022 - população por nível de instrução",
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "censo_renda", "formato": "api_json",
-      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4803/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D&classificacao=2%5B6794%2C6795%5D",
-      "tabela_bq": "raw_ibge_censo_renda",
-      "descricao": "Censo 2022 - rendimento domiciliar per capita por sexo - Goiânia e Aparecida",
+      "fonte": "ibge", "tipo": "censo_cor_raca", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/9605/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
+      "tabela_bq": "raw_ibge_censo_cor_raca",
+      "descricao": "Censo 2022 - população por cor/raça",
       "prioridade": 1
     },
     {
-      "fonte": "datasus", "tipo": "estabelecimentos_goiania", "formato": "api_json",
-      "url": "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos?codigo_municipio=520870&status=1&limit=10000",
+      "fonte": "datasus", "tipo": "estabelecimentos_goiania", "formato": "api_json_paginado_offset",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos?codigo_municipio=520870&status=1",
       "tabela_bq": "raw_datasus_estabelecimentos_goiania",
-      "descricao": "CNES - estabelecimentos de saúde ativos em Goiânia",
+      "chave_lista": "estabelecimentos",
+      "descricao": "CNES - estabelecimentos de saúde ativos em Goiânia (~4300)",
       "skip_filtro_municipal": true,
       "prioridade": 1
     },
     {
-      "fonte": "datasus", "tipo": "estabelecimentos_aparecida", "formato": "api_json",
-      "url": "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos?codigo_municipio=520140&status=1&limit=10000",
+      "fonte": "datasus", "tipo": "estabelecimentos_aparecida", "formato": "api_json_paginado_offset",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos?codigo_municipio=520140&status=1",
       "tabela_bq": "raw_datasus_estabelecimentos_aparecida",
-      "descricao": "CNES - estabelecimentos de saúde ativos em Aparecida de Goiânia",
+      "chave_lista": "estabelecimentos",
+      "descricao": "CNES - estabelecimentos de saúde em Aparecida",
       "skip_filtro_municipal": true,
       "prioridade": 1
     },
     {
-      "fonte": "datasus", "tipo": "leitos_goiania", "formato": "api_json",
-      "url": "https://apidadosabertos.saude.gov.br/cnes/leitos?codigo_municipio=520870&limit=10000",
+      "fonte": "datasus", "tipo": "leitos_goiania", "formato": "api_json_paginado_offset",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/leitos?codigo_municipio=520870",
       "tabela_bq": "raw_datasus_leitos_goiania",
+      "chave_lista": "leitos",
       "descricao": "CNES - leitos hospitalares em Goiânia",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
     {
-      "fonte": "datasus", "tipo": "leitos_aparecida", "formato": "api_json",
-      "url": "https://apidadosabertos.saude.gov.br/cnes/leitos?codigo_municipio=520140&limit=10000",
+      "fonte": "datasus", "tipo": "leitos_aparecida", "formato": "api_json_paginado_offset",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/leitos?codigo_municipio=520140",
       "tabela_bq": "raw_datasus_leitos_aparecida",
-      "descricao": "CNES - leitos hospitalares em Aparecida de Goiânia",
+      "chave_lista": "leitos",
+      "descricao": "CNES - leitos hospitalares em Aparecida",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
     {
-      "fonte": "datasus", "tipo": "profissionais_goiania", "formato": "api_json",
-      "url": "https://apidadosabertos.saude.gov.br/cnes/profissionais?codigo_municipio=520870&limit=10000",
+      "fonte": "datasus", "tipo": "profissionais_goiania", "formato": "api_json_paginado_offset",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/profissionais?codigo_municipio=520870",
       "tabela_bq": "raw_datasus_profissionais_goiania",
+      "chave_lista": "profissionais",
       "descricao": "CNES - profissionais de saúde em Goiânia",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
     {
-      "fonte": "datasus", "tipo": "profissionais_aparecida", "formato": "api_json",
-      "url": "https://apidadosabertos.saude.gov.br/cnes/profissionais?codigo_municipio=520140&limit=10000",
+      "fonte": "datasus", "tipo": "profissionais_aparecida", "formato": "api_json_paginado_offset",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/profissionais?codigo_municipio=520140",
       "tabela_bq": "raw_datasus_profissionais_aparecida",
-      "descricao": "CNES - profissionais de saúde em Aparecida de Goiânia",
+      "chave_lista": "profissionais",
+      "descricao": "CNES - profissionais de saúde em Aparecida",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
     {
       "fonte": "ibge", "tipo": "censo_setor", "formato": "download_zip",
       "url": "https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/GO_20241025.zip",
-      "tabela_bq": "raw_ibge_censo_setor_go",
-      "descricao": "Censo 2022 - agregados por setor censitário GO (filtra Goiânia+Aparecida)",
+      "tabela_bq": "raw_ibge_censo_setor",
+      "descricao": "Censo 2022 - agregados por setor censitário (filtra Goiânia+Aparecida)",
       "prioridade": 2
     },
     {
@@ -141,7 +145,7 @@
       "fonte": "transparencia_aparecida", "tipo": "servidores", "formato": "download_csv",
       "url": "https://transparencia.aparecida.go.gov.br/api/v1/servidores/download?formato=csv",
       "tabela_bq": "raw_transp_aparecida_servidores",
-      "descricao": "Portal Transparência Aparecida - servidores e remuneração",
+      "descricao": "Portal Transparência Aparecida - servidores",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
@@ -160,7 +164,7 @@
       "fonte": "ibge", "tipo": "malha_setores_goiania", "formato": "download_geojson",
       "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5208707?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
       "tabela_bq": "raw_ibge_malha_setores_goiania",
-      "descricao": "Malha de setores censitários de Goiânia (GeoJSON)",
+      "descricao": "Malha de setores censitários de Goiânia",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
@@ -168,7 +172,7 @@
       "fonte": "ibge", "tipo": "malha_setores_aparecida", "formato": "download_geojson",
       "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5201405?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
       "tabela_bq": "raw_ibge_malha_setores_aparecida",
-      "descricao": "Malha de setores censitários de Aparecida (GeoJSON)",
+      "descricao": "Malha de setores censitários de Aparecida",
       "skip_filtro_municipal": true,
       "prioridade": 2
     },
@@ -176,7 +180,7 @@
       "fonte": "inep", "tipo": "escolas", "formato": "download_zip",
       "url": "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip",
       "tabela_bq": "raw_inep_escolas",
-      "descricao": "Censo Escolar 2024 - escolas Goiânia e Aparecida (filtro CO_UF=52 + CO_MUNICIPIO)",
+      "descricao": "Censo Escolar 2024 - escolas Goiânia e Aparecida",
       "csv_pattern": "ESCOLAS",
       "filtro_coluna": "CO_UF",
       "filtro_valor": "52",
