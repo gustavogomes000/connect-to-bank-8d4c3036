@@ -371,13 +371,14 @@ def process_csv_member(zf, member, filter_go):
 
     # Precisa filtrar por UF/município
     uf_idx = find_uf_col(headers)
-    mun_idx = find_mun_col(headers) if uf_idx is None else None
+    mun_idx = find_mun_col(headers)
+    mun_name_idx = find_mun_name_col(headers)
 
     rows = []
     n_total = 0
     for row in reader:
         n_total += 1
-        if not is_go_row(headers, row, uf_idx, mun_idx):
+        if not is_target_row(headers, row, uf_idx, mun_idx, mun_name_idx):
             continue
         if len(row) < len(headers):
             row = list(row) + [""] * (len(headers) - len(row))
