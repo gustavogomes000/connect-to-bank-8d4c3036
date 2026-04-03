@@ -241,11 +241,13 @@ def decode(b):
     return b.decode("latin-1", errors="replace")
 
 # ═══════════════════════════════════════════════════════════
-#  FILTRO GO — inteligente
+#  FILTRO MUNICIPAL — Aparecida + Goiânia
 # ═══════════════════════════════════════════════════════════
-UF_COLS = ["sg_uf","sigla_uf","uf","cd_uf","cod_uf"]
-UF_BAD  = ["nasc","natural","origem","nascimento"]
-MUN_COLS = ["cd_municipio","cod_municipio","codigo_municipio","id_municipio","codmun","cdmun"]
+UF_COLS  = ["sg_uf","sigla_uf","uf","cd_uf","cod_uf"]
+UF_BAD   = ["nasc","natural","origem","nascimento"]
+MUN_COLS = ["cd_municipio","cod_municipio","codigo_municipio","id_municipio","codmun","cdmun",
+            "sg_ue","cd_municipio_nascimento"]
+MUN_NAME_COLS = ["nm_municipio","nm_ue","nome_municipio","municipio","ds_municipio"]
 
 def find_uf_col(headers):
     for name in UF_COLS:
@@ -259,16 +261,66 @@ def find_mun_col(headers):
         if name in headers: return headers.index(name)
     return None
 
-def is_go_row(headers, row, uf_idx, mun_idx):
-    """Retorna True se a linha pertence a Goiás"""
+def find_mun_name_col(headers):
+    for name in MUN_NAME_COLS:
+        if name in headers: return headers.index(name)
+    return None
+
+def normalize_mun_name(val):
+    """Normaliza nome de município para comparação"""
+    import unicodedata as ud
+    val = ud.normalize("NFKD", val.strip().upper()).encode("ascii","ignore").decode("ascii")
+    return val
+
+def is_target_row(headers, row, uf_idx, mun_idx, mun_name_idx):
+    """Retorna True se a linha pertence a Goiânia ou Aparecida de Goiânia"""
+    if not FILTRO_MUNICIPAL:
+        # Modo GO inteiro (fallback)
+        if uf_idx is not None:
+            val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
+            return val == "GO" or val == "52"
+        if mun_idx is not None:
+            val = re.sub(r"\D","", row[mun_idx] if mun_idx < len(row) else "")
+            return val.startswith("52")
+        return True
+
+    # === MODO MUNICIPAL: só Aparecida + Goiânia ===
+
+    # Primeiro: checar UF = GO (pré-filtro rápido)
     if uf_idx is not None:
-        val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
-        # Aceita "GO" ou código numérico 52
-        return val == "GO" or val == "52"
+        uf_val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
+        if uf_val not in ("GO", "52"):
+            return False
+
+    # Checar código do município
     if mun_idx is not None:
-        val = re.sub(r"\D","", row[mun_idx] if mun_idx < len(row) else "")
-        return val.startswith("52")
-    return True  # Sem coluna UF = arquivo já é de GO
+        val = (row[mun_idx] if mun_idx < len(row) else "").strip()
+        val_clean = re.sub(r"\D", "", val)
+        if val_clean in MUNICIPIOS_FOCO or val.upper() in MUNICIPIOS_FOCO:
+            return True
+
+    # Checar nome do município
+    if mun_name_idx is not None:
+        val = (row[mun_name_idx] if mun_name_idx < len(row) else "").strip()
+        val_norm = normalize_mun_name(val)
+        if val_norm in MUNICIPIOS_FOCO:
+            return True
+        # Checagem parcial para variações
+        if "GOIANIA" in val_norm and "APARECIDA" not in val_norm:
+            return True
+        if "APARECIDA DE GOIANIA" in val_norm:
+            return True
+
+    # Se não tem coluna de município mas tem UF=GO, em certos tipos de dados
+    # (perfil_eleitorado agregado por zona) não dá pra filtrar por município
+    # Nesses casos, aceitar GO inteiro (melhor ter dados a mais que perder)
+    if mun_idx is None and mun_name_idx is None:
+        if uf_idx is not None:
+            uf_val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
+            return uf_val in ("GO", "52")
+        return True  # Arquivo já é de GO
+
+    return False
 
 def pick_go_csv(zf, all_members):
     """
