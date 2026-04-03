@@ -503,15 +503,34 @@ def main():
         # Processar ZIP
         try:
             with zipfile.ZipFile(zip_path, "r") as zf:
-                members = [m for m in zf.infolist()
-                          if m.filename.lower().endswith((".csv", ".txt"))
-                          and not m.filename.startswith("__MACOSX")]
+                all_members = [m for m in zf.infolist()
+                              if m.filename.lower().endswith((".csv", ".txt"))
+                              and not m.filename.startswith("__MACOSX")]
 
-                if not members:
+                if not all_members:
                     log("WARN", f"Sem CSV/TXT no ZIP: {url_name}")
                     continue
 
-                log("INFO", f"{len(members)} arquivo(s) no ZIP")
+                # Se ZIP tem múltiplos CSVs (um por UF), pegar só _GO
+                if len(all_members) > 1:
+                    go_members = [m for m in all_members
+                                  if "_GO" in Path(m.filename).stem.upper()]
+                    if go_members:
+                        members = go_members
+                        log("INFO", f"{len(all_members)} arquivo(s) no ZIP → usando só {len(members)} de GO")
+                    else:
+                        # Sem _GO específico, tenta _BRASIL
+                        brasil_members = [m for m in all_members
+                                          if "_BRASIL" in Path(m.filename).stem.upper()]
+                        if brasil_members:
+                            members = brasil_members
+                            log("INFO", f"{len(all_members)} arquivo(s) no ZIP → usando só BRASIL (sem _GO)")
+                        else:
+                            members = all_members
+                            log("INFO", f"{len(all_members)} arquivo(s) no ZIP (sem _GO/_BRASIL, processando todos)")
+                else:
+                    members = all_members
+                    log("INFO", f"1 arquivo no ZIP")
 
                 for member in members:
                     arquivo = Path(member.filename).name
