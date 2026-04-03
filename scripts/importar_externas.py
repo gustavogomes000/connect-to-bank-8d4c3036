@@ -386,7 +386,9 @@ def process_api_json_simple(sess, url, item):
                 records = data
             elif isinstance(data, dict):
                 records = None
-                for k in ["data", "dados", "results", "items", "registros", "content"]:
+                # DataSUS e outros: procura a chave que contém a lista
+                for k in ["estabelecimentos", "leitos", "profissionais", 
+                          "data", "dados", "results", "items", "registros", "content"]:
                     if k in data and isinstance(data[k], list):
                         records = data[k]; break
                 if records is None:
