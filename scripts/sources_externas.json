@@ -1,0 +1,131 @@
+{
+  "versao": "1.0",
+  "descricao": "Fontes externas (não-TSE) para importação BigQuery - Goiás / Goiânia / Aparecida",
+  "filtro_uf": "GO",
+  "municipios_foco": ["5208707", "5201405"],
+  "municipios_nomes": {"5208707": "Goiânia", "5201405": "Aparecida de Goiânia"},
+  "items": [
+    {
+      "fonte": "ibge", "tipo": "populacao", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/-6/variaveis/9324?localidades=N6[N3[52]]",
+      "tabela_bq": "raw_ibge_populacao_go",
+      "descricao": "População estimada por município de GO (últimos 6 períodos)",
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "pib",  "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/5938/periodos/-6/variaveis/37|38|513|517|525|1000525?localidades=N6[N3[52]]",
+      "tabela_bq": "raw_ibge_pib_go",
+      "descricao": "PIB municipal GO (valor adicionado, impostos, PIB, PIB per capita)",
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "censo_populacao", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4714/periodos/2022/variaveis/93|10058?localidades=N6[N3[52]]&classificacao=2[6794,6795]|287[100362,100363,100364,100365,100366,100367]",
+      "tabela_bq": "raw_ibge_censo_pop_go",
+      "descricao": "Censo 2022 - população por sexo e faixa etária, municípios GO",
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "censo_educacao", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6[N3[52]]&classificacao=2[6794,6795]|86[2776,2777,2778,2779,2780,2781,2782,2783,2784]",
+      "tabela_bq": "raw_ibge_censo_educacao_go",
+      "descricao": "Censo 2022 - nível de instrução por sexo, municípios GO",
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "censo_renda", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4803/periodos/2022/variaveis/93|5945?localidades=N6[N3[52]]&classificacao=2[6794,6795]",
+      "tabela_bq": "raw_ibge_censo_renda_go",
+      "descricao": "Censo 2022 - rendimento domiciliar per capita por sexo, municípios GO",
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "censo_setor", "formato": "download_zip",
+      "url": "https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/GO_20241025.zip",
+      "tabela_bq": "raw_ibge_censo_setor_go",
+      "descricao": "Censo 2022 - agregados por setor censitário GO (renda, domicílios, população)",
+      "prioridade": 2
+    },
+    {
+      "fonte": "inep", "tipo": "escolas", "formato": "download_zip",
+      "url": "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip",
+      "tabela_bq": "raw_inep_escolas_go",
+      "descricao": "Censo Escolar 2024 - escolas GO (infraestrutura, tipo, localização)",
+      "csv_pattern": "ESCOLAS",
+      "filtro_coluna": "CO_UF",
+      "filtro_valor": "52",
+      "prioridade": 1
+    },
+    {
+      "fonte": "datasus", "tipo": "estabelecimentos_saude", "formato": "api_json",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos?codigo_uf=52&status=1&limit=10000",
+      "tabela_bq": "raw_datasus_estabelecimentos_go",
+      "descricao": "CNES - estabelecimentos de saúde ativos em GO (UBS, hospitais, clínicas)",
+      "prioridade": 1
+    },
+    {
+      "fonte": "datasus", "tipo": "leitos", "formato": "api_json",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/leitos?codigo_uf=52&limit=10000",
+      "tabela_bq": "raw_datasus_leitos_go",
+      "descricao": "CNES - leitos hospitalares por estabelecimento em GO",
+      "prioridade": 2
+    },
+    {
+      "fonte": "datasus", "tipo": "profissionais_saude", "formato": "api_json",
+      "url": "https://apidadosabertos.saude.gov.br/cnes/profissionais?codigo_uf=52&limit=10000",
+      "tabela_bq": "raw_datasus_profissionais_go",
+      "descricao": "CNES - profissionais de saúde por estabelecimento em GO",
+      "prioridade": 2
+    },
+    {
+      "fonte": "transparencia_goiania", "tipo": "servidores", "formato": "download_csv",
+      "url": "https://www.goiania.go.gov.br/Download/transparencia/remuneracao/remuneracao.csv",
+      "tabela_bq": "raw_transp_goiania_servidores",
+      "descricao": "Portal Transparência Goiânia - remuneração de servidores",
+      "prioridade": 2
+    },
+    {
+      "fonte": "transparencia_goiania", "tipo": "despesas", "formato": "api_json",
+      "url": "https://ws.goiania.go.gov.br/apiTransparencia/despesas/empenhos?exercicio=2024&pagina=1&tamanhoPagina=1000",
+      "tabela_bq": "raw_transp_goiania_despesas",
+      "descricao": "Portal Transparência Goiânia - despesas empenhadas",
+      "paginado": true,
+      "param_pagina": "pagina",
+      "param_tamanho": "tamanhoPagina",
+      "exercicios": [2021, 2022, 2023, 2024],
+      "prioridade": 2
+    },
+    {
+      "fonte": "transparencia_aparecida", "tipo": "servidores", "formato": "download_csv",
+      "url": "https://transparencia.aparecida.go.gov.br/api/v1/servidores/download?formato=csv",
+      "tabela_bq": "raw_transp_aparecida_servidores",
+      "descricao": "Portal Transparência Aparecida - servidores e remuneração",
+      "prioridade": 2
+    },
+    {
+      "fonte": "transparencia_aparecida", "tipo": "despesas", "formato": "api_json",
+      "url": "https://transparencia.aparecida.go.gov.br/api/v1/despesas?exercicio=2024&pagina=1",
+      "tabela_bq": "raw_transp_aparecida_despesas",
+      "descricao": "Portal Transparência Aparecida - despesas empenhadas",
+      "paginado": true,
+      "param_pagina": "pagina",
+      "exercicios": [2021, 2022, 2023, 2024],
+      "prioridade": 2
+    },
+    {
+      "fonte": "ibge", "tipo": "malha_setores", "formato": "download_geojson",
+      "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5208707?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
+      "tabela_bq": "raw_ibge_malha_setores_goiania",
+      "descricao": "Malha de setores censitários de Goiânia (GeoJSON)",
+      "prioridade": 2
+    },
+    {
+      "fonte": "ibge", "tipo": "malha_setores", "formato": "download_geojson",
+      "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5201405?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
+      "tabela_bq": "raw_ibge_malha_setores_aparecida",
+      "descricao": "Malha de setores censitários de Aparecida (GeoJSON)",
+      "prioridade": 2
+    }
+  ]
+}
