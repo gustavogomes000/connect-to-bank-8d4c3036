@@ -535,6 +535,73 @@ def process_download_zip(sess, url, item):
 
     return all_headers or [], all_rows
 
+def process_api_json_paginado_offset(sess, url, item):
+    """Processa API JSON com paginação por offset (DataSUS).
+    A API retorna no máximo 20 registros por página.
+    """
+    chave_lista = item.get("chave_lista", "")
+    log_api(f"{item.get('fonte')}/{item.get('tipo')} (paginado offset, chave={chave_lista})")
+
+    all_records = []
+    page_size = 20  # DataSUS limit
+    offset = 0
+
+    while True:
+        sep = "&" if "?" in url else "?"
+        current_url = f"{url}{sep}offset={offset}&limit={page_size}"
+
+        try:
+            resp = sess.get(current_url, timeout=120)
+            if resp.status_code == 404:
+                break
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            log_err(f"  Erro offset={offset}: {e}")
+            break
+
+        # Extrair registros da chave específica
+        if isinstance(data, dict) and chave_lista and chave_lista in data:
+            records = data[chave_lista]
+        elif isinstance(data, list):
+            records = data
+        elif isinstance(data, dict):
+            records = None
+            for k in ["estabelecimentos", "leitos", "profissionais", "data", "dados"]:
+                if k in data and isinstance(data[k], list):
+                    records = data[k]; break
+            if records is None:
+                break
+        else:
+            break
+
+        if not records:
+            break
+
+        # Flatten
+        for rec in records:
+            flat = {}
+            for k, v in rec.items():
+                if isinstance(v, dict):
+                    for k2, v2 in v.items():
+                        flat[f"{k}_{k2}"] = str(v2) if v2 is not None else None
+                elif isinstance(v, list):
+                    flat[k] = json.dumps(v, ensure_ascii=False)
+                else:
+                    flat[k] = str(v) if v is not None else None
+            all_records.append(flat)
+
+        if len(all_records) % 500 < page_size:
+            log_info(f"  ... {len(all_records):,} registros (offset={offset})")
+
+        offset += page_size
+
+        if len(records) < page_size:
+            break  # Última página
+
+    log_info(f"  Total: {len(all_records):,} registros")
+    return all_records
+
 def process_geojson(sess, url, item):
     """Baixa GeoJSON e converte features para records"""
     log_api(f"GeoJSON: {item.get('tipo')}")
