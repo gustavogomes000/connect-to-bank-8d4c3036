@@ -61,24 +61,13 @@ def is_municipio_foco_nome(nome: str) -> bool:
 
 def filtrar_records_municipio(records: List[Dict], item: dict) -> List[Dict]:
     """Filtra registros para conter apenas Goiânia e Aparecida.
-    
-    Estratégia por fonte:
-    - IBGE agregados: filtra por localidade_id
-    - DataSUS: filtra por codigo_municipio_ibge ou nome
-    - Transparência: já são APIs específicas por município, não filtra
-    - INEP: filtra por co_municipio (código IBGE)
-    - Malhas GeoJSON: já são específicas por município, não filtra
+    Se skip_filtro_municipal=true no item, retorna sem filtrar.
     """
+    if item.get("skip_filtro_municipal", False):
+        return records
+    
     fonte = item.get("fonte", "")
     tipo = item.get("tipo", "")
-    
-    # Transparência Goiânia/Aparecida: já são API específica do município
-    if fonte.startswith("transparencia_"):
-        return records
-    
-    # Malhas específicas por município (URL já tem código IBGE)
-    if tipo == "malha_setores":
-        return records
     
     # IBGE agregados: filtrar por localidade_id
     if fonte == "ibge":
@@ -122,10 +111,8 @@ def filtrar_records_municipio(records: List[Dict], item: dict) -> List[Dict]:
 
 def filtrar_csv_municipio(headers: List[str], rows: List[list], item: dict):
     """Filtra CSV rows para conter apenas Goiânia e Aparecida"""
-    fonte = item.get("fonte", "")
-    
-    if fonte.startswith("transparencia_"):
-        return headers, rows  # Já específico
+    if item.get("skip_filtro_municipal", False):
+        return headers, rows
     
     # Procurar coluna de município
     mun_cols = ["co_municipio", "codigo_municipio", "cd_municipio", "codmun", "cod_municipio"]
@@ -399,7 +386,9 @@ def process_api_json_simple(sess, url, item):
                 records = data
             elif isinstance(data, dict):
                 records = None
-                for k in ["data", "dados", "results", "items", "registros", "content"]:
+                # DataSUS e outros: procura a chave que contém a lista
+                for k in ["estabelecimentos", "leitos", "profissionais", 
+                          "data", "dados", "results", "items", "registros", "content"]:
                     if k in data and isinstance(data[k], list):
                         records = data[k]; break
                 if records is None:
