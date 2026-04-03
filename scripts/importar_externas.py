@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  IMPORTADOR FONTES EXTERNAS → BigQuery  v1.0  (Goiás)           ║
+║  IMPORTADOR FONTES EXTERNAS → BigQuery  v2.0  (Goiânia+Aparecida)║
 ║  IBGE, INEP, DataSUS, Portais Transparência                     ║
+║  FILTRO MUNICIPAL: somente Goiânia (5208707) e Aparecida (5201405)║
 ╚══════════════════════════════════════════════════════════════════╝
 
 Comandos:
@@ -33,7 +34,7 @@ PROJECT    = "silver-idea-389314"
 DATASET    = "eleicoes_go_clean"
 FULL_DS    = f"{PROJECT}.{DATASET}"
 LOCATION   = "US"
-VERSION    = "externas-bq-v1.0"
+VERSION    = "externas-bq-v2.0"
 CONFIG     = "sources_externas.json"
 
 CACHE_DIR  = Path(".cache_externas")
@@ -41,7 +42,124 @@ STATE_DIR  = Path(".state")
 LOG_DIR    = Path(".logs")
 
 # ═══════════════════════════════════════════════════════════
-#  CONSOLE (mesma interface do importar_bigquery.py)
+#  FILTRO MUNICIPAL — SOMENTE Goiânia + Aparecida de Goiânia
+# ═══════════════════════════════════════════════════════════
+MUNICIPIOS_IBGE = {"5208707", "5201405"}
+MUNICIPIOS_NOMES = {
+    "GOIANIA", "GOIÂNIA",
+    "APARECIDA DE GOIANIA", "APARECIDA DE GOIÂNIA",
+}
+
+def is_municipio_foco_ibge(loc_id: str) -> bool:
+    """Checa se localidade IBGE é um dos municípios foco"""
+    return str(loc_id).strip() in MUNICIPIOS_IBGE
+
+def is_municipio_foco_nome(nome: str) -> bool:
+    """Checa se nome de município é um dos focos"""
+    n = unicodedata.normalize("NFKD", nome.strip().upper()).encode("ascii", "ignore").decode("ascii")
+    return n in {"GOIANIA", "APARECIDA DE GOIANIA"}
+
+def filtrar_records_municipio(records: List[Dict], item: dict) -> List[Dict]:
+    """Filtra registros para conter apenas Goiânia e Aparecida.
+    
+    Estratégia por fonte:
+    - IBGE agregados: filtra por localidade_id
+    - DataSUS: filtra por codigo_municipio_ibge ou nome
+    - Transparência: já são APIs específicas por município, não filtra
+    - INEP: filtra por co_municipio (código IBGE)
+    - Malhas GeoJSON: já são específicas por município, não filtra
+    """
+    fonte = item.get("fonte", "")
+    tipo = item.get("tipo", "")
+    
+    # Transparência Goiânia/Aparecida: já são API específica do município
+    if fonte.startswith("transparencia_"):
+        return records
+    
+    # Malhas específicas por município (URL já tem código IBGE)
+    if tipo == "malha_setores":
+        return records
+    
+    # IBGE agregados: filtrar por localidade_id
+    if fonte == "ibge":
+        filtered = [r for r in records if is_municipio_foco_ibge(r.get("localidade_id", ""))]
+        log_info(f"  Filtro municipal IBGE: {len(filtered):,} de {len(records):,} registros")
+        return filtered
+    
+    # DataSUS: filtrar por codigo_municipio ou município no nome
+    if fonte == "datasus":
+        filtered = []
+        for r in records:
+            # Tentar código IBGE do município
+            cod_mun = str(r.get("codigo_municipio_ibge", r.get("codigo_ibge", r.get("co_municipio", "")))).strip()
+            if cod_mun in MUNICIPIOS_IBGE:
+                filtered.append(r)
+                continue
+            # Tentar código com 7 dígitos em qualquer campo que contenha "municipio"
+            found = False
+            for k, v in r.items():
+                if "municipio" in k.lower() or "cidade" in k.lower():
+                    vs = str(v or "").strip()
+                    if vs in MUNICIPIOS_IBGE or is_municipio_foco_nome(vs):
+                        found = True; break
+            if found:
+                filtered.append(r)
+        log_info(f"  Filtro municipal DataSUS: {len(filtered):,} de {len(records):,} registros")
+        return filtered
+    
+    # INEP: filtrar por co_municipio
+    if fonte == "inep":
+        # Já filtrado por UF no ZIP, agora filtra por município
+        filtered = []
+        for r in records:
+            cod = str(r.get("co_municipio", "")).strip()
+            if cod in MUNICIPIOS_IBGE:
+                filtered.append(r)
+        log_info(f"  Filtro municipal INEP: {len(filtered):,} de {len(records):,} registros")
+        return filtered
+    
+    return records
+
+def filtrar_csv_municipio(headers: List[str], rows: List[list], item: dict):
+    """Filtra CSV rows para conter apenas Goiânia e Aparecida"""
+    fonte = item.get("fonte", "")
+    
+    if fonte.startswith("transparencia_"):
+        return headers, rows  # Já específico
+    
+    # Procurar coluna de município
+    mun_cols = ["co_municipio", "codigo_municipio", "cd_municipio", "codmun", "cod_municipio"]
+    mun_name_cols = ["nm_municipio", "municipio", "nome_municipio", "no_municipio"]
+    
+    mun_idx = None
+    mun_name_idx = None
+    
+    for i, h in enumerate(headers):
+        h_low = h.lower()
+        if h_low in mun_cols and mun_idx is None:
+            mun_idx = i
+        if h_low in mun_name_cols and mun_name_idx is None:
+            mun_name_idx = i
+    
+    if mun_idx is None and mun_name_idx is None:
+        log_info(f"  ⚠ Sem coluna de município para filtrar — mantendo {len(rows):,} linhas")
+        return headers, rows
+    
+    filtered = []
+    for row in rows:
+        if mun_idx is not None and mun_idx < len(row):
+            val = re.sub(r"\D", "", row[mun_idx].strip())
+            if val in MUNICIPIOS_IBGE:
+                filtered.append(row); continue
+        if mun_name_idx is not None and mun_name_idx < len(row):
+            if is_municipio_foco_nome(row[mun_name_idx]):
+                filtered.append(row); continue
+    
+    log_info(f"  Filtro municipal CSV: {len(filtered):,} de {len(rows):,} linhas")
+    return headers, filtered
+
+# ═══════════════════════════════════════════════════════════
+#  CONSOLE
 # ═══════════════════════════════════════════════════════════
 class C:
     RST="\033[0m"; B="\033[1m"; R="\033[91m"; G="\033[92m"
@@ -195,7 +313,10 @@ def norm_key(s):
     return re.sub(r"_+", "_", s) or "col"
 
 def process_ibge_agregados(sess, url, item):
-    """Processa API de agregados do IBGE → lista de dicts flat"""
+    """Processa API de agregados do IBGE → lista de dicts flat
+    NOTA: A API já retorna filtrado por N6[N3[52]] (GO), mas filtramos
+    após para manter apenas Goiânia e Aparecida.
+    """
     log_api(f"IBGE Agregados: {item.get('tipo')}")
     resp = sess.get(url, timeout=120)
     resp.raise_for_status()
@@ -207,18 +328,12 @@ def process_ibge_agregados(sess, url, item):
         variavel_nome = variavel_obj.get("variavel", "")
         unidade = variavel_obj.get("unidade", "")
 
-        # Classificações
         classifs = variavel_obj.get("classificacoes", [])
-
         resultados = variavel_obj.get("resultados", [])
         for resultado in resultados:
-            # Classificações deste resultado
             classif_info = {}
             for cl in resultado.get("classificacoes", classifs):
                 cl_nome = norm_key(cl.get("nome", ""))
-                for cat in cl.get("categoria", {}).values() if isinstance(cl.get("categoria"), dict) else []:
-                    classif_info[cl_nome] = cat
-                # Se categoria é dict {id: nome}
                 if isinstance(cl.get("categoria"), dict):
                     for cat_id, cat_nome in cl["categoria"].items():
                         classif_info[f"{cl_nome}_id"] = cat_id
@@ -245,7 +360,7 @@ def process_ibge_agregados(sess, url, item):
                     rec.update(classif_info)
                     records.append(rec)
 
-    log_info(f"  {len(records):,} registros extraídos")
+    log_info(f"  {len(records):,} registros brutos da API IBGE")
     return records
 
 def process_api_json_simple(sess, url, item):
@@ -259,7 +374,6 @@ def process_api_json_simple(sess, url, item):
     for exercicio in exercicios:
         page = 1
         while True:
-            # Montar URL com parâmetros
             current_url = url
             if exercicio:
                 current_url = re.sub(r'exercicio=\d+', f'exercicio={exercicio}', current_url)
@@ -281,16 +395,13 @@ def process_api_json_simple(sess, url, item):
                 log_err(f"  Erro: {e}")
                 break
 
-            # Extrair registros
             if isinstance(data, list):
                 records = data
             elif isinstance(data, dict):
-                # Procura a chave que contém a lista
                 records = None
                 for k in ["data", "dados", "results", "items", "registros", "content"]:
                     if k in data and isinstance(data[k], list):
-                        records = data[k]
-                        break
+                        records = data[k]; break
                 if records is None:
                     records = [data]
             else:
@@ -299,11 +410,9 @@ def process_api_json_simple(sess, url, item):
             if not records:
                 break
 
-            # Adicionar metadados
             for rec in records:
                 if exercicio:
                     rec["_exercicio"] = str(exercicio)
-                # Flatten nested dicts (1 nível)
                 flat = {}
                 for k, v in rec.items():
                     if isinstance(v, dict):
@@ -321,7 +430,7 @@ def process_api_json_simple(sess, url, item):
                 break
             page += 1
 
-    log_info(f"  Total: {len(all_records):,} registros")
+    log_info(f"  Total bruto: {len(all_records):,} registros")
     return all_records
 
 def process_download_csv(sess, url, item):
@@ -341,12 +450,10 @@ def process_download_csv(sess, url, item):
     else:
         log_skip(f"  Cache: {dest.name}")
 
-    # Ler CSV
     text = dest.read_bytes()
     for enc in ("utf-8-sig", "utf-8", "latin-1"):
         try:
-            text_dec = text.decode(enc)
-            break
+            text_dec = text.decode(enc); break
         except:
             text_dec = text.decode("latin-1", errors="replace")
 
@@ -363,7 +470,7 @@ def process_download_csv(sess, url, item):
     return headers, rows
 
 def process_download_zip(sess, url, item):
-    """Baixa ZIP, extrai CSV e retorna (headers, rows) filtrado"""
+    """Baixa ZIP, extrai CSV e retorna (headers, rows) filtrado por UF"""
     log_dl(f"Download ZIP: {item.get('tipo')}")
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     fname = Path(url.split("?")[0]).name or "download.zip"
@@ -379,7 +486,6 @@ def process_download_zip(sess, url, item):
     else:
         log_skip(f"  Cache: {dest.name}")
 
-    # Extrair CSVs
     csv_pattern = item.get("csv_pattern", "")
     filtro_col = item.get("filtro_coluna", "")
     filtro_val = item.get("filtro_valor", "")
@@ -414,7 +520,6 @@ def process_download_zip(sess, url, item):
             if all_headers is None:
                 all_headers = headers
 
-            # Encontrar coluna de filtro
             filtro_idx = None
             if filtro_col:
                 filtro_col_norm = norm_key(filtro_col)
@@ -457,7 +562,6 @@ def process_geojson(sess, url, item):
         for k, v in props.items():
             rec[norm_key(k)] = str(v) if v is not None else None
         rec["geometry_type"] = geom.get("type", "")
-        # Salvar coordenadas como JSON string (BigQuery pode processar depois)
         coords = geom.get("coordinates")
         if coords:
             rec["coordinates"] = json.dumps(coords)
@@ -472,6 +576,8 @@ def process_geojson(sess, url, item):
 def process_item(sess, item):
     """Processa um item e retorna (tipo_resultado, dados)
     tipo_resultado: 'records' → lista de dicts, 'csv' → (headers, rows)
+    
+    TODOS os resultados passam pelo filtro municipal (Goiânia + Aparecida).
     """
     fmt = item.get("formato", "")
     url = item.get("url", "")
@@ -482,18 +588,25 @@ def process_item(sess, item):
             records = process_ibge_agregados(sess, url, item)
         else:
             records = process_api_json_simple(sess, url, item)
+        # >>> FILTRO MUNICIPAL para records <<<
+        records = filtrar_records_municipio(records, item)
         return "records", records
 
     elif fmt == "download_csv":
         headers, rows = process_download_csv(sess, url, item)
+        # >>> FILTRO MUNICIPAL para CSV <<<
+        headers, rows = filtrar_csv_municipio(headers, rows, item)
         return "csv", (headers, rows)
 
     elif fmt == "download_zip":
         headers, rows = process_download_zip(sess, url, item)
+        # >>> FILTRO MUNICIPAL para CSV do ZIP <<<
+        headers, rows = filtrar_csv_municipio(headers, rows, item)
         return "csv", (headers, rows)
 
     elif fmt == "download_geojson":
         records = process_geojson(sess, url, item)
+        # GeoJSON de malha já é específico por município (URL tem código IBGE)
         return "records", records
 
     else:
@@ -506,6 +619,7 @@ def process_item(sess, item):
 def cmd_dry_run(args):
     sources = [s for s in load_sources(args.fonte) if s.get("prioridade",1) <= args.prioridade]
     banner(f"DRY RUN — {len(sources)} fontes externas (prioridade ≤ {args.prioridade})")
+    print(f"  {C.Y}⚠ FILTRO MUNICIPAL ATIVO: somente Goiânia (5208707) e Aparecida (5201405){C.RST}\n")
     for i, s in enumerate(sources, 1):
         print(f"  {C.CY}{i:3d}.{C.RST} [{s['fonte']}] {s['tipo']} → {s['tabela_bq']}")
         print(f"       {C.GR}{s.get('descricao','')}{C.RST}")
@@ -537,6 +651,7 @@ def cmd_status(args):
 
 def cmd_importar(args):
     banner(f"IMPORTADOR FONTES EXTERNAS → BigQuery  {VERSION}")
+    print(f"  {C.Y}{C.B}FILTRO MUNICIPAL: somente Goiânia + Aparecida de Goiânia{C.RST}\n")
 
     sources = [s for s in load_sources(args.fonte) if s.get("prioridade",1) <= args.prioridade]
     if not sources:
@@ -548,7 +663,7 @@ def cmd_importar(args):
     ok_keys = load_ok_keys() if args.resume else set()
     run_id = utcnow().strftime("%Y%m%d_%H%M%S")
     sess = requests.Session()
-    sess.headers.update({"User-Agent": "EleicoesGO-Importador/1.0"})
+    sess.headers.update({"User-Agent": "EleicoesGO-Importador/2.0"})
 
     log_info(f"{len(sources)} fontes | Prioridade ≤ {args.prioridade}" +
              (f" | Fonte: {args.fonte}" if args.fonte else ""))
@@ -585,21 +700,21 @@ def cmd_importar(args):
 
             if tipo_resultado == "records":
                 if not dados:
-                    log_err(f"0 registros obtidos")
+                    log_err(f"0 registros após filtro municipal")
                     n_err += 1
-                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 registros"})
+                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 registros após filtro"})
                     continue
-                log_load(f"{tabela} ({len(dados):,} registros)")
+                log_load(f"{tabela} ({len(dados):,} registros — filtrado)")
                 loaded = load_json_to_bq(bq, tabela, dados)
 
             elif tipo_resultado == "csv":
                 headers, rows = dados
                 if not rows:
-                    log_err(f"0 linhas")
+                    log_err(f"0 linhas após filtro municipal")
                     n_err += 1
-                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 linhas"})
+                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 linhas após filtro"})
                     continue
-                log_load(f"{tabela} ({len(rows):,} linhas)")
+                log_load(f"{tabela} ({len(rows):,} linhas — filtrado)")
                 loaded = load_rows_to_bq(bq, tabela, headers, rows)
 
             dur = time.time() - t0
@@ -618,11 +733,12 @@ def cmd_importar(args):
     # ═══════════════════════════════════════════════════════
     #  RELATÓRIO FINAL
     # ═══════════════════════════════════════════════════════
-    banner("RELATÓRIO FINAL — FONTES EXTERNAS")
+    banner("RELATÓRIO FINAL — FONTES EXTERNAS (Goiânia + Aparecida)")
     box("Resumo", [
         f"Versão:      {VERSION}",
         f"Run:         {run_id}",
         f"Duração:     {fmt_dur(time.time() - t_start)}",
+        f"Filtro:      Goiânia (5208707) + Aparecida (5201405)",
         f"",
         f"✓ Sucesso:   {n_ok}",
         f"⊘ Pulados:   {n_skip}",
@@ -641,9 +757,8 @@ def cmd_importar(args):
             print(f"  {color}{icon} {s:<8}{C.RST} {r['tabela']:<45} {r['linhas']:>10,}")
         print(f"  {'─'*70}")
 
-    # Salvar relatório
     report = {"versao": VERSION, "run_id": run_id, "ok": n_ok, "erros": n_err,
-              "skip": n_skip, "linhas": total_rows, "resultados": results}
+              "skip": n_skip, "linhas": total_rows, "filtro": "goiania+aparecida", "resultados": results}
     rp = STATE_DIR / f"report_externas_{run_id}.json"
     rp.write_text(json.dumps(report, ensure_ascii=False, indent=2), "utf-8")
 
@@ -654,7 +769,7 @@ def cmd_importar(args):
 #  CLI
 # ═══════════════════════════════════════════════════════════
 def main():
-    ap = argparse.ArgumentParser(description=f"Importador Fontes Externas → BigQuery (GO) {VERSION}")
+    ap = argparse.ArgumentParser(description=f"Importador Fontes Externas → BigQuery (Goiânia+Aparecida) {VERSION}")
     sub = ap.add_subparsers(dest="comando")
 
     p_imp = sub.add_parser("importar", help="Importar fontes externas → BigQuery")
@@ -675,6 +790,7 @@ def main():
     elif args.comando == "status": cmd_status(args)
     else:
         ap.print_help()
+        print(f"\n  {C.Y}FILTRO MUNICIPAL: somente Goiânia (5208707) + Aparecida (5201405){C.RST}")
         print(f"\n  Exemplos:")
         print(f"    python importar_externas.py dry-run")
         print(f"    python importar_externas.py dry-run --fonte ibge")
