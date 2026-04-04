@@ -592,7 +592,9 @@ def process_zip_csv(sess, item):
                              f"Mun: {headers[mun_i] if mun_i is not None else '-'} | "
                              f"MunNm: {headers[mun_n] if mun_n is not None else '-'}")
 
-                writer.writerow(row)
+                # Sanitiza: remove newlines internos e caracteres nulos
+                sanitized = [v.replace("\n"," ").replace("\r"," ").replace("\x00","") if isinstance(v, str) else v for v in row]
+                writer.writerow(sanitized)
                 n_rows += 1
                 member_rows += 1
 
