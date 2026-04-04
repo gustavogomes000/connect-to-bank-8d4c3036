@@ -268,11 +268,11 @@ def decode(b):
 # ═══════════════════════════════════════════════════════════
 #  FILTRO MUNICIPAL — Aparecida + Goiânia
 # ═══════════════════════════════════════════════════════════
-UF_COLS  = ["sg_uf","sigla_uf","uf","cd_uf","cod_uf","sg_uf_voto","sg_uf_cnpj","sg_ue"]
+UF_COLS  = ["sg_uf","sigla_uf","uf","cd_uf","cod_uf","sg_uf_voto","sg_uf_cnpj"]
 UF_BAD   = ["nasc","natural","origem","nascimento"]
 MUN_COLS = ["cd_municipio","cod_municipio","codigo_municipio","id_municipio","codmun","cdmun",
-            "sg_ue","cd_municipio_nascimento"]
-MUN_NAME_COLS = ["nm_municipio","nm_ue","nome_municipio","municipio","ds_municipio"]
+            "sg_ue","cd_municipio_nascimento","cd_mun"]
+MUN_NAME_COLS = ["nm_municipio","nm_ue","nome_municipio","municipio","ds_municipio","nm_mun"]
 
 def find_uf_col(headers):
     for name in UF_COLS:
