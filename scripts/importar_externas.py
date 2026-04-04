@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  IMPORTADOR FONTES EXTERNAS → BigQuery  v2.0  (Goiânia+Aparecida)║
+║  IMPORTADOR FONTES EXTERNAS → BigQuery  v4.0  — VERSÃO FINAL    ║
 ║  IBGE, INEP, DataSUS, Portais Transparência                     ║
-║  FILTRO MUNICIPAL: somente Goiânia (5208707) e Aparecida (5201405)║
+║  FILTRO: somente Goiânia (5208707) e Aparecida (5201405)         ║
+║  RETRY automático com backoff exponencial em TODAS as fontes     ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 Comandos:
@@ -34,7 +35,7 @@ PROJECT    = "silver-idea-389314"
 DATASET    = "eleicoes_go_clean"
 FULL_DS    = f"{PROJECT}.{DATASET}"
 LOCATION   = "US"
-VERSION    = "externas-bq-v2.0"
+VERSION    = "externas-bq-v4.0"
 CONFIG     = "sources_externas.json"
 
 CACHE_DIR  = Path(".cache_externas")
@@ -42,49 +43,35 @@ STATE_DIR  = Path(".state")
 LOG_DIR    = Path(".logs")
 
 # ═══════════════════════════════════════════════════════════
-#  FILTRO MUNICIPAL — SOMENTE Goiânia + Aparecida de Goiânia
+#  FILTRO MUNICIPAL
 # ═══════════════════════════════════════════════════════════
 MUNICIPIOS_IBGE = {"5208707", "5201405"}
-MUNICIPIOS_NOMES = {
-    "GOIANIA", "GOIÂNIA",
-    "APARECIDA DE GOIANIA", "APARECIDA DE GOIÂNIA",
-}
+MUNICIPIOS_NOMES = {"GOIANIA", "GOIÂNIA", "APARECIDA DE GOIANIA", "APARECIDA DE GOIÂNIA"}
 
 def is_municipio_foco_ibge(loc_id: str) -> bool:
-    """Checa se localidade IBGE é um dos municípios foco"""
     return str(loc_id).strip() in MUNICIPIOS_IBGE
 
 def is_municipio_foco_nome(nome: str) -> bool:
-    """Checa se nome de município é um dos focos"""
     n = unicodedata.normalize("NFKD", nome.strip().upper()).encode("ascii", "ignore").decode("ascii")
     return n in {"GOIANIA", "APARECIDA DE GOIANIA"}
 
 def filtrar_records_municipio(records: List[Dict], item: dict) -> List[Dict]:
-    """Filtra registros para conter apenas Goiânia e Aparecida.
-    Se skip_filtro_municipal=true no item, retorna sem filtrar.
-    """
     if item.get("skip_filtro_municipal", False):
         return records
-    
+
     fonte = item.get("fonte", "")
-    tipo = item.get("tipo", "")
-    
-    # IBGE agregados: filtrar por localidade_id
+
     if fonte == "ibge":
         filtered = [r for r in records if is_municipio_foco_ibge(r.get("localidade_id", ""))]
         log_info(f"  Filtro municipal IBGE: {len(filtered):,} de {len(records):,} registros")
         return filtered
-    
-    # DataSUS: filtrar por codigo_municipio ou município no nome
+
     if fonte == "datasus":
         filtered = []
         for r in records:
-            # Tentar código IBGE do município
             cod_mun = str(r.get("codigo_municipio_ibge", r.get("codigo_ibge", r.get("co_municipio", "")))).strip()
             if cod_mun in MUNICIPIOS_IBGE:
-                filtered.append(r)
-                continue
-            # Tentar código com 7 dígitos em qualquer campo que contenha "municipio"
+                filtered.append(r); continue
             found = False
             for k, v in r.items():
                 if "municipio" in k.lower() or "cidade" in k.lower():
@@ -95,43 +82,31 @@ def filtrar_records_municipio(records: List[Dict], item: dict) -> List[Dict]:
                 filtered.append(r)
         log_info(f"  Filtro municipal DataSUS: {len(filtered):,} de {len(records):,} registros")
         return filtered
-    
-    # INEP: filtrar por co_municipio
+
     if fonte == "inep":
-        # Já filtrado por UF no ZIP, agora filtra por município
-        filtered = []
-        for r in records:
-            cod = str(r.get("co_municipio", "")).strip()
-            if cod in MUNICIPIOS_IBGE:
-                filtered.append(r)
+        filtered = [r for r in records if str(r.get("co_municipio", "")).strip() in MUNICIPIOS_IBGE]
         log_info(f"  Filtro municipal INEP: {len(filtered):,} de {len(records):,} registros")
         return filtered
-    
+
     return records
 
 def filtrar_csv_municipio(headers: List[str], rows: List[list], item: dict):
-    """Filtra CSV rows para conter apenas Goiânia e Aparecida"""
     if item.get("skip_filtro_municipal", False):
         return headers, rows
-    
-    # Procurar coluna de município
+
     mun_cols = ["co_municipio", "codigo_municipio", "cd_municipio", "codmun", "cod_municipio"]
     mun_name_cols = ["nm_municipio", "municipio", "nome_municipio", "no_municipio"]
-    
-    mun_idx = None
-    mun_name_idx = None
-    
+
+    mun_idx = mun_name_idx = None
     for i, h in enumerate(headers):
         h_low = h.lower()
-        if h_low in mun_cols and mun_idx is None:
-            mun_idx = i
-        if h_low in mun_name_cols and mun_name_idx is None:
-            mun_name_idx = i
-    
+        if h_low in mun_cols and mun_idx is None: mun_idx = i
+        if h_low in mun_name_cols and mun_name_idx is None: mun_name_idx = i
+
     if mun_idx is None and mun_name_idx is None:
         log_info(f"  ⚠ Sem coluna de município para filtrar — mantendo {len(rows):,} linhas")
         return headers, rows
-    
+
     filtered = []
     for row in rows:
         if mun_idx is not None and mun_idx < len(row):
@@ -141,7 +116,7 @@ def filtrar_csv_municipio(headers: List[str], rows: List[list], item: dict):
         if mun_name_idx is not None and mun_name_idx < len(row):
             if is_municipio_foco_nome(row[mun_name_idx]):
                 filtered.append(row); continue
-    
+
     log_info(f"  Filtro municipal CSV: {len(filtered):,} de {len(rows):,} linhas")
     return headers, filtered
 
@@ -221,6 +196,44 @@ def load_sources(fonte_filtro=None):
     return out
 
 # ═══════════════════════════════════════════════════════════
+#  RETRY HELPER — backoff exponencial
+# ═══════════════════════════════════════════════════════════
+def api_get_with_retry(sess, url, max_retries=3, timeout=120):
+    """GET com retry automático e backoff exponencial"""
+    for attempt in range(1, max_retries + 1):
+        try:
+            resp = sess.get(url, timeout=timeout)
+            if resp.status_code == 500 and attempt < max_retries:
+                wait = attempt * 5
+                log_info(f"  500 Server Error — retry {attempt}/{max_retries} em {wait}s...")
+                time.sleep(wait)
+                continue
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.Timeout:
+            if attempt < max_retries:
+                wait = attempt * 10
+                log_info(f"  Timeout — retry {attempt}/{max_retries} em {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+        except requests.exceptions.HTTPError as e:
+            if e.response is not None and e.response.status_code == 500 and attempt < max_retries:
+                wait = attempt * 5
+                log_info(f"  500 Error — retry {attempt}/{max_retries} em {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+        except requests.exceptions.ConnectionError:
+            if attempt < max_retries:
+                wait = attempt * 15
+                log_info(f"  Conexão falhou — retry {attempt}/{max_retries} em {wait}s...")
+                time.sleep(wait)
+            else:
+                raise
+    raise Exception(f"Falhou após {max_retries} tentativas: {url}")
+
+# ═══════════════════════════════════════════════════════════
 #  BIGQUERY OPS
 # ═══════════════════════════════════════════════════════════
 def get_client():
@@ -233,6 +246,11 @@ def ensure_ds(client):
     except NotFound:
         ds = bigquery.Dataset(FULL_DS); ds.location = LOCATION
         client.create_dataset(ds)
+
+def norm_key(s):
+    s = unicodedata.normalize("NFKD", str(s).strip()).encode("ascii","ignore").decode("ascii")
+    s = re.sub(r"[^a-zA-Z0-9]+", "_", s).strip("_").lower()
+    return re.sub(r"_+", "_", s) or "col"
 
 def load_rows_to_bq(client, table_name, headers, rows):
     table_id = f"{FULL_DS}.{table_name}"
@@ -260,7 +278,6 @@ def load_rows_to_bq(client, table_name, headers, rows):
         tmp_path.unlink(missing_ok=True)
 
 def load_json_to_bq(client, table_name, records: List[Dict]):
-    """Carrega lista de dicts no BigQuery via JSON newline"""
     if not records: return 0
     table_id = f"{FULL_DS}.{table_name}"
     with tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8") as f:
@@ -293,20 +310,12 @@ def list_ext_tables(client):
 # ═══════════════════════════════════════════════════════════
 #  PROCESSADORES POR FORMATO
 # ═══════════════════════════════════════════════════════════
-def norm_key(s):
-    """Normaliza chave JSON para snake_case"""
-    s = unicodedata.normalize("NFKD", str(s).strip()).encode("ascii","ignore").decode("ascii")
-    s = re.sub(r"[^a-zA-Z0-9]+", "_", s).strip("_").lower()
-    return re.sub(r"_+", "_", s) or "col"
-
 def process_ibge_agregados(sess, url, item):
-    """Processa API de agregados do IBGE → lista de dicts flat
-    NOTA: A API já retorna filtrado por N6[N3[52]] (GO), mas filtramos
-    após para manter apenas Goiânia e Aparecida.
-    """
+    """Processa API de agregados do IBGE com retry robusto"""
     log_api(f"IBGE Agregados: {item.get('tipo')}")
-    resp = sess.get(url, timeout=120)
-    resp.raise_for_status()
+    max_retries = item.get("retry", 3)
+
+    resp = api_get_with_retry(sess, url, max_retries=max_retries, timeout=120)
     data = resp.json()
 
     records = []
@@ -315,11 +324,10 @@ def process_ibge_agregados(sess, url, item):
         variavel_nome = variavel_obj.get("variavel", "")
         unidade = variavel_obj.get("unidade", "")
 
-        classifs = variavel_obj.get("classificacoes", [])
         resultados = variavel_obj.get("resultados", [])
         for resultado in resultados:
             classif_info = {}
-            for cl in resultado.get("classificacoes", classifs):
+            for cl in resultado.get("classificacoes", []):
                 cl_nome = norm_key(cl.get("nome", ""))
                 if isinstance(cl.get("categoria"), dict):
                     for cat_id, cat_nome in cl["categoria"].items():
@@ -351,7 +359,7 @@ def process_ibge_agregados(sess, url, item):
     return records
 
 def process_api_json_simple(sess, url, item):
-    """Processa API JSON simples (DataSUS, portais) → lista de dicts"""
+    """Processa API JSON simples com retry"""
     log_api(f"{item.get('fonte')}/{item.get('tipo')}")
 
     all_records = []
@@ -369,14 +377,13 @@ def process_api_json_simple(sess, url, item):
                 current_url = re.sub(f'{param_pag}=\\d+', f'{param_pag}={page}', current_url)
 
             try:
-                resp = sess.get(current_url, timeout=120)
-                if resp.status_code == 404:
-                    log_info(f"  404 em {current_url} — pulando")
-                    break
-                resp.raise_for_status()
+                resp = api_get_with_retry(sess, current_url, max_retries=3, timeout=120)
                 data = resp.json()
             except requests.exceptions.HTTPError as e:
-                log_info(f"  HTTP {e.response.status_code} — parando paginação")
+                if e.response is not None and e.response.status_code == 404:
+                    log_info(f"  404 em exercício {exercicio} — pulando")
+                    break
+                log_info(f"  HTTP error — parando paginação")
                 break
             except Exception as e:
                 log_err(f"  Erro: {e}")
@@ -386,9 +393,8 @@ def process_api_json_simple(sess, url, item):
                 records = data
             elif isinstance(data, dict):
                 records = None
-                # DataSUS e outros: procura a chave que contém a lista
-                for k in ["estabelecimentos", "leitos", "profissionais", 
-                          "data", "dados", "results", "items", "registros", "content"]:
+                for k in ["estabelecimentos", "leitos", "profissionais",
+                           "data", "dados", "results", "items", "registros", "content"]:
                     if k in data and isinstance(data[k], list):
                         records = data[k]; break
                 if records is None:
@@ -423,28 +429,29 @@ def process_api_json_simple(sess, url, item):
     return all_records
 
 def process_download_csv(sess, url, item):
-    """Baixa CSV direto e retorna (headers, rows)"""
     log_dl(f"Download CSV: {item.get('tipo')}")
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     fname = re.sub(r'[^a-zA-Z0-9._-]', '_', Path(url.split("?")[0]).name) or "download.csv"
     dest = CACHE_DIR / fname
 
     if not dest.exists():
-        resp = sess.get(url, timeout=300, stream=True)
-        resp.raise_for_status()
-        with dest.open("wb") as f:
-            for chunk in resp.iter_content(1<<18):
-                if chunk: f.write(chunk)
-        log_dl(f"  Baixado: {dest.name}")
+        try:
+            resp = sess.get(url, timeout=300, stream=True)
+            resp.raise_for_status()
+            with dest.open("wb") as f:
+                for chunk in resp.iter_content(1<<18):
+                    if chunk: f.write(chunk)
+            log_dl(f"  Baixado: {dest.name}")
+        except Exception as e:
+            log_err(f"  Download falhou: {e}")
+            return [], []
     else:
         log_skip(f"  Cache: {dest.name}")
 
-    text = dest.read_bytes()
+    raw = dest.read_bytes()
     for enc in ("utf-8-sig", "utf-8", "latin-1"):
-        try:
-            text_dec = text.decode(enc); break
-        except:
-            text_dec = text.decode("latin-1", errors="replace")
+        try: text_dec = raw.decode(enc); break
+        except: text_dec = raw.decode("latin-1", errors="replace")
 
     lines = text_dec.split("\n", 1)
     if not lines: return [], []
@@ -459,19 +466,28 @@ def process_download_csv(sess, url, item):
     return headers, rows
 
 def process_download_zip(sess, url, item):
-    """Baixa ZIP, extrai CSV e retorna (headers, rows) filtrado por UF"""
     log_dl(f"Download ZIP: {item.get('tipo')}")
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     fname = Path(url.split("?")[0]).name or "download.zip"
     dest = CACHE_DIR / fname
 
     if not dest.exists():
-        resp = sess.get(url, timeout=600, stream=True)
-        resp.raise_for_status()
-        with dest.open("wb") as f:
-            for chunk in resp.iter_content(1<<18):
-                if chunk: f.write(chunk)
-        log_dl(f"  Baixado: {dest.name}")
+        for attempt in range(1, 4):
+            try:
+                resp = sess.get(url, timeout=600, stream=True)
+                resp.raise_for_status()
+                with dest.open("wb") as f:
+                    for chunk in resp.iter_content(1<<18):
+                        if chunk: f.write(chunk)
+                log_dl(f"  Baixado: {dest.name}")
+                break
+            except Exception as e:
+                if attempt < 3:
+                    wait = attempt * 15
+                    log_info(f"  Download retry {attempt}/3 em {wait}s: {e}")
+                    time.sleep(wait)
+                else:
+                    raise
     else:
         log_skip(f"  Cache: {dest.name}")
 
@@ -536,31 +552,32 @@ def process_download_zip(sess, url, item):
     return all_headers or [], all_rows
 
 def process_api_json_paginado_offset(sess, url, item):
-    """Processa API JSON com paginação por offset (DataSUS).
-    A API retorna no máximo 20 registros por página.
-    """
+    """Processa API JSON com paginação por offset (DataSUS) e retry"""
     chave_lista = item.get("chave_lista", "")
     log_api(f"{item.get('fonte')}/{item.get('tipo')} (paginado offset, chave={chave_lista})")
 
     all_records = []
-    page_size = 20  # DataSUS limit
+    page_size = 20
     offset = 0
+    consecutive_errors = 0
 
     while True:
         sep = "&" if "?" in url else "?"
         current_url = f"{url}{sep}offset={offset}&limit={page_size}"
 
         try:
-            resp = sess.get(current_url, timeout=120)
-            if resp.status_code == 404:
-                break
-            resp.raise_for_status()
+            resp = api_get_with_retry(sess, current_url, max_retries=3, timeout=120)
             data = resp.json()
+            consecutive_errors = 0
         except Exception as e:
-            log_err(f"  Erro offset={offset}: {e}")
-            break
+            consecutive_errors += 1
+            if consecutive_errors >= 3:
+                log_err(f"  3 erros consecutivos — parando em offset={offset}")
+                break
+            log_info(f"  Erro offset={offset}, tentando próxima página...")
+            offset += page_size
+            continue
 
-        # Extrair registros da chave específica
         if isinstance(data, dict) and chave_lista and chave_lista in data:
             records = data[chave_lista]
         elif isinstance(data, list):
@@ -578,7 +595,6 @@ def process_api_json_paginado_offset(sess, url, item):
         if not records:
             break
 
-        # Flatten
         for rec in records:
             flat = {}
             for k, v in rec.items():
@@ -597,16 +613,14 @@ def process_api_json_paginado_offset(sess, url, item):
         offset += page_size
 
         if len(records) < page_size:
-            break  # Última página
+            break
 
     log_info(f"  Total: {len(all_records):,} registros")
     return all_records
 
 def process_geojson(sess, url, item):
-    """Baixa GeoJSON e converte features para records"""
     log_api(f"GeoJSON: {item.get('tipo')}")
-    resp = sess.get(url, timeout=120)
-    resp.raise_for_status()
+    resp = api_get_with_retry(sess, url, max_retries=3, timeout=120)
     data = resp.json()
 
     records = []
@@ -630,11 +644,6 @@ def process_geojson(sess, url, item):
 #  DISPATCHER
 # ═══════════════════════════════════════════════════════════
 def process_item(sess, item):
-    """Processa um item e retorna (tipo_resultado, dados)
-    tipo_resultado: 'records' → lista de dicts, 'csv' → (headers, rows)
-    
-    TODOS os resultados passam pelo filtro municipal (Goiânia + Aparecida).
-    """
     fmt = item.get("formato", "")
     url = item.get("url", "")
     fonte = item.get("fonte", "")
@@ -644,7 +653,6 @@ def process_item(sess, item):
             records = process_ibge_agregados(sess, url, item)
         else:
             records = process_api_json_simple(sess, url, item)
-        # >>> FILTRO MUNICIPAL para records <<<
         records = filtrar_records_municipio(records, item)
         return "records", records
 
@@ -681,7 +689,8 @@ def cmd_dry_run(args):
     for i, s in enumerate(sources, 1):
         print(f"  {C.CY}{i:3d}.{C.RST} [{s['fonte']}] {s['tipo']} → {s['tabela_bq']}")
         print(f"       {C.GR}{s.get('descricao','')}{C.RST}")
-        print(f"       {C.GR}{s['url'][:100]}...{C.RST}" if len(s['url']) > 100 else f"       {C.GR}{s['url']}{C.RST}")
+        url_display = s['url'][:120] + "..." if len(s['url']) > 120 else s['url']
+        print(f"       {C.GR}{url_display}{C.RST}")
     print(f"\n  {C.B}Total: {len(sources)} fontes serão importadas{C.RST}\n")
 
 def cmd_status(args):
@@ -708,6 +717,7 @@ def cmd_status(args):
     print(f"\n  {len(tables)} tabelas | {total:,} linhas totais\n")
 
 def cmd_importar(args):
+    t_global_start = time.time()
     banner(f"IMPORTADOR FONTES EXTERNAS → BigQuery  {VERSION}")
     print(f"  {C.Y}{C.B}FILTRO MUNICIPAL: somente Goiânia + Aparecida de Goiânia{C.RST}\n")
 
@@ -721,14 +731,13 @@ def cmd_importar(args):
     ok_keys = load_ok_keys() if args.resume else set()
     run_id = utcnow().strftime("%Y%m%d_%H%M%S")
     sess = requests.Session()
-    sess.headers.update({"User-Agent": "EleicoesGO-Importador/2.0"})
+    sess.headers.update({"User-Agent": "EleicoesGO-Importador/4.0"})
 
     log_info(f"{len(sources)} fontes | Prioridade ≤ {args.prioridade}" +
              (f" | Fonte: {args.fonte}" if args.fonte else ""))
 
     n_ok = n_err = n_skip = total_rows = 0
     results = []
-    t_start = time.time()
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     STATE_DIR.mkdir(parents=True, exist_ok=True)
@@ -758,21 +767,21 @@ def cmd_importar(args):
 
             if tipo_resultado == "records":
                 if not dados:
-                    log_err(f"0 registros após filtro municipal")
+                    log_err(f"0 registros após processamento")
                     n_err += 1
-                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 registros após filtro"})
+                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 registros"})
                     continue
-                log_load(f"{tabela} ({len(dados):,} registros — filtrado)")
+                log_load(f"{tabela} ({len(dados):,} registros)")
                 loaded = load_json_to_bq(bq, tabela, dados)
 
             elif tipo_resultado == "csv":
                 headers, rows = dados
                 if not rows:
-                    log_err(f"0 linhas após filtro municipal")
+                    log_err(f"0 linhas após processamento")
                     n_err += 1
-                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 linhas após filtro"})
+                    results.append({"tabela": tabela, "status": "erro", "linhas": 0, "erro": "0 linhas"})
                     continue
-                log_load(f"{tabela} ({len(rows):,} linhas — filtrado)")
+                log_load(f"{tabela} ({len(rows):,} linhas)")
                 loaded = load_rows_to_bq(bq, tabela, headers, rows)
 
             dur = time.time() - t0
@@ -791,11 +800,12 @@ def cmd_importar(args):
     # ═══════════════════════════════════════════════════════
     #  RELATÓRIO FINAL
     # ═══════════════════════════════════════════════════════
+    dur_total = time.time() - t_global_start
     banner("RELATÓRIO FINAL — FONTES EXTERNAS (Goiânia + Aparecida)")
     box("Resumo", [
         f"Versão:      {VERSION}",
         f"Run:         {run_id}",
-        f"Duração:     {fmt_dur(time.time() - t_start)}",
+        f"Duração:     {fmt_dur(dur_total)}",
         f"Filtro:      Goiânia (5208707) + Aparecida (5201405)",
         f"",
         f"✓ Sucesso:   {n_ok}",
@@ -806,17 +816,18 @@ def cmd_importar(args):
     ])
 
     if results:
-        print(f"  {C.B}{'Status':<10} {'Tabela':<45} {'Linhas':>10}{C.RST}")
-        print(f"  {'─'*70}")
+        print(f"  {C.B}{'Status':<10} {'Tabela':<50} {'Linhas':>10}{C.RST}")
+        print(f"  {'─'*75}")
         for r in results:
             s = r["status"]
             color = C.G if s=="ok" else (C.GR if s=="skip" else C.R)
             icon = "✓" if s=="ok" else ("⊘" if s=="skip" else "✗")
-            print(f"  {color}{icon} {s:<8}{C.RST} {r['tabela']:<45} {r['linhas']:>10,}")
-        print(f"  {'─'*70}")
+            print(f"  {color}{icon} {s:<8}{C.RST} {r['tabela']:<50} {r['linhas']:>10,}")
+        print(f"  {'─'*75}")
 
     report = {"versao": VERSION, "run_id": run_id, "ok": n_ok, "erros": n_err,
-              "skip": n_skip, "linhas": total_rows, "filtro": "goiania+aparecida", "resultados": results}
+              "skip": n_skip, "linhas": total_rows, "filtro": "goiania+aparecida",
+              "duracao_s": round(dur_total), "resultados": results}
     rp = STATE_DIR / f"report_externas_{run_id}.json"
     rp.write_text(json.dumps(report, ensure_ascii=False, indent=2), "utf-8")
 
@@ -833,13 +844,13 @@ def main():
     p_imp = sub.add_parser("importar", help="Importar fontes externas → BigQuery")
     p_imp.add_argument("--prioridade", type=int, default=99)
     p_imp.add_argument("--resume", action="store_true")
-    p_imp.add_argument("--fonte", type=str, default=None, help="Filtrar por fonte (ibge, inep, datasus, transparencia_goiania, transparencia_aparecida)")
+    p_imp.add_argument("--fonte", type=str, default=None)
 
     p_dry = sub.add_parser("dry-run", help="Ver plano sem executar")
     p_dry.add_argument("--prioridade", type=int, default=99)
     p_dry.add_argument("--fonte", type=str, default=None)
 
-    sub.add_parser("status", help="Ver tabelas externas no BigQuery")
+    sub.add_parser("status", help="Ver tabelas externas")
 
     args = ap.parse_args()
 
@@ -848,13 +859,11 @@ def main():
     elif args.comando == "status": cmd_status(args)
     else:
         ap.print_help()
-        print(f"\n  {C.Y}FILTRO MUNICIPAL: somente Goiânia (5208707) + Aparecida (5201405){C.RST}")
         print(f"\n  Exemplos:")
-        print(f"    python importar_externas.py dry-run")
-        print(f"    python importar_externas.py dry-run --fonte ibge")
+        print(f"    python importar_externas.py dry-run --prioridade 1")
         print(f"    python importar_externas.py importar --prioridade 1")
+        print(f"    python importar_externas.py importar --prioridade 2 --resume")
         print(f"    python importar_externas.py importar --fonte ibge")
-        print(f"    python importar_externas.py importar --fonte datasus --resume")
         print(f"    python importar_externas.py status\n")
 
 if __name__ == "__main__":

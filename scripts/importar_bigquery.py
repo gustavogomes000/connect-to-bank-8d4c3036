@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
 ╔══════════════════════════════════════════════════════════════════╗
-║  IMPORTADOR TSE → BigQuery  v4.0  (Goiás)                       ║
+║  IMPORTADOR TSE → BigQuery  v5.0  (Goiás) — VERSÃO FINAL        ║
 ║  Eficiente: só baixa/processa CSV de GO, 1 tabela por fonte      ║
+║  Suporte csv_filter para ZIPs multi-CSV (prestação contas)       ║
 ╚══════════════════════════════════════════════════════════════════╝
 
 Comandos:
@@ -20,7 +21,12 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 import requests
-from tqdm import tqdm as _tqdm
+
+try:
+    from tqdm import tqdm as _tqdm
+    HAS_TQDM = True
+except ImportError:
+    HAS_TQDM = False
 
 try:
     from google.cloud import bigquery
@@ -41,14 +47,11 @@ VERSION    = "tse-go-bq-v5.0"
 CONFIG     = "sources.json"
 
 # Filtro municipal: SOMENTE Goiânia e Aparecida de Goiânia
-# Códigos TSE (5 dígitos) e IBGE (7 dígitos)
 MUNICIPIOS_FOCO = {
-    # Goiânia
     "52749", "5208707", "GOIANIA", "GOIÂNIA",
-    # Aparecida de Goiânia
     "50415", "5201405", "APARECIDA DE GOIANIA", "APARECIDA DE GOIÂNIA",
 }
-FILTRO_MUNICIPAL = True  # True = só Aparecida+Goiânia, False = GO inteiro
+FILTRO_MUNICIPAL = True
 
 CACHE_DIR  = Path(".cache_tse")
 STATE_DIR  = Path(".state")
@@ -91,6 +94,8 @@ def box(title, lines):
     print(f"  {C.G}└{'─'*w}┘{C.RST}\n")
 
 def tq(*a, **kw):
+    if not HAS_TQDM:
+        return a[0] if a else iter([])
     kw.setdefault("file", sys.stdout)
     kw.setdefault("dynamic_ncols", True)
     kw.setdefault("bar_format", "{l_bar}{bar:30}{r_bar}")
@@ -177,6 +182,7 @@ class Src:
     url: str
     tabela: str
     prioridade: int = 1
+    csv_filter: Optional[str] = None  # Filtrar CSVs dentro do ZIP por nome
 
 def load_sources():
     data = json.loads(Path(CONFIG).read_text("utf-8"))
@@ -187,28 +193,45 @@ def load_sources():
         tab = str(it.get("tabela_bq","")).strip()
         if not (url and tipo and tab): continue
         out.append(Src(tipo=tipo, ano=safe_int(it.get("ano")), url=url, tabela=tab,
-                       prioridade=safe_int(it.get("prioridade")) or 1))
+                       prioridade=safe_int(it.get("prioridade")) or 1,
+                       csv_filter=it.get("csv_filter")))
     return out
 
 # ═══════════════════════════════════════════════════════════
-#  DOWNLOAD
+#  DOWNLOAD com retry + backoff
 # ═══════════════════════════════════════════════════════════
 def download(sess, url, dest, retries=3):
     dest.parent.mkdir(parents=True, exist_ok=True)
     for attempt in range(1, retries+1):
         try:
-            with sess.get(url, stream=True, timeout=300) as r:
+            with sess.get(url, stream=True, timeout=600) as r:
                 r.raise_for_status()
                 total = int(r.headers.get("content-length") or 0)
-                with dest.open("wb") as f, tq(total=total or None, unit="B", unit_scale=True,
-                                               desc=f"  ↓ {dest.name}", leave=False) as p:
+                with dest.open("wb") as f:
+                    downloaded = 0
                     for chunk in r.iter_content(1<<18):
-                        if chunk: f.write(chunk); p.update(len(chunk))
+                        if chunk:
+                            f.write(chunk)
+                            downloaded += len(chunk)
+                            if total and downloaded % (5 * 1<<20) < (1<<18):
+                                pct = downloaded * 100 // total
+                                print(f"\r  ↓ {dest.name}: {fmt_bytes(downloaded)}/{fmt_bytes(total)} ({pct}%)", end="", flush=True)
+                if total:
+                    print()
+            # Validar tamanho mínimo
+            if dest.stat().st_size < 100:
+                log_err(f"Arquivo muito pequeno: {dest.stat().st_size} bytes")
+                dest.unlink(missing_ok=True)
+                continue
             return True
         except Exception as e:
             if attempt < retries:
-                log_info(f"Retry {attempt}/{retries}: {e}"); time.sleep(attempt*5)
+                wait = attempt * 10
+                log_info(f"Retry {attempt}/{retries} em {wait}s: {e}")
+                time.sleep(wait)
             else:
+                log_err(f"Download falhou após {retries} tentativas: {e}")
+                dest.unlink(missing_ok=True)
                 return False
     return False
 
@@ -267,15 +290,11 @@ def find_mun_name_col(headers):
     return None
 
 def normalize_mun_name(val):
-    """Normaliza nome de município para comparação"""
-    import unicodedata as ud
-    val = ud.normalize("NFKD", val.strip().upper()).encode("ascii","ignore").decode("ascii")
+    val = unicodedata.normalize("NFKD", val.strip().upper()).encode("ascii","ignore").decode("ascii")
     return val
 
 def is_target_row(headers, row, uf_idx, mun_idx, mun_name_idx):
-    """Retorna True se a linha pertence a Goiânia ou Aparecida de Goiânia"""
     if not FILTRO_MUNICIPAL:
-        # Modo GO inteiro (fallback)
         if uf_idx is not None:
             val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
             return val == "GO" or val == "52"
@@ -285,63 +304,65 @@ def is_target_row(headers, row, uf_idx, mun_idx, mun_name_idx):
         return True
 
     # === MODO MUNICIPAL: só Aparecida + Goiânia ===
-
-    # Primeiro: checar UF = GO (pré-filtro rápido)
     if uf_idx is not None:
         uf_val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
         if uf_val not in ("GO", "52"):
             return False
 
-    # Checar código do município
     if mun_idx is not None:
         val = (row[mun_idx] if mun_idx < len(row) else "").strip()
         val_clean = re.sub(r"\D", "", val)
         if val_clean in MUNICIPIOS_FOCO or val.upper() in MUNICIPIOS_FOCO:
             return True
 
-    # Checar nome do município
     if mun_name_idx is not None:
         val = (row[mun_name_idx] if mun_name_idx < len(row) else "").strip()
         val_norm = normalize_mun_name(val)
         if val_norm in MUNICIPIOS_FOCO:
             return True
-        # Checagem parcial para variações
         if "GOIANIA" in val_norm and "APARECIDA" not in val_norm:
             return True
         if "APARECIDA DE GOIANIA" in val_norm:
             return True
 
-    # Se não tem coluna de município mas tem UF=GO, em certos tipos de dados
-    # (perfil_eleitorado agregado por zona) não dá pra filtrar por município
-    # Nesses casos, aceitar GO inteiro (melhor ter dados a mais que perder)
+    # Sem coluna de município → aceitar GO inteiro
     if mun_idx is None and mun_name_idx is None:
         if uf_idx is not None:
             uf_val = (row[uf_idx] if uf_idx < len(row) else "").strip().upper()
             return uf_val in ("GO", "52")
-        return True  # Arquivo já é de GO
+        return True
 
     return False
 
-def pick_go_csv(zf, all_members):
+def pick_go_csv(zf, all_members, csv_filter=None):
     """
     Estratégia inteligente para pegar só o CSV de GO:
-    1. Se tem arquivo _GO no nome → usa ele (mais eficiente, já filtrado)
-    2. Se não, processa todos mas filtra linhas GO
+    1. Se csv_filter definido → filtra CSVs pelo nome primeiro
+    2. Se tem arquivo _GO no nome → usa ele
+    3. Senão, processa todos e filtra por coluna UF
     """
+    # Fase 1: aplicar csv_filter (ex: "receita", "despesa")
+    if csv_filter:
+        cf_upper = csv_filter.upper()
+        filtered = [m for m in all_members
+                    if cf_upper in Path(m.filename).stem.upper()]
+        if filtered:
+            log_info(f"  csv_filter '{csv_filter}': {len(filtered)} de {len(all_members)} CSVs")
+            all_members = filtered
+        else:
+            log_info(f"  csv_filter '{csv_filter}': nenhum match — usando todos")
+
     names_upper = {m: Path(m.filename).stem.upper() for m in all_members}
 
-    # Prioridade 1: arquivo específico _GO
+    # Fase 2: arquivo específico _GO
     go_files = [m for m in all_members if "_GO" in names_upper[m] and "_GOV" not in names_upper[m]]
     if go_files:
-        return go_files, True  # True = já é GO, não precisa filtrar
+        return go_files, True
 
-    # Prioridade 2: se tem muitos arquivos por UF, não tem _GO → pular
-    # (ex: prestação de contas tem subpastas por tipo, não por UF)
-    # Nesse caso, processar todos e filtrar por coluna UF
-    return all_members, False  # False = precisa filtrar
+    # Fase 3: processar todos e filtrar por coluna UF
+    return all_members, False
 
 def process_csv_member(zf, member, filter_go):
-    """Lê CSV do ZIP, filtra GO se necessário, retorna (headers, rows_list, n_total, n_go)"""
     raw = zf.read(member.filename)
     text = decode(raw)
     lines = text.split("\n", 1)
@@ -357,7 +378,6 @@ def process_csv_member(zf, member, filter_go):
     headers = dedupe([norm_h(h) for h in header_raw])
 
     if not filter_go:
-        # Arquivo já é de GO — aceitar tudo
         rows = []
         n = 0
         for row in reader:
@@ -369,7 +389,6 @@ def process_csv_member(zf, member, filter_go):
             rows.append(row)
         return headers, rows, n, n
 
-    # Precisa filtrar por UF/município
     uf_idx = find_uf_col(headers)
     mun_idx = find_mun_col(headers)
     mun_name_idx = find_mun_name_col(headers)
@@ -405,10 +424,8 @@ def ensure_ds(client):
         log_info(f"Dataset criado: {FULL_DS}")
 
 def load_to_bq(client, table_name, headers, rows):
-    """Cria tabela e carrega dados via CSV temporário"""
     table_id = f"{FULL_DS}.{table_name}"
 
-    # Sempre recria (WRITE_TRUNCATE)
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="") as f:
         w = csv.writer(f, delimiter=",", quoting=csv.QUOTE_MINIMAL)
         w.writerow(headers)
@@ -436,7 +453,6 @@ def load_to_bq(client, table_name, headers, rows):
         tmp_path.unlink(missing_ok=True)
 
 def list_tables(client):
-    """Lista todas as tabelas raw_ no dataset"""
     try:
         tables = list(client.list_tables(FULL_DS))
         return [t.table_id for t in tables if t.table_id.startswith("raw_")]
@@ -444,7 +460,6 @@ def list_tables(client):
         return []
 
 def purge_tables(client):
-    """Apaga TODAS as tabelas raw_ do dataset"""
     tables = list_tables(client)
     if not tables:
         log_info("Nenhuma tabela raw_ encontrada para apagar")
@@ -462,8 +477,9 @@ def cmd_dry_run(args):
     sources = [s for s in load_sources() if s.prioridade <= args.prioridade]
     banner(f"DRY RUN — {len(sources)} fontes (prioridade ≤ {args.prioridade})")
     for i, s in enumerate(sources, 1):
-        print(f"  {C.CY}{i:3d}.{C.RST} {s.tipo}/{s.ano or 'ATUAL'} → {s.tabela}")
-        print(f"       {C.GR}{s.url}{C.RST}")
+        extra = f"  [csv_filter={s.csv_filter}]" if s.csv_filter else ""
+        print(f"  {C.CY}{i:3d}.{C.RST} {s.tipo}/{s.ano or 'ATUAL'} → {s.tabela}{extra}")
+        print(f"       {C.GR}{s.url[:120]}{C.RST}")
     print(f"\n  {C.B}Total: {len(sources)} tabelas serão criadas no BigQuery{C.RST}\n")
 
 def cmd_purge(args):
@@ -484,7 +500,6 @@ def cmd_purge(args):
     n = purge_tables(bq)
     log_ok(f"{n} tabelas apagadas")
 
-    # Limpa manifest também
     mp = manifest_path()
     if mp.exists(): mp.unlink()
     log_info("Manifest limpo")
@@ -496,8 +511,8 @@ def cmd_status(args):
     if not tables:
         log_info("Nenhuma tabela raw_ encontrada"); return
 
-    print(f"  {C.B}{'Tabela':<45} {'Linhas':>12}{C.RST}")
-    print(f"  {'─'*60}")
+    print(f"  {C.B}{'Tabela':<50} {'Linhas':>12}{C.RST}")
+    print(f"  {'─'*65}")
     total_rows = 0
     for t in sorted(tables):
         try:
@@ -505,14 +520,15 @@ def cmd_status(args):
             rows = int(tbl.num_rows or 0)
             total_rows += rows
             color = C.G if rows > 0 else C.R
-            print(f"  {color}{t:<45}{C.RST} {rows:>12,}")
+            print(f"  {color}{t:<50}{C.RST} {rows:>12,}")
         except:
-            print(f"  {C.R}{t:<45} ???{C.RST}")
-    print(f"  {'─'*60}")
-    print(f"  {C.B}{'TOTAL':<45} {total_rows:>12,}{C.RST}")
+            print(f"  {C.R}{t:<50} ???{C.RST}")
+    print(f"  {'─'*65}")
+    print(f"  {C.B}{'TOTAL':<50} {total_rows:>12,}{C.RST}")
     print(f"\n  {len(tables)} tabelas | {total_rows:,} linhas totais\n")
 
 def cmd_importar(args):
+    t_global_start = time.time()
     banner(f"IMPORTADOR TSE → BigQuery  {VERSION}")
 
     sources = [s for s in load_sources() if s.prioridade <= args.prioridade]
@@ -525,11 +541,13 @@ def cmd_importar(args):
     ok_keys = load_ok_keys() if args.resume and not args.force else set()
     run_id = utcnow().strftime("%Y%m%d_%H%M%S")
     sess = requests.Session()
+    sess.headers.update({"User-Agent": "EleicoesGO-Importador/5.0"})
 
     log_info(f"{len(sources)} fontes | Prioridade ≤ {args.prioridade}")
     log_info(f"Dataset: {FULL_DS} | Resume: {'SIM' if args.resume else 'NÃO'}")
+    if FILTRO_MUNICIPAL:
+        log_info(f"FILTRO MUNICIPAL: Goiânia + Aparecida de Goiânia")
 
-    # Stats
     n_ok = n_err = n_skip = total_rows = 0
     results = []
 
@@ -542,23 +560,23 @@ def cmd_importar(args):
         key = f"{src.tipo}|{ano}|{src.tabela}"
 
         print(f"\n  {C.B}{'─'*60}{C.RST}")
-        log_info(f"{tag} {src.tipo}/{ano} → {src.tabela}")
+        log_info(f"{tag} {src.tipo}/{ano} → {src.tabela}" +
+                 (f" [csv_filter={src.csv_filter}]" if src.csv_filter else ""))
 
-        # Resume check
         if key in ok_keys:
             log_skip(f"Já importado (resume)")
             n_skip += 1
             results.append({"tabela": src.tabela, "status": "skip", "linhas": 0})
             continue
 
-        # Download
+        # Download — usa cache pelo nome do arquivo
         zip_name = Path(src.url.split("?")[0]).name
         zip_path = CACHE_DIR / zip_name
 
         if not zip_path.exists():
-            log_dl(src.url)
+            log_dl(src.url[:120])
             if not download(sess, src.url, zip_path):
-                log_error_detail(src.tipo, ano, zip_name, "Download falhou")
+                log_error_detail(src.tipo, ano, zip_name, "Download falhou após 3 tentativas")
                 n_err += 1
                 results.append({"tabela": src.tabela, "status": "erro", "linhas": 0, "erro": "download"})
                 continue
@@ -575,9 +593,12 @@ def cmd_importar(args):
                            and not m.filename.startswith("__MACOSX")]
 
                 if not all_csv:
-                    log_err(f"Sem CSV no ZIP"); n_err += 1; continue
+                    log_err(f"Sem CSV no ZIP")
+                    n_err += 1
+                    results.append({"tabela": src.tabela, "status": "erro", "linhas": 0, "erro": "sem CSV"})
+                    continue
 
-                members, already_go = pick_go_csv(zf, all_csv)
+                members, already_go = pick_go_csv(zf, all_csv, csv_filter=src.csv_filter)
 
                 if already_go:
                     log_info(f"{len(all_csv)} CSVs no ZIP → usando {len(members)} arquivo(s) _GO")
@@ -586,15 +607,12 @@ def cmd_importar(args):
                 else:
                     log_info(f"1 CSV no ZIP")
 
-                # Processar e acumular todas as linhas GO em 1 tabela
                 all_headers = None
                 all_rows = []
-                n_total_read = 0
 
                 for member in members:
                     fname = Path(member.filename).name
                     headers, rows, n_total, n_go = process_csv_member(zf, member, filter_go=not already_go)
-                    n_total_read += n_total
 
                     if not headers:
                         continue
@@ -602,15 +620,12 @@ def cmd_importar(args):
                     if all_headers is None:
                         all_headers = headers
                     elif headers != all_headers:
-                        # Headers diferentes — pular este CSV
                         log_info(f"  {fname}: headers diferente, pulando")
                         continue
 
                     if n_go > 0:
                         log_flt(f"  {fname}: {n_go:,} linhas GO" + (f" (de {n_total:,})" if n_total != n_go else ""))
                         all_rows.extend(rows)
-                    else:
-                        pass  # silêncio para CSVs sem dados GO
 
                 if not all_rows or all_headers is None:
                     log_err(f"0 linhas GO encontradas em {zip_name}")
@@ -619,7 +634,6 @@ def cmd_importar(args):
                     results.append({"tabela": src.tabela, "status": "erro", "linhas": 0, "erro": "0 linhas GO"})
                     continue
 
-                # Carregar no BigQuery — 1 tabela única
                 log_load(f"{src.tabela} ({len(all_rows):,} linhas)")
                 loaded = load_to_bq(bq, src.tabela, all_headers, all_rows)
                 dur = time.time() - t0
@@ -646,14 +660,14 @@ def cmd_importar(args):
     # ═══════════════════════════════════════════════════════
     #  RELATÓRIO FINAL
     # ═══════════════════════════════════════════════════════
-    dur_total = time.time() - t0 if 't0' in dir() else 0
+    dur_total = time.time() - t_global_start
 
     banner("RELATÓRIO FINAL")
 
     box("Resumo", [
         f"Versão:      {VERSION}",
         f"Run:         {run_id}",
-        f"Duração:     {fmt_dur(time.time() - float(os.environ.get('_START', time.time())))}",
+        f"Duração:     {fmt_dur(dur_total)}",
         f"",
         f"✓ Sucesso:   {n_ok}",
         f"⊘ Pulados:   {n_skip}",
@@ -663,19 +677,18 @@ def cmd_importar(args):
     ])
 
     if results:
-        print(f"  {C.B}{'Status':<10} {'Tabela':<40} {'Linhas':>10}{C.RST}")
-        print(f"  {'─'*65}")
+        print(f"  {C.B}{'Status':<10} {'Tabela':<45} {'Linhas':>10}{C.RST}")
+        print(f"  {'─'*70}")
         for r in results:
             s = r["status"]
             color = C.G if s=="ok" else (C.GR if s=="skip" else C.R)
             icon = "✓" if s=="ok" else ("⊘" if s=="skip" else "✗")
-            print(f"  {color}{icon} {s:<8}{C.RST} {r['tabela']:<40} {r['linhas']:>10,}")
-        print(f"  {'─'*65}")
+            print(f"  {color}{icon} {s:<8}{C.RST} {r['tabela']:<45} {r['linhas']:>10,}")
+        print(f"  {'─'*70}")
 
-    # Salvar relatório
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     report = {"versao": VERSION, "run_id": run_id, "ok": n_ok, "erros": n_err, "skip": n_skip,
-              "linhas": total_rows, "resultados": results}
+              "linhas": total_rows, "duracao_s": round(dur_total), "resultados": results}
     rp = STATE_DIR / f"report_{run_id}.json"
     rp.write_text(json.dumps(report, ensure_ascii=False, indent=2), "utf-8")
 
@@ -688,8 +701,6 @@ def cmd_importar(args):
 #  CLI
 # ═══════════════════════════════════════════════════════════
 def main():
-    os.environ['_START'] = str(time.time())
-
     ap = argparse.ArgumentParser(description=f"Importador TSE → BigQuery (GO) {VERSION}")
     sub = ap.add_subparsers(dest="comando")
 
