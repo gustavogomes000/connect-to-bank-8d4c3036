@@ -1,11 +1,10 @@
 {
-  "versao": "6.0",
-  "descricao": "Catálogo DEFINITIVO TSE → BigQuery — Goiás — URLs VALIDADAS + despesas corrigidas",
+  "versao": "7.0",
+  "descricao": "Catálogo DEFINITIVO TSE → BigQuery — Goiás — v7 despesas corrigidas (mesmo ZIP receitas)",
   "filtro_uf": "GO",
   "notas": [
-    "v6.0 — URLs despesas corrigidas para ZIPs separados (despesas_contratadas)",
-    "Comparecimento seção: arquivos nacionais — timeout longo, filtro SG_UF=GO",
-    "Despesas: ZIPs dedicados, NÃO compartilham com receitas",
+    "v7.0 — Despesas usam MESMO ZIP das receitas com csv_filter='despesa'",
+    "Comparecimento seção: arquivos nacionais 87MB — timeout longo, filtro SG_UF=GO",
     "csv_filter filtra nomes de CSV dentro do ZIP (case-insensitive)"
   ],
   "items": [
