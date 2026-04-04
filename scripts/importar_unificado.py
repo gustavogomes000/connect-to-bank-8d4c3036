@@ -568,8 +568,8 @@ def process_zip_csv(sess, item):
 
         # Cria CSV temporário para streaming
         tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False,
-                                          encoding="utf-8", newline="")
-        writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+                                           encoding="utf-8", newline="")
+        writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_ALL)
         final_headers = None
         n_rows = 0
         n_total = 0
