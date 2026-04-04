@@ -487,6 +487,7 @@ def load_csv_to_bq(client, table_name: str, csv_path: Path,
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
         autodetect=False,
         schema=schema,
+        max_bad_records=50,
     )
 
     if partition_col and partition_col in headers:
