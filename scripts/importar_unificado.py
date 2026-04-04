@@ -910,7 +910,15 @@ def process_download_csv(sess, item):
                 row = list(row) + [""] * (len(headers) - len(row))
             elif len(row) > len(headers):
                 row = row[:len(headers)]
-            writer.writerow(row)
+            sanitized = []
+            for v in row:
+                if isinstance(v, str):
+                    v = v.replace("\n"," ").replace("\r"," ").replace("\x00","")
+                    if v.count('"') % 2 != 0:
+                        v = v.replace('"', "'")
+                    v = v.strip()
+                sanitized.append(v)
+            writer.writerow(sanitized)
             n += 1
 
     tmp.flush(); tmp.close()
