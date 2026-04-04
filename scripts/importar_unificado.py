@@ -484,10 +484,11 @@ def load_csv_to_bq(client, table_name: str, csv_path: Path,
         field_delimiter=",",
         quote_character='"',
         allow_quoted_newlines=True,
+        allow_jagged_rows=True,
         write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
         autodetect=False,
         schema=schema,
-        max_bad_records=50,
+        max_bad_records=500,
     )
 
     if partition_col and partition_col in headers:
@@ -593,8 +594,15 @@ def process_zip_csv(sess, item):
                              f"Mun: {headers[mun_i] if mun_i is not None else '-'} | "
                              f"MunNm: {headers[mun_n] if mun_n is not None else '-'}")
 
-                # Sanitiza: remove newlines internos e caracteres nulos
-                sanitized = [v.replace("\n"," ").replace("\r"," ").replace("\x00","") if isinstance(v, str) else v for v in row]
+                # Sanitiza: remove newlines internos, nulos e aspas desbalanceadas
+                sanitized = []
+                for v in row:
+                    if isinstance(v, str):
+                        v = v.replace("\n"," ").replace("\r"," ").replace("\x00","")
+                        if v.count('"') % 2 != 0:
+                            v = v.replace('"', "'")
+                        v = v.strip()
+                    sanitized.append(v)
                 writer.writerow(sanitized)
                 n_rows += 1
                 member_rows += 1
@@ -893,7 +901,7 @@ def process_download_csv(sess, item):
 
     # Escreve CSV filtrado em temp
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="")
-    writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_ALL)
     writer.writerow(headers)
     n = 0
     for row in reader:
@@ -902,7 +910,15 @@ def process_download_csv(sess, item):
                 row = list(row) + [""] * (len(headers) - len(row))
             elif len(row) > len(headers):
                 row = row[:len(headers)]
-            writer.writerow(row)
+            sanitized = []
+            for v in row:
+                if isinstance(v, str):
+                    v = v.replace("\n"," ").replace("\r"," ").replace("\x00","")
+                    if v.count('"') % 2 != 0:
+                        v = v.replace('"', "'")
+                    v = v.strip()
+                sanitized.append(v)
+            writer.writerow(sanitized)
             n += 1
 
     tmp.flush(); tmp.close()
@@ -941,7 +957,7 @@ def process_download_zip(sess, item):
     filtro_val = item.get("filtro_valor", "")
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="")
-    writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_ALL)
     final_headers = None
     n_rows = 0
 

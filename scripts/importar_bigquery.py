@@ -374,6 +374,17 @@ def decode(b):
         except: pass
     return b.decode("latin-1", errors="replace")
 
+def sanitize_field(val):
+    """Remove quebras de linha e caracteres problemáticos dentro de campos CSV."""
+    if not val:
+        return ""
+    val = val.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    val = val.replace("\x00", "")
+    # Remove aspas duplas não balanceadas
+    if val.count('"') % 2 != 0:
+        val = val.replace('"', "'")
+    return val.strip()
+
 # ═══════════════════════════════════════════════════════════
 #  FILTRO MUNICIPAL — Aparecida + Goiânia
 # ═══════════════════════════════════════════════════════════
@@ -538,10 +549,11 @@ def load_to_bq(client, table_name, headers, rows):
     table_id = f"{FULL_DS}.{table_name}"
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="") as f:
-        w = csv.writer(f, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+        w = csv.writer(f, delimiter=",", quoting=csv.QUOTE_ALL)
         w.writerow(headers)
         for row in rows:
-            w.writerow(row)
+            sanitized = [sanitize_field(v) for v in row]
+            w.writerow(sanitized)
         tmp_path = Path(f.name)
 
     try:
@@ -551,9 +563,11 @@ def load_to_bq(client, table_name, headers, rows):
             field_delimiter=",",
             quote_character='"',
             allow_quoted_newlines=True,
+            allow_jagged_rows=True,
             write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
             autodetect=False,
             schema=[bigquery.SchemaField(h, "STRING") for h in headers],
+            max_bad_records=500,
         )
         with tmp_path.open("rb") as f:
             job = client.load_table_from_file(f, table_id, job_config=job_config)
