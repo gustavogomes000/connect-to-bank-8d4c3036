@@ -182,7 +182,8 @@ class Src:
     url: str
     tabela: str
     prioridade: int = 1
-    csv_filter: Optional[str] = None  # Filtrar CSVs dentro do ZIP por nome
+    csv_filter: Optional[str] = None
+    timeout: int = 600  # Timeout de download em segundos
 
 def load_sources():
     data = json.loads(Path(CONFIG).read_text("utf-8"))
@@ -194,7 +195,8 @@ def load_sources():
         if not (url and tipo and tab): continue
         out.append(Src(tipo=tipo, ano=safe_int(it.get("ano")), url=url, tabela=tab,
                        prioridade=safe_int(it.get("prioridade")) or 1,
-                       csv_filter=it.get("csv_filter")))
+                       csv_filter=it.get("csv_filter"),
+                       timeout=safe_int(it.get("timeout")) or 600))
     return out
 
 # ═══════════════════════════════════════════════════════════
