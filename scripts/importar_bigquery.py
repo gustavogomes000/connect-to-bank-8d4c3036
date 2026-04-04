@@ -374,6 +374,17 @@ def decode(b):
         except: pass
     return b.decode("latin-1", errors="replace")
 
+def sanitize_field(val):
+    """Remove quebras de linha e caracteres problemáticos dentro de campos CSV."""
+    if not val:
+        return ""
+    val = val.replace("\r\n", " ").replace("\r", " ").replace("\n", " ")
+    val = val.replace("\x00", "")
+    # Remove aspas duplas não balanceadas
+    if val.count('"') % 2 != 0:
+        val = val.replace('"', "'")
+    return val.strip()
+
 # ═══════════════════════════════════════════════════════════
 #  FILTRO MUNICIPAL — Aparecida + Goiânia
 # ═══════════════════════════════════════════════════════════
