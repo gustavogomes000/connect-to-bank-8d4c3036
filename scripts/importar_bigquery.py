@@ -268,7 +268,7 @@ def decode(b):
 # ═══════════════════════════════════════════════════════════
 #  FILTRO MUNICIPAL — Aparecida + Goiânia
 # ═══════════════════════════════════════════════════════════
-UF_COLS  = ["sg_uf","sigla_uf","uf","cd_uf","cod_uf"]
+UF_COLS  = ["sg_uf","sigla_uf","uf","cd_uf","cod_uf","sg_uf_voto","sg_uf_cnpj","sg_ue"]
 UF_BAD   = ["nasc","natural","origem","nascimento"]
 MUN_COLS = ["cd_municipio","cod_municipio","codigo_municipio","id_municipio","codmun","cdmun",
             "sg_ue","cd_municipio_nascimento"]
