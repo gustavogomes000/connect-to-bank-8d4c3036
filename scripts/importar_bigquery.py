@@ -43,8 +43,13 @@ DATASET    = "eleicoes_go_clean"
 FULL_DS    = f"{PROJECT}.{DATASET}"
 LOCATION   = "US"
 UF_FILTRO  = "GO"
-VERSION    = "tse-go-bq-v5.0"
-CONFIG     = "sources.json"
+VERSION    = "tse-go-bq-v5.1"
+BASE_DIR   = Path(__file__).resolve().parent
+CWD_DIR    = Path.cwd().resolve()
+WORK_DIR   = CWD_DIR if ((CWD_DIR / "sources.json").exists() or (CWD_DIR / ".state" / "manifest.jsonl").exists() or (CWD_DIR / ".cache_tse").exists() or (CWD_DIR / ".logs").exists()) else BASE_DIR
+CONFIG     = WORK_DIR / "sources.json"
+if not CONFIG.exists():
+    CONFIG = BASE_DIR / "sources.json"
 
 # Filtro municipal: SOMENTE Goiânia e Aparecida de Goiânia
 MUNICIPIOS_FOCO = {
@@ -53,9 +58,9 @@ MUNICIPIOS_FOCO = {
 }
 FILTRO_MUNICIPAL = True
 
-CACHE_DIR  = Path(".cache_tse")
-STATE_DIR  = Path(".state")
-LOG_DIR    = Path(".logs")
+CACHE_DIR  = WORK_DIR / ".cache_tse"
+STATE_DIR  = WORK_DIR / ".state"
+LOG_DIR    = WORK_DIR / ".logs"
 
 # ═══════════════════════════════════════════════════════════
 #  CONSOLE
@@ -185,6 +190,16 @@ class Src:
     csv_filter: Optional[str] = None
     timeout: int = 600  # Timeout de download em segundos
 
+def normalize_csv_filter(tipo, url, csv_filter):
+    csv_filter = str(csv_filter or "").strip()
+    if csv_filter:
+        return csv_filter
+    if tipo == "despesas":
+        return "despesa"
+    if tipo == "receitas" and "prestacao_de_contas" in url:
+        return "receita"
+    return None
+
 def load_sources():
     data = json.loads(Path(CONFIG).read_text("utf-8"))
     out = []
@@ -192,21 +207,71 @@ def load_sources():
         url = str(it.get("url","")).strip()
         tipo = str(it.get("tipo","")).strip()
         tab = str(it.get("tabela_bq","")).strip()
-        if not (url and tipo and tab): continue
-        out.append(Src(tipo=tipo, ano=safe_int(it.get("ano")), url=url, tabela=tab,
-                       prioridade=safe_int(it.get("prioridade")) or 1,
-                       csv_filter=it.get("csv_filter"),
-                       timeout=safe_int(it.get("timeout")) or 600))
+        if not (url and tipo and tab):
+            continue
+        out.append(Src(
+            tipo=tipo,
+            ano=safe_int(it.get("ano")),
+            url=url,
+            tabela=tab,
+            prioridade=safe_int(it.get("prioridade")) or 1,
+            csv_filter=normalize_csv_filter(tipo, url, it.get("csv_filter")),
+            timeout=safe_int(it.get("timeout")) or 600,
+        ))
     return out
 
+def dedupe_list(items):
+    out = []
+    seen = set()
+    for item in items:
+        if not item or item in seen:
+            continue
+        seen.add(item)
+        out.append(item)
+    return out
+
+def build_download_candidates(src):
+    candidates = []
+    url = str(src.url or "").strip()
+
+    if src.tipo == "despesas" and src.ano:
+        candidates.append(
+            f"https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/"
+            f"prestacao_de_contas_eleitorais_candidatos_{src.ano}.zip"
+        )
+
+    if src.tipo == "comparecimento_secao":
+        candidates.append(re.sub(r"_GO(?=\.zip(?:\?|$))", "", url, flags=re.I))
+
+    candidates.append(url)
+    return dedupe_list(candidates)
+
+def ensure_valid_cached_zip(path):
+    if not path.exists():
+        return False
+    try:
+        if path.stat().st_size < 1024:
+            log_info(f"Cache inválido (arquivo muito pequeno) — removendo {path.name}")
+            path.unlink(missing_ok=True)
+            return False
+        if not zipfile.is_zipfile(path):
+            log_info(f"Cache inválido (não é ZIP) — removendo {path.name}")
+            path.unlink(missing_ok=True)
+            return False
+        return True
+    except Exception:
+        path.unlink(missing_ok=True)
+        return False
+
 # ═══════════════════════════════════════════════════════════
-#  DOWNLOAD com retry + backoff
+#  DOWNLOAD com retry + backoff + fallback
 # ═══════════════════════════════════════════════════════════
 def download(sess, url, dest, retries=3, timeout=600):
     dest.parent.mkdir(parents=True, exist_ok=True)
+    last_err = None
     for attempt in range(1, retries+1):
         try:
-            with sess.get(url, stream=True, timeout=timeout) as r:
+            with sess.get(url, stream=True, timeout=timeout, allow_redirects=True) as r:
                 r.raise_for_status()
                 total = int(r.headers.get("content-length") or 0)
                 with dest.open("wb") as f:
@@ -220,13 +285,19 @@ def download(sess, url, dest, retries=3, timeout=600):
                                 print(f"\r  ↓ {dest.name}: {fmt_bytes(downloaded)}/{fmt_bytes(total)} ({pct}%)", end="", flush=True)
                 if total:
                     print()
-            # Validar tamanho mínimo
-            if dest.stat().st_size < 100:
-                log_err(f"Arquivo muito pequeno: {dest.stat().st_size} bytes")
+            if dest.stat().st_size < 1024:
+                last_err = f"Arquivo muito pequeno: {dest.stat().st_size} bytes"
+                log_err(last_err)
                 dest.unlink(missing_ok=True)
                 continue
-            return True
+            if not zipfile.is_zipfile(dest):
+                last_err = "Arquivo baixado não é um ZIP válido"
+                log_err(last_err)
+                dest.unlink(missing_ok=True)
+                continue
+            return True, None
         except Exception as e:
+            last_err = f"{type(e).__name__}: {e}"
             if attempt < retries:
                 wait = attempt * 10
                 log_info(f"Retry {attempt}/{retries} em {wait}s: {e}")
@@ -234,8 +305,46 @@ def download(sess, url, dest, retries=3, timeout=600):
             else:
                 log_err(f"Download falhou após {retries} tentativas: {e}")
                 dest.unlink(missing_ok=True)
-                return False
-    return False
+                return False, last_err
+    return False, last_err
+
+def download_with_fallback(sess, src):
+    errors = []
+    candidates = build_download_candidates(src)
+    timeout_logged = False
+
+    if len(candidates) > 1:
+        log_info(f"Fallback automático: {len(candidates)} URL(s) candidatas")
+
+    for pos, candidate in enumerate(candidates, 1):
+        zip_name = Path(candidate.split("?")[0]).name
+        zip_path = CACHE_DIR / zip_name
+
+        if ensure_valid_cached_zip(zip_path):
+            size = fmt_bytes(zip_path.stat().st_size)
+            if candidate != src.url:
+                log_info(f"Fallback aplicado em cache → {zip_name} ({size})")
+            else:
+                log_skip(f"Cache: {zip_name} ({size})")
+            return zip_path, zip_name, candidate, errors
+
+        if len(candidates) > 1:
+            log_info(f"Tentando URL {pos}/{len(candidates)}: {zip_name}")
+        log_dl(candidate[:120])
+        if src.timeout > 600 and not timeout_logged:
+            log_info(f"Timeout estendido: {src.timeout}s (arquivo nacional grande)")
+            timeout_logged = True
+
+        ok, err = download(sess, candidate, zip_path, timeout=src.timeout)
+        if ok:
+            log_dl(f"✓ {fmt_bytes(zip_path.stat().st_size)}")
+            if candidate != src.url:
+                log_info(f"Download resolvido via fallback → {zip_name}")
+            return zip_path, zip_name, candidate, errors
+
+        errors.append(f"{zip_name}: {err or 'falhou'}")
+
+    return None, None, None, errors
 
 # ═══════════════════════════════════════════════════════════
 #  CSV PARSING
@@ -543,7 +652,7 @@ def cmd_importar(args):
     ok_keys = load_ok_keys() if args.resume and not args.force else set()
     run_id = utcnow().strftime("%Y%m%d_%H%M%S")
     sess = requests.Session()
-    sess.headers.update({"User-Agent": "EleicoesGO-Importador/5.0"})
+    sess.headers.update({"User-Agent": "EleicoesGO-Importador/5.1"})
 
     log_info(f"{len(sources)} fontes | Prioridade ≤ {args.prioridade}")
     log_info(f"Dataset: {FULL_DS} | Resume: {'SIM' if args.resume else 'NÃO'}")
@@ -571,22 +680,21 @@ def cmd_importar(args):
             results.append({"tabela": src.tabela, "status": "skip", "linhas": 0})
             continue
 
-        # Download — usa cache pelo nome do arquivo
-        zip_name = Path(src.url.split("?")[0]).name
-        zip_path = CACHE_DIR / zip_name
+        source_name = Path(src.url.split("?")[0]).name
+        zip_name = source_name
+        zip_path, resolved_name, resolved_url, download_errors = download_with_fallback(sess, src)
+        if resolved_name:
+            zip_name = resolved_name
 
-        if not zip_path.exists():
-            log_dl(src.url[:120])
-            if src.timeout > 600:
-                log_info(f"Timeout estendido: {src.timeout}s (arquivo nacional grande)")
-            if not download(sess, src.url, zip_path, timeout=src.timeout):
-                log_error_detail(src.tipo, ano, zip_name, "Download falhou após 3 tentativas")
-                n_err += 1
-                results.append({"tabela": src.tabela, "status": "erro", "linhas": 0, "erro": "download"})
-                continue
-            log_dl(f"✓ {fmt_bytes(zip_path.stat().st_size)}")
-        else:
-            log_skip(f"Cache: {zip_name} ({fmt_bytes(zip_path.stat().st_size)})")
+        if not zip_path:
+            detail = "; ".join(download_errors) if download_errors else "sem detalhe"
+            log_error_detail(src.tipo, ano, source_name, f"Download falhou | {detail}")
+            n_err += 1
+            results.append({"tabela": src.tabela, "status": "erro", "linhas": 0, "erro": "download"})
+            continue
+
+        if resolved_url and resolved_url != src.url:
+            log_info(f"URL efetiva: {resolved_url}")
 
         # Processar ZIP
         t0 = time.time()
