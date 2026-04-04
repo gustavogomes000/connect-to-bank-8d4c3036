@@ -949,7 +949,7 @@ def process_download_zip(sess, item):
     filtro_val = item.get("filtro_valor", "")
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".csv", delete=False, encoding="utf-8", newline="")
-    writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_MINIMAL)
+    writer = csv.writer(tmp, delimiter=",", quoting=csv.QUOTE_ALL)
     final_headers = None
     n_rows = 0
 
