@@ -1,8 +1,14 @@
 {
-  "versao": "3.0",
-  "descricao": "Fontes externas → BigQuery — SOMENTE Goiânia (5208707) e Aparecida (5201405)",
+  "versao": "4.0",
+  "descricao": "Fontes externas DEFINITIVAS → BigQuery — SOMENTE Goiânia (5208707) e Aparecida (5201405)",
   "municipios_foco": ["5208707", "5201405"],
   "municipios_datasus": ["520870", "520140"],
+  "notas": [
+    "IBGE: cada variável em request separada evita 500 do servidor",
+    "DataSUS: paginação por offset com max 20 por página",
+    "Todas as APIs IBGE já filtram N6[código] na URL — sem pós-filtro necessário",
+    "Retry automático 3x com backoff exponencial em todas as fontes"
+  ],
   "items": [
     {
       "fonte": "ibge", "tipo": "populacao", "formato": "api_json",
@@ -40,17 +46,19 @@
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "censo_pop", "formato": "api_json",
-      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4714/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
+      "fonte": "ibge", "tipo": "censo_pop_total", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_censo_pop",
-      "descricao": "Censo 2022 - população residente total",
+      "descricao": "Censo 2022 - população residente por situação domicílio",
+      "retry": 5,
       "prioridade": 1
     },
     {
-      "fonte": "ibge", "tipo": "censo_educacao", "formato": "api_json",
-      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/4709/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
-      "tabela_bq": "raw_ibge_censo_educacao",
-      "descricao": "Censo 2022 - população por nível de instrução",
+      "fonte": "ibge", "tipo": "censo_sexo_idade", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/9514/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
+      "tabela_bq": "raw_ibge_censo_sexo_idade",
+      "descricao": "Censo 2022 - população por sexo e grupo de idade",
+      "retry": 5,
       "prioridade": 1
     },
     {
@@ -58,6 +66,23 @@
       "url": "https://servicodados.ibge.gov.br/api/v3/agregados/9605/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
       "tabela_bq": "raw_ibge_censo_cor_raca",
       "descricao": "Censo 2022 - população por cor/raça",
+      "retry": 5,
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "censo_alfabetizacao", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/9543/periodos/2022/variaveis/93?localidades=N6%5B5208707%2C5201405%5D",
+      "tabela_bq": "raw_ibge_censo_alfabetizacao",
+      "descricao": "Censo 2022 - população por condição de alfabetização",
+      "retry": 5,
+      "prioridade": 1
+    },
+    {
+      "fonte": "ibge", "tipo": "censo_domicilios", "formato": "api_json",
+      "url": "https://servicodados.ibge.gov.br/api/v3/agregados/9553/periodos/2022/variaveis/216?localidades=N6%5B5208707%2C5201405%5D",
+      "tabela_bq": "raw_ibge_censo_domicilios",
+      "descricao": "Censo 2022 - domicílios por tipo",
+      "retry": 5,
       "prioridade": 1
     },
     {
@@ -65,7 +90,7 @@
       "url": "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos?codigo_municipio=520870&status=1",
       "tabela_bq": "raw_datasus_estabelecimentos_goiania",
       "chave_lista": "estabelecimentos",
-      "descricao": "CNES - estabelecimentos de saúde ativos em Goiânia (~4300)",
+      "descricao": "CNES - estabelecimentos de saúde ativos em Goiânia",
       "skip_filtro_municipal": true,
       "prioridade": 1
     },
@@ -118,8 +143,35 @@
       "fonte": "ibge", "tipo": "censo_setor", "formato": "download_zip",
       "url": "https://ftp.ibge.gov.br/Censos/Censo_Demografico_2022/Agregados_por_Setores_Censitarios/GO_20241025.zip",
       "tabela_bq": "raw_ibge_censo_setor",
-      "descricao": "Censo 2022 - agregados por setor censitário (filtra Goiânia+Aparecida)",
+      "descricao": "Censo 2022 - agregados por setor censitário GO",
       "prioridade": 2
+    },
+    {
+      "fonte": "ibge", "tipo": "malha_setores_goiania", "formato": "download_geojson",
+      "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5208707?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
+      "tabela_bq": "raw_ibge_malha_setores_goiania",
+      "descricao": "Malha de setores censitários de Goiânia",
+      "skip_filtro_municipal": true,
+      "prioridade": 2
+    },
+    {
+      "fonte": "ibge", "tipo": "malha_setores_aparecida", "formato": "download_geojson",
+      "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5201405?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
+      "tabela_bq": "raw_ibge_malha_setores_aparecida",
+      "descricao": "Malha de setores censitários de Aparecida",
+      "skip_filtro_municipal": true,
+      "prioridade": 2
+    },
+    {
+      "fonte": "inep", "tipo": "escolas", "formato": "download_zip",
+      "url": "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2023.zip",
+      "tabela_bq": "raw_inep_escolas",
+      "descricao": "Censo Escolar 2023 - escolas Goiânia e Aparecida",
+      "csv_pattern": "ESCOLAS",
+      "filtro_coluna": "CO_UF",
+      "filtro_valor": "52",
+      "prioridade": 2,
+      "nota": "Usando 2023 por estabilidade — 2024 pode estar indisponível"
     },
     {
       "fonte": "transparencia_goiania", "tipo": "servidores", "formato": "download_csv",
@@ -158,32 +210,6 @@
       "param_pagina": "pagina",
       "exercicios": [2021, 2022, 2023, 2024],
       "skip_filtro_municipal": true,
-      "prioridade": 2
-    },
-    {
-      "fonte": "ibge", "tipo": "malha_setores_goiania", "formato": "download_geojson",
-      "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5208707?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
-      "tabela_bq": "raw_ibge_malha_setores_goiania",
-      "descricao": "Malha de setores censitários de Goiânia",
-      "skip_filtro_municipal": true,
-      "prioridade": 2
-    },
-    {
-      "fonte": "ibge", "tipo": "malha_setores_aparecida", "formato": "download_geojson",
-      "url": "https://servicodados.ibge.gov.br/api/v3/malhas/municipios/5201405?formato=application/vnd.geo+json&qualidade=maxima&intrarregiao=setor",
-      "tabela_bq": "raw_ibge_malha_setores_aparecida",
-      "descricao": "Malha de setores censitários de Aparecida",
-      "skip_filtro_municipal": true,
-      "prioridade": 2
-    },
-    {
-      "fonte": "inep", "tipo": "escolas", "formato": "download_zip",
-      "url": "https://download.inep.gov.br/dados_abertos/microdados_censo_escolar_2024.zip",
-      "tabela_bq": "raw_inep_escolas",
-      "descricao": "Censo Escolar 2024 - escolas Goiânia e Aparecida",
-      "csv_pattern": "ESCOLAS",
-      "filtro_coluna": "CO_UF",
-      "filtro_valor": "52",
       "prioridade": 2
     }
   ]

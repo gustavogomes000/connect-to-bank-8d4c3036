@@ -1,7 +1,13 @@
 {
-  "versao": "2.0",
-  "descricao": "Catálogo completo de fontes TSE para importação BigQuery - Estado de Goiás",
+  "versao": "3.0",
+  "descricao": "Catálogo COMPLETO e DEFINITIVO de fontes TSE para importação BigQuery - Estado de Goiás",
   "filtro_uf": "GO",
+  "notas": [
+    "URLs validadas contra o CDN do TSE em abril/2026",
+    "Despesas compartilham o mesmo ZIP de receitas — usar csv_filter para separar",
+    "Comparecimento seção não tem sufixo _GO — filtrar por coluna UF",
+    "csv_filter filtra nomes de CSV dentro do ZIP (case-insensitive)"
+  ],
   "items": [
     {"fonte": "tse", "tipo": "candidatos",           "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2024.zip", "tabela_bq": "raw_candidatos_2024", "prioridade": 1},
     {"fonte": "tse", "tipo": "candidatos",           "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/consulta_cand_2022.zip", "tabela_bq": "raw_candidatos_2022", "prioridade": 1},
@@ -31,9 +37,9 @@
     {"fonte": "tse", "tipo": "comparecimento_munzona","ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_munzona/detalhe_votacao_munzona_2018.zip", "tabela_bq": "raw_comparecimento_munzona_2018", "prioridade": 1},
     {"fonte": "tse", "tipo": "comparecimento_munzona","ano": 2016, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_munzona/detalhe_votacao_munzona_2016.zip", "tabela_bq": "raw_comparecimento_munzona_2016", "prioridade": 1},
 
-    {"fonte": "tse", "tipo": "comparecimento_secao", "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_secao/detalhe_votacao_secao_2024_GO.zip", "tabela_bq": "raw_comparecimento_secao_2024", "prioridade": 1},
-    {"fonte": "tse", "tipo": "comparecimento_secao", "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_secao/detalhe_votacao_secao_2022_GO.zip", "tabela_bq": "raw_comparecimento_secao_2022", "prioridade": 1},
-    {"fonte": "tse", "tipo": "comparecimento_secao", "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_secao/detalhe_votacao_secao_2020_GO.zip", "tabela_bq": "raw_comparecimento_secao_2020", "prioridade": 1},
+    {"fonte": "tse", "tipo": "comparecimento_secao", "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_secao/detalhe_votacao_secao_2024.zip", "tabela_bq": "raw_comparecimento_secao_2024", "prioridade": 1, "nota": "Arquivo nacional — filtrar por SG_UF=GO"},
+    {"fonte": "tse", "tipo": "comparecimento_secao", "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_secao/detalhe_votacao_secao_2022.zip", "tabela_bq": "raw_comparecimento_secao_2022", "prioridade": 1, "nota": "Arquivo nacional — filtrar por SG_UF=GO"},
+    {"fonte": "tse", "tipo": "comparecimento_secao", "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/detalhe_votacao_secao/detalhe_votacao_secao_2020.zip", "tabela_bq": "raw_comparecimento_secao_2020", "prioridade": 1, "nota": "Arquivo nacional — filtrar por SG_UF=GO"},
 
     {"fonte": "tse", "tipo": "bens_candidatos",      "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2024.zip", "tabela_bq": "raw_bens_candidatos_2024", "prioridade": 1},
     {"fonte": "tse", "tipo": "bens_candidatos",      "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2022.zip", "tabela_bq": "raw_bens_candidatos_2022", "prioridade": 1},
@@ -41,15 +47,15 @@
     {"fonte": "tse", "tipo": "bens_candidatos",      "ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2018.zip", "tabela_bq": "raw_bens_candidatos_2018", "prioridade": 1},
     {"fonte": "tse", "tipo": "bens_candidatos",      "ano": 2016, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/bem_candidato/bem_candidato_2016.zip", "tabela_bq": "raw_bens_candidatos_2016", "prioridade": 1},
 
-    {"fonte": "tse", "tipo": "receitas",             "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2024.zip", "tabela_bq": "raw_receitas_2024", "prioridade": 1},
-    {"fonte": "tse", "tipo": "receitas",             "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2022.zip", "tabela_bq": "raw_receitas_2022", "prioridade": 1},
-    {"fonte": "tse", "tipo": "receitas",             "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2020.zip", "tabela_bq": "raw_receitas_2020", "prioridade": 1},
-    {"fonte": "tse", "tipo": "receitas",             "ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2018.zip", "tabela_bq": "raw_receitas_2018", "prioridade": 1},
+    {"fonte": "tse", "tipo": "receitas",             "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2024.zip", "tabela_bq": "raw_receitas_2024", "csv_filter": "receita", "prioridade": 1},
+    {"fonte": "tse", "tipo": "receitas",             "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2022.zip", "tabela_bq": "raw_receitas_2022", "csv_filter": "receita", "prioridade": 1},
+    {"fonte": "tse", "tipo": "receitas",             "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2020.zip", "tabela_bq": "raw_receitas_2020", "csv_filter": "receita", "prioridade": 1},
+    {"fonte": "tse", "tipo": "receitas",             "ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2018.zip", "tabela_bq": "raw_receitas_2018", "csv_filter": "receita", "prioridade": 1},
 
-    {"fonte": "tse", "tipo": "despesas",             "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_contratadas_candidatos_2024.zip", "tabela_bq": "raw_despesas_2024", "prioridade": 1},
-    {"fonte": "tse", "tipo": "despesas",             "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_contratadas_candidatos_2022.zip", "tabela_bq": "raw_despesas_2022", "prioridade": 1},
-    {"fonte": "tse", "tipo": "despesas",             "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_contratadas_candidatos_2020.zip", "tabela_bq": "raw_despesas_2020", "prioridade": 1},
-    {"fonte": "tse", "tipo": "despesas",             "ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_contratadas_candidatos_2018.zip", "tabela_bq": "raw_despesas_2018", "prioridade": 1},
+    {"fonte": "tse", "tipo": "despesas",             "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2024.zip", "tabela_bq": "raw_despesas_2024", "csv_filter": "despesa", "prioridade": 1, "nota": "Mesmo ZIP das receitas — csv_filter separa"},
+    {"fonte": "tse", "tipo": "despesas",             "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2022.zip", "tabela_bq": "raw_despesas_2022", "csv_filter": "despesa", "prioridade": 1, "nota": "Mesmo ZIP das receitas — csv_filter separa"},
+    {"fonte": "tse", "tipo": "despesas",             "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2020.zip", "tabela_bq": "raw_despesas_2020", "csv_filter": "despesa", "prioridade": 1, "nota": "Mesmo ZIP das receitas — csv_filter separa"},
+    {"fonte": "tse", "tipo": "despesas",             "ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2018.zip", "tabela_bq": "raw_despesas_2018", "csv_filter": "despesa", "prioridade": 1, "nota": "Mesmo ZIP das receitas — csv_filter separa"},
 
     {"fonte": "tse", "tipo": "perfil_eleitorado",    "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2024.zip", "tabela_bq": "raw_perfil_eleitorado_2024", "prioridade": 1},
     {"fonte": "tse", "tipo": "perfil_eleitorado",    "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2022.zip", "tabela_bq": "raw_perfil_eleitorado_2022", "prioridade": 1},
@@ -59,6 +65,16 @@
     {"fonte": "tse", "tipo": "perfil_eleitor_secao", "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitor_secao/perfil_eleitor_secao_2024_GO.zip", "tabela_bq": "raw_perfil_eleitor_secao_2024", "prioridade": 1},
     {"fonte": "tse", "tipo": "perfil_eleitor_secao", "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitor_secao/perfil_eleitor_secao_2022_GO.zip", "tabela_bq": "raw_perfil_eleitor_secao_2022", "prioridade": 1},
     {"fonte": "tse", "tipo": "perfil_eleitor_secao", "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitor_secao/perfil_eleitor_secao_2020_GO.zip", "tabela_bq": "raw_perfil_eleitor_secao_2020", "prioridade": 1},
+
+    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2024.zip", "tabela_bq": "raw_votacao_partido_munzona_2024", "prioridade": 1},
+    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2022.zip", "tabela_bq": "raw_votacao_partido_munzona_2022", "prioridade": 1},
+    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2020.zip", "tabela_bq": "raw_votacao_partido_munzona_2020", "prioridade": 1},
+    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2018.zip", "tabela_bq": "raw_votacao_partido_munzona_2018", "prioridade": 1},
+    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2016, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2016.zip", "tabela_bq": "raw_votacao_partido_munzona_2016", "prioridade": 1},
+
+    {"fonte": "tse", "tipo": "eleitorado_local",     "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2024.zip", "tabela_bq": "raw_eleitorado_local_2024", "prioridade": 1},
+    {"fonte": "tse", "tipo": "eleitorado_local",     "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2022.zip", "tabela_bq": "raw_eleitorado_local_2022", "prioridade": 1},
+    {"fonte": "tse", "tipo": "eleitorado_local",     "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2020.zip", "tabela_bq": "raw_eleitorado_local_2020", "prioridade": 1},
 
     {"fonte": "tse", "tipo": "filiados",             "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/filiacao_partidaria/filiados_todos_2024.zip", "tabela_bq": "raw_filiados_2024", "prioridade": 2},
 
@@ -73,21 +89,11 @@
     {"fonte": "tse", "tipo": "legendas",             "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_legendas/consulta_legendas_2024.zip", "tabela_bq": "raw_legendas_2024", "prioridade": 2},
     {"fonte": "tse", "tipo": "legendas",             "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_legendas/consulta_legendas_2022.zip", "tabela_bq": "raw_legendas_2022", "prioridade": 2},
 
-    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2024.zip", "tabela_bq": "raw_votacao_partido_munzona_2024", "prioridade": 1},
-    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2022.zip", "tabela_bq": "raw_votacao_partido_munzona_2022", "prioridade": 1},
-    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2020.zip", "tabela_bq": "raw_votacao_partido_munzona_2020", "prioridade": 1},
-    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2018, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2018.zip", "tabela_bq": "raw_votacao_partido_munzona_2018", "prioridade": 1},
-    {"fonte": "tse", "tipo": "votacao_partido_munzona","ano": 2016, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/votacao_partido_munzona/votacao_partido_munzona_2016.zip", "tabela_bq": "raw_votacao_partido_munzona_2016", "prioridade": 1},
-
     {"fonte": "tse", "tipo": "redes_sociais",        "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/rede_social_candidato_2024.zip", "tabela_bq": "raw_redes_sociais_2024", "prioridade": 2},
     {"fonte": "tse", "tipo": "redes_sociais",        "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_cand/rede_social_candidato_2022.zip", "tabela_bq": "raw_redes_sociais_2022", "prioridade": 2},
 
     {"fonte": "tse", "tipo": "boletim_urna",         "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/boletim_urna/boletim_urna_2024_GO.zip", "tabela_bq": "raw_boletim_urna_2024", "prioridade": 2},
     {"fonte": "tse", "tipo": "boletim_urna",         "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/boletim_urna/boletim_urna_2022_GO.zip", "tabela_bq": "raw_boletim_urna_2022", "prioridade": 2},
-
-    {"fonte": "tse", "tipo": "eleitorado_local",     "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2024.zip", "tabela_bq": "raw_eleitorado_local_2024", "prioridade": 1},
-    {"fonte": "tse", "tipo": "eleitorado_local",     "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2022.zip", "tabela_bq": "raw_eleitorado_local_2022", "prioridade": 1},
-    {"fonte": "tse", "tipo": "eleitorado_local",     "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/eleitorado_locais_votacao/eleitorado_local_votacao_2020.zip", "tabela_bq": "raw_eleitorado_local_2020", "prioridade": 1},
 
     {"fonte": "tse", "tipo": "pesquisas",            "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_pesquisa/pesquisa_eleitoral_2024.zip", "tabela_bq": "raw_pesquisas_2024", "prioridade": 2},
     {"fonte": "tse", "tipo": "pesquisas",            "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_pesquisa/pesquisa_eleitoral_2022.zip", "tabela_bq": "raw_pesquisas_2022", "prioridade": 2},
@@ -101,9 +107,9 @@
     {"fonte": "tse", "tipo": "receitas_candidatos",  "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/receitas_candidatos_2022.zip", "tabela_bq": "raw_receitas_detalhe_2022", "prioridade": 2},
     {"fonte": "tse", "tipo": "receitas_candidatos",  "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/receitas_candidatos_2020.zip", "tabela_bq": "raw_receitas_detalhe_2020", "prioridade": 2},
 
-    {"fonte": "tse", "tipo": "despesas_pagas",       "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_pagas_candidatos_2024.zip", "tabela_bq": "raw_despesas_pagas_2024", "prioridade": 2},
-    {"fonte": "tse", "tipo": "despesas_pagas",       "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_pagas_candidatos_2022.zip", "tabela_bq": "raw_despesas_pagas_2022", "prioridade": 2},
-    {"fonte": "tse", "tipo": "despesas_pagas",       "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/despesas_pagas_candidatos_2020.zip", "tabela_bq": "raw_despesas_pagas_2020", "prioridade": 2},
+    {"fonte": "tse", "tipo": "despesas_pagas",       "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2024.zip", "tabela_bq": "raw_despesas_pagas_2024", "csv_filter": "despesas_pagas", "prioridade": 2},
+    {"fonte": "tse", "tipo": "despesas_pagas",       "ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2022.zip", "tabela_bq": "raw_despesas_pagas_2022", "csv_filter": "despesas_pagas", "prioridade": 2},
+    {"fonte": "tse", "tipo": "despesas_pagas",       "ano": 2020, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/prestacao_contas/prestacao_de_contas_eleitorais_candidatos_2020.zip", "tabela_bq": "raw_despesas_pagas_2020", "csv_filter": "despesas_pagas", "prioridade": 2},
 
     {"fonte": "tse", "tipo": "orgao_partidario",     "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/consulta_orgao_partidario/consulta_orgao_partidario_2024.zip", "tabela_bq": "raw_orgao_partidario_2024", "prioridade": 2},
 
@@ -125,6 +131,7 @@
     {"fonte": "tse", "tipo": "transferencia_eleitoral","ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/transferencia_eleitoral/transferencia_eleitoral_2024.zip", "tabela_bq": "raw_transferencia_eleitoral_2024", "prioridade": 2},
     {"fonte": "tse", "tipo": "transferencia_eleitoral","ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/transferencia_eleitoral/transferencia_eleitoral_2022.zip", "tabela_bq": "raw_transferencia_eleitoral_2022", "prioridade": 2},
 
-    {"fonte": "tse", "tipo": "perfil_raca_cor",      "ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/perfil_eleitorado/perfil_eleitorado_2024.zip", "tabela_bq": "raw_perfil_raca_cor_2024", "prioridade": 2, "nota": "Raça/cor está dentro do perfil_eleitorado - mesmo ZIP, colunas diferentes"}
+    {"fonte": "tse", "tipo": "comparecimento_abstencao","ano": 2024, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/comparecimento_abstencao/comparecimento_abstencao_2024.zip", "tabela_bq": "raw_comparecimento_abstencao_2024", "prioridade": 2, "nota": "Dataset separado do TSE com totais de comparecimento"},
+    {"fonte": "tse", "tipo": "comparecimento_abstencao","ano": 2022, "formato": "zip_csv", "url": "https://cdn.tse.jus.br/estatistica/sead/odsele/comparecimento_abstencao/comparecimento_abstencao_2022.zip", "tabela_bq": "raw_comparecimento_abstencao_2022", "prioridade": 2}
   ]
 }
