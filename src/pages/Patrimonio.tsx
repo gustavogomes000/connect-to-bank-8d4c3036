@@ -13,16 +13,15 @@ function formatBRL(val: number): string {
 }
 
 export default function Patrimonio() {
-  const [anoFiltro, setAnoFiltro] = useState<number | null>(null);
   const [candidatoSelecionado, setCandidatoSelecionado] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
-  const { data: topPatrimonio, isLoading } = useTopPatrimonio(anoFiltro || undefined);
+  const { data: topPatrimonio, isLoading } = useTopPatrimonio();
   const { data: evolucao, isLoading: loadingEvolucao } = useEvolucaoPatrimonio(candidatoSelecionado || '');
 
   const chartData = (topPatrimonio || []).slice(0, 10).map(c => ({
     nome: c.nome.length > 18 ? c.nome.slice(0, 16) + '…' : c.nome,
-    patrimonio: c.total,
+    patrimonio: c.patrimonio,
   }));
 
   const filteredTop = search
@@ -35,18 +34,8 @@ export default function Patrimonio() {
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <DollarSign className="w-6 h-6 text-primary" /> Patrimônio dos Candidatos
         </h1>
-        <Select value={anoFiltro?.toString() || 'todos'} onValueChange={v => setAnoFiltro(v === 'todos' ? null : parseInt(v))}>
-          <SelectTrigger className="w-[120px] h-9 text-sm ml-auto">
-            <SelectValue placeholder="Ano" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            {ANOS_DISPONIVEIS.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
-      {/* Top 10 Chart */}
       {isLoading ? <ChartSkeleton /> : chartData.length > 0 && (
         <div className="bg-card rounded-xl border p-5">
           <h3 className="text-base font-semibold mb-4">Top 10 — Maior Patrimônio Declarado</h3>
@@ -61,7 +50,6 @@ export default function Patrimonio() {
         </div>
       )}
 
-      {/* Evolução de candidato selecionado */}
       {candidatoSelecionado && (
         <div className="bg-card rounded-xl border p-5">
           <h3 className="text-base font-semibold mb-2 flex items-center gap-2">
@@ -81,7 +69,6 @@ export default function Patrimonio() {
         </div>
       )}
 
-      {/* Table */}
       <div className="bg-card rounded-xl border p-5">
         <div className="flex items-center gap-3 mb-4">
           <h3 className="text-base font-semibold">Ranking de Patrimônio</h3>
@@ -105,12 +92,12 @@ export default function Patrimonio() {
               </thead>
               <tbody>
                 {(filteredTop || []).map((c, i) => (
-                  <tr key={c.seq || i} className="border-b last:border-0 hover:bg-muted/50">
+                  <tr key={c.sequencial || i} className="border-b last:border-0 hover:bg-muted/50">
                     <td className="py-2 text-muted-foreground">{i + 1}</td>
                     <td className="py-2 font-medium">{c.nome}</td>
                     <td className="py-2">{c.partido}</td>
                     <td className="py-2">{c.cargo}</td>
-                    <td className="py-2 text-right font-semibold">{formatBRL(c.total)}</td>
+                    <td className="py-2 text-right font-semibold">{formatBRL(c.patrimonio)}</td>
                     <td className="py-2">
                       <button className="text-xs text-primary hover:underline" onClick={() => setCandidatoSelecionado(c.nome)}>
                         Evolução →
@@ -122,7 +109,7 @@ export default function Patrimonio() {
             </table>
             {(!filteredTop || filteredTop.length === 0) && (
               <p className="text-center text-muted-foreground py-8">
-                Nenhum dado de patrimônio encontrado. Execute a importação de bens de candidatos.
+                Nenhum dado de patrimônio encontrado.
               </p>
             )}
           </div>
