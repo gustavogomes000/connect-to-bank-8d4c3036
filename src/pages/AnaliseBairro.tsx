@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useVotosPorBairro, useVotosPorLocal, useMunicipios } from '@/hooks/useEleicoes';
+import { useVotosPorBairro, useVotosPorLocal, useMunicipios, useDataAvailability } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent } from '@/lib/eleicoes';
 import { ANOS_DISPONIVEIS } from '@/lib/eleicoes';
 import { KPISkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
+import { DataPendingCard } from '@/components/eleicoes/DataPendingCard';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -11,14 +12,17 @@ import { Search, MapPin, School } from 'lucide-react';
 
 export default function AnaliseBairro() {
   const [search, setSearch] = useState('');
-  const [selected, setSelected] = useState<string>('APARECIDA DE GOIÂNIA');
+  const [selected, setSelected] = useState<string>('GOIÂNIA');
   const [anoFiltro, setAnoFiltro] = useState<number | null>(null);
   const [bairroSelecionado, setBairroSelecionado] = useState<string | null>(null);
   const { data: municipios } = useMunicipios();
+  const { data: availability } = useDataAvailability();
 
   const filtered = (municipios || []).filter((m) =>
     m.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 8);
+
+  const hasSecaoData = availability?.comparecimentoSecao;
 
   const { data: bairros, isLoading: loadingBairros } = useVotosPorBairro(selected, anoFiltro || undefined);
   const { data: locais, isLoading: loadingLocais } = useVotosPorLocal(selected, anoFiltro || undefined, bairroSelecionado || undefined);
@@ -69,112 +73,118 @@ export default function AnaliseBairro() {
 
       <div className="text-sm text-muted-foreground flex items-center gap-1">
         <MapPin className="w-4 h-4" /> Analisando: <span className="font-semibold text-foreground">{selected}</span>
-        {bairros && <span>— {bairros.length} bairros encontrados</span>}
+        {bairros && bairros.length > 0 && <span>— {bairros.length} bairros encontrados</span>}
       </div>
 
-      <Tabs defaultValue="bairros" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="bairros"><MapPin className="w-4 h-4 mr-1" /> Por Bairro</TabsTrigger>
-          <TabsTrigger value="locais"><School className="w-4 h-4 mr-1" /> Por Local de Votação</TabsTrigger>
-        </TabsList>
+      {!hasSecaoData ? (
+        <DataPendingCard
+          titulo="Dados de bairro não disponíveis"
+          tabela="bd_eleicoes_comparecimento_secao"
+          descricao="Os dados de comparecimento por seção (bairro e local de votação) precisam ser importados para esta visualização funcionar."
+        />
+      ) : (
+        <Tabs defaultValue="bairros" className="space-y-4">
+          <TabsList>
+            <TabsTrigger value="bairros"><MapPin className="w-4 h-4 mr-1" /> Por Bairro</TabsTrigger>
+            <TabsTrigger value="locais"><School className="w-4 h-4 mr-1" /> Por Local de Votação</TabsTrigger>
+          </TabsList>
 
-        <TabsContent value="bairros">
-          {loadingBairros ? <TableSkeleton /> : (
-            <div className="space-y-4">
-              {chartData.length > 0 && (
-                <div className="bg-card rounded-xl border p-5">
-                  <h3 className="text-base font-semibold mb-4">Eleitorado por Bairro (Top 15)</h3>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <BarChart data={chartData} layout="vertical" margin={{ left: 120 }}>
-                      <XAxis type="number" tickFormatter={(v: number) => formatNumber(v)} />
-                      <YAxis type="category" dataKey="bairro" tick={{ fontSize: 11 }} width={110} />
-                      <Tooltip formatter={(v: number) => formatNumber(v)} />
-                      <Bar dataKey="eleitorado" name="Eleitorado Apto" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
-                      <Bar dataKey="comparecimento" name="Comparecimento" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+          <TabsContent value="bairros">
+            {loadingBairros ? <TableSkeleton /> : (
+              <div className="space-y-4">
+                {chartData.length > 0 && (
+                  <div className="bg-card rounded-xl border p-5">
+                    <h3 className="text-base font-semibold mb-4">Eleitorado por Bairro (Top 15)</h3>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart data={chartData} layout="vertical" margin={{ left: 120 }}>
+                        <XAxis type="number" tickFormatter={(v: number) => formatNumber(v)} />
+                        <YAxis type="category" dataKey="bairro" tick={{ fontSize: 11 }} width={110} />
+                        <Tooltip formatter={(v: number) => formatNumber(v)} />
+                        <Bar dataKey="eleitorado" name="Eleitorado Apto" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} />
+                        <Bar dataKey="comparecimento" name="Comparecimento" fill="hsl(var(--success))" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                <div className="bg-card rounded-xl border p-5 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">Bairro</th>
+                        <th className="pb-2 font-medium text-right">Eleitorado</th>
+                        <th className="pb-2 font-medium text-right">Comparecimento</th>
+                        <th className="pb-2 font-medium text-right">Abstenções</th>
+                        <th className="pb-2 font-medium text-right">% Comp.</th>
+                        <th className="pb-2 font-medium"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(bairros || []).map((b, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                          <td className="py-2 font-medium">{b.bairro}</td>
+                          <td className="py-2 text-right">{formatNumber(b.apto)}</td>
+                          <td className="py-2 text-right">{formatNumber(b.comp)}</td>
+                          <td className="py-2 text-right">{formatNumber(b.abst)}</td>
+                          <td className="py-2 text-right">{b.apto > 0 ? formatPercent((b.comp / b.apto) * 100) : '-'}</td>
+                          <td className="py-2">
+                            <button className="text-xs text-primary hover:underline" onClick={() => setBairroSelecionado(b.bairro)}>
+                              Ver locais →
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(!bairros || bairros.length === 0) && (
+                    <p className="text-center text-muted-foreground py-8">
+                      Nenhum dado de bairro encontrado para {selected}.
+                    </p>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
+          </TabsContent>
 
+          <TabsContent value="locais">
+            {bairroSelecionado && (
+              <div className="text-sm text-muted-foreground mb-2">
+                Filtrando por bairro: <span className="font-semibold text-foreground">{bairroSelecionado}</span>
+                <button className="ml-2 text-primary hover:underline" onClick={() => setBairroSelecionado(null)}>limpar</button>
+              </div>
+            )}
+            {loadingLocais ? <TableSkeleton /> : (
               <div className="bg-card rounded-xl border p-5 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b text-left">
+                      <th className="pb-2 font-medium">Local de Votação</th>
                       <th className="pb-2 font-medium">Bairro</th>
                       <th className="pb-2 font-medium text-right">Eleitorado</th>
                       <th className="pb-2 font-medium text-right">Comparecimento</th>
-                      <th className="pb-2 font-medium text-right">Abstenções</th>
                       <th className="pb-2 font-medium text-right">% Comp.</th>
-                      <th className="pb-2 font-medium"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {(bairros || []).map((b, i) => (
+                    {(locais || []).map((l, i) => (
                       <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="py-2 font-medium">{b.bairro}</td>
-                        <td className="py-2 text-right">{formatNumber(b.apto)}</td>
-                        <td className="py-2 text-right">{formatNumber(b.comp)}</td>
-                        <td className="py-2 text-right">{formatNumber(b.abst)}</td>
-                        <td className="py-2 text-right">{b.apto > 0 ? formatPercent((b.comp / b.apto) * 100) : '-'}</td>
-                        <td className="py-2">
-                          <button className="text-xs text-primary hover:underline" onClick={() => setBairroSelecionado(b.bairro)}>
-                            Ver locais →
-                          </button>
-                        </td>
+                        <td className="py-2 font-medium">{l.local}</td>
+                        <td className="py-2 text-muted-foreground">{l.bairro}</td>
+                        <td className="py-2 text-right">{formatNumber(l.apto)}</td>
+                        <td className="py-2 text-right">{formatNumber(l.comp)}</td>
+                        <td className="py-2 text-right">{l.apto > 0 ? formatPercent((l.comp / l.apto) * 100) : '-'}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-                {(!bairros || bairros.length === 0) && (
-                  <p className="text-center text-muted-foreground py-8">
-                    Nenhum dado de bairro encontrado. Execute a importação de comparecimento por seção primeiro.
-                  </p>
+                {(!locais || locais.length === 0) && (
+                  <p className="text-center text-muted-foreground py-8">Nenhum dado de local de votação encontrado.</p>
                 )}
               </div>
-            </div>
-          )}
-        </TabsContent>
-
-        <TabsContent value="locais">
-          {bairroSelecionado && (
-            <div className="text-sm text-muted-foreground mb-2">
-              Filtrando por bairro: <span className="font-semibold text-foreground">{bairroSelecionado}</span>
-              <button className="ml-2 text-primary hover:underline" onClick={() => setBairroSelecionado(null)}>limpar</button>
-            </div>
-          )}
-          {loadingLocais ? <TableSkeleton /> : (
-            <div className="bg-card rounded-xl border p-5 overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b text-left">
-                    <th className="pb-2 font-medium">Local de Votação</th>
-                    <th className="pb-2 font-medium">Bairro</th>
-                    <th className="pb-2 font-medium text-right">Eleitorado</th>
-                    <th className="pb-2 font-medium text-right">Comparecimento</th>
-                    <th className="pb-2 font-medium text-right">% Comp.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {(locais || []).map((l, i) => (
-                    <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                      <td className="py-2 font-medium">{l.local}</td>
-                      <td className="py-2 text-muted-foreground">{l.bairro}</td>
-                      <td className="py-2 text-right">{formatNumber(l.apto)}</td>
-                      <td className="py-2 text-right">{formatNumber(l.comp)}</td>
-                      <td className="py-2 text-right">{l.apto > 0 ? formatPercent((l.comp / l.apto) * 100) : '-'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {(!locais || locais.length === 0) && (
-                <p className="text-center text-muted-foreground py-8">
-                  Nenhum dado de local de votação encontrado.
-                </p>
-              )}
-            </div>
-          )}
-        </TabsContent>
-      </Tabs>
+            )}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   );
 }

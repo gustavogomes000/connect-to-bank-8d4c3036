@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useTopPatrimonio, useEvolucaoPatrimonio } from '@/hooks/useEleicoes';
 import { formatNumber } from '@/lib/eleicoes';
-import { ANOS_DISPONIVEIS } from '@/lib/eleicoes';
 import { TableSkeleton, ChartSkeleton } from '@/components/eleicoes/Skeletons';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { Input } from '@/components/ui/input';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts';
 import { DollarSign, Search, TrendingUp } from 'lucide-react';
@@ -30,11 +29,9 @@ export default function Patrimonio() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-        <h1 className="text-2xl font-bold flex items-center gap-2">
-          <DollarSign className="w-6 h-6 text-primary" /> Patrimônio dos Candidatos
-        </h1>
-      </div>
+      <h1 className="text-2xl font-bold flex items-center gap-2">
+        <DollarSign className="w-6 h-6 text-primary" /> Patrimônio dos Candidatos
+      </h1>
 
       {isLoading ? <ChartSkeleton /> : chartData.length > 0 && (
         <div className="bg-card rounded-xl border p-5">
@@ -83,6 +80,7 @@ export default function Patrimonio() {
               <thead>
                 <tr className="border-b text-left">
                   <th className="pb-2 font-medium">#</th>
+                  <th className="pb-2 font-medium w-10"></th>
                   <th className="pb-2 font-medium">Nome</th>
                   <th className="pb-2 font-medium">Partido</th>
                   <th className="pb-2 font-medium">Cargo</th>
@@ -94,6 +92,7 @@ export default function Patrimonio() {
                 {(filteredTop || []).map((c, i) => (
                   <tr key={c.sequencial || i} className="border-b last:border-0 hover:bg-muted/50">
                     <td className="py-2 text-muted-foreground">{i + 1}</td>
+                    <td className="py-2"><CandidatoAvatar nome={c.nome} fotoUrl={c.foto_url} size={28} /></td>
                     <td className="py-2 font-medium">{c.nome}</td>
                     <td className="py-2">{c.partido}</td>
                     <td className="py-2">{c.cargo}</td>
@@ -108,9 +107,7 @@ export default function Patrimonio() {
               </tbody>
             </table>
             {(!filteredTop || filteredTop.length === 0) && (
-              <p className="text-center text-muted-foreground py-8">
-                Nenhum dado de patrimônio encontrado.
-              </p>
+              <p className="text-center text-muted-foreground py-8">Nenhum dado de patrimônio encontrado.</p>
             )}
           </div>
         )}

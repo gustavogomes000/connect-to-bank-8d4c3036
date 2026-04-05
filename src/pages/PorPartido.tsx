@@ -1,77 +1,21 @@
-import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
-import { useFilterStore } from '@/stores/filterStore';
+import { useState } from 'react';
+import { usePartidoResumo, usePartidoDetalhe, useDataAvailability } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent, getPartidoCor } from '@/lib/eleicoes';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { KPISkeleton } from '@/components/eleicoes/Skeletons';
-import { useState } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 export default function PorPartido() {
-  const { ano, turno, cargo, municipio } = useFilterStore();
   const [expanded, setExpanded] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { data: availability } = useDataAvailability();
 
-  const { data: partidos, isLoading } = useQuery({
-    queryKey: ['partidosResumo', ano, turno, cargo, municipio],
-    queryFn: async () => {
-      // Get candidatos
-      let cq = (supabase.from('bd_eleicoes_candidatos' as any) as any).select('sigla_partido, situacao_final');
-      if (ano) cq = cq.eq('ano', ano);
-      if (turno) cq = cq.eq('turno', turno);
-      if (cargo) cq = cq.ilike('cargo', cargo);
-      if (municipio) cq = cq.eq('municipio', municipio);
-      const { data: candidatos } = await cq.limit(1000);
+  const { data: resumoData, isLoading } = usePartidoResumo();
+  const { data: detalhe } = usePartidoDetalhe(expanded);
 
-      // Get votos from partido table
-      let vq = (supabase.from('bd_eleicoes_votacao_partido' as any) as any).select('sigla_partido, total_votos');
-      if (ano) vq = vq.eq('ano', ano);
-      if (turno) vq = vq.eq('turno', turno);
-      if (cargo) vq = vq.ilike('cargo', cargo);
-      if (municipio) vq = vq.eq('municipio', municipio);
-      const { data: votos } = await vq.limit(1000);
-
-      const map = new Map<string, { candidatos: number; votos: number; eleitos: number }>();
-      
-      (candidatos || []).forEach((c: any) => {
-        const p = c.sigla_partido || 'OUTROS';
-        const cur = map.get(p) || { candidatos: 0, votos: 0, eleitos: 0 };
-        cur.candidatos++;
-        const sit = (c.situacao_final || '').toUpperCase();
-        if (sit.includes('ELEITO') && !sit.includes('NÃO')) cur.eleitos++;
-        map.set(p, cur);
-      });
-
-      (votos || []).forEach((v: any) => {
-        const p = v.sigla_partido || 'OUTROS';
-        const cur = map.get(p) || { candidatos: 0, votos: 0, eleitos: 0 };
-        cur.votos += v.total_votos || 0;
-        map.set(p, cur);
-      });
-
-      return Array.from(map.entries())
-        .map(([partido, stats]) => ({ partido, ...stats }))
-        .sort((a, b) => b.votos - a.votos);
-    },
-  });
-
-  const { data: detalhe } = useQuery({
-    queryKey: ['partidoDetalhe', expanded, ano, turno, cargo, municipio],
-    queryFn: async () => {
-      if (!expanded) return [];
-      let q = (supabase.from('bd_eleicoes_votacao_munzona' as any) as any)
-        .select('nome_candidato, cargo, municipio, total_votos, sigla_partido')
-        .eq('sigla_partido', expanded)
-        .order('total_votos', { ascending: false })
-        .limit(50);
-      if (ano) q = q.eq('ano', ano);
-      if (turno) q = q.eq('turno', turno);
-      if (cargo) q = q.ilike('cargo', cargo);
-      if (municipio) q = q.eq('municipio', municipio);
-      const { data } = await q;
-      return data || [];
-    },
-    enabled: !!expanded,
-  });
+  const partidos = resumoData?.partidos || [];
+  const hasVotos = resumoData?.hasVotos || false;
 
   if (isLoading) return <KPISkeleton />;
 
@@ -79,8 +23,17 @@ export default function PorPartido() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold">Por Partido</h1>
 
+      {!hasVotos && (
+        <div className="bg-secondary/10 border border-secondary/30 rounded-xl px-4 py-3 flex items-center gap-3">
+          <AlertCircle className="w-4 h-4 text-secondary shrink-0" />
+          <span className="text-sm text-muted-foreground">
+            Dados de votação pendentes. Ordenando por número de candidatos.
+          </span>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {(partidos || []).map((p) => {
+        {partidos.map((p) => {
           const isExpanded = expanded === p.partido;
           const aproveitamento = p.candidatos > 0 ? (p.eleitos / p.candidatos) * 100 : 0;
           return (
@@ -90,10 +43,7 @@ export default function PorPartido() {
                 onClick={() => setExpanded(isExpanded ? null : p.partido)}
               >
                 <div className="flex items-center justify-between mb-3">
-                  <span
-                    className="text-2xl font-bold"
-                    style={{ color: getPartidoCor(p.partido) }}
-                  >
+                  <span className="text-2xl font-bold" style={{ color: getPartidoCor(p.partido) }}>
                     {p.partido}
                   </span>
                   {isExpanded ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
@@ -103,10 +53,12 @@ export default function PorPartido() {
                     <p className="text-muted-foreground">Candidatos</p>
                     <p className="font-semibold">{formatNumber(p.candidatos)}</p>
                   </div>
-                  <div>
-                    <p className="text-muted-foreground">Votos</p>
-                    <p className="font-semibold">{formatNumber(p.votos)}</p>
-                  </div>
+                  {hasVotos && (
+                    <div>
+                      <p className="text-muted-foreground">Votos</p>
+                      <p className="font-semibold">{formatNumber(p.votos)}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="text-muted-foreground">Eleitos</p>
                     <p className="font-semibold">{formatNumber(p.eleitos)}</p>
@@ -128,26 +80,39 @@ export default function PorPartido() {
                         <th className="pb-2 font-medium">Nome</th>
                         <th className="pb-2 font-medium">Cargo</th>
                         <th className="pb-2 font-medium">Município</th>
-                        <th className="pb-2 font-medium">Votos</th>
+                        <th className="pb-2 font-medium">Situação</th>
                       </tr>
                     </thead>
                     <tbody>
                       {(detalhe || []).map((d: any, i: number) => (
-                        <tr key={i} className="border-b last:border-0">
-                          <td className="py-1.5 font-medium">{d.nome_candidato}</td>
+                        <tr
+                          key={i}
+                          className="border-b last:border-0 cursor-pointer hover:bg-primary/5"
+                          onClick={() => {
+                            // Try to find by name in candidatos
+                          }}
+                        >
+                          <td className="py-1.5 font-medium">{d.nome_urna}</td>
                           <td className="py-1.5">{d.cargo}</td>
                           <td className="py-1.5">{d.municipio}</td>
-                          <td className="py-1.5">{formatNumber(d.total_votos)}</td>
+                          <td className="py-1.5"><SituacaoBadge situacao={d.situacao_final} /></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
+                  {(!detalhe || detalhe.length === 0) && (
+                    <p className="text-center text-muted-foreground py-4 text-sm">Nenhum candidato encontrado.</p>
+                  )}
                 </div>
               )}
             </div>
           );
         })}
       </div>
+
+      {partidos.length === 0 && (
+        <p className="text-center text-muted-foreground py-8">Nenhum partido encontrado no filtro atual.</p>
+      )}
     </div>
   );
 }

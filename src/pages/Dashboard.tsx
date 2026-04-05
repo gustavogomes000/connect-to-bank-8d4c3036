@@ -1,5 +1,5 @@
 import {
-  useKPIs, useCheckEmpty, useEleitos,
+  useKPIs, useCheckEmpty, useEleitos, useDataAvailability,
   useCandidatosPorPartido, useDistribuicaoGenero, useDistribuicaoEscolaridade,
   useTopOcupacoes, useSituacaoFinal, useEvolucaoPorAno,
   useTopPatrimonio, useFaixaEtaria, useCandidatosPorCargo,
@@ -10,10 +10,11 @@ import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { EmptyState } from '@/components/eleicoes/EmptyState';
-import { Users, CheckCircle, BarChart3, Landmark, UserCheck, Building } from 'lucide-react';
+import { DataPendingCard } from '@/components/eleicoes/DataPendingCard';
+import { Users, CheckCircle, UserCheck, Building, AlertCircle } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area,
+  PieChart, Pie, Cell, Legend, AreaChart, Area,
 } from 'recharts';
 import { Link } from 'react-router-dom';
 
@@ -25,14 +26,10 @@ const COLORS = [
 ];
 
 const SITUACAO_CORES: Record<string, string> = {
-  'ELEITO': 'hsl(156, 72%, 34%)',
-  'ELEITO POR QP': 'hsl(156, 60%, 45%)',
-  'ELEITO POR MÉDIA': 'hsl(156, 50%, 55%)',
-  'SUPLENTE': 'hsl(38, 60%, 58%)',
-  'NÃO ELEITO': 'hsl(0, 50%, 60%)',
-  '2º TURNO': 'hsl(200, 70%, 50%)',
-  'NÃO DEFINIDO': 'hsl(0, 0%, 70%)',
-  '#NULO': 'hsl(0, 0%, 80%)',
+  'ELEITO': 'hsl(156, 72%, 34%)', 'ELEITO POR QP': 'hsl(156, 60%, 45%)',
+  'ELEITO POR MÉDIA': 'hsl(156, 50%, 55%)', 'SUPLENTE': 'hsl(38, 60%, 58%)',
+  'NÃO ELEITO': 'hsl(0, 50%, 60%)', '2º TURNO': 'hsl(200, 70%, 50%)',
+  'NÃO DEFINIDO': 'hsl(0, 0%, 70%)', '#NULO': 'hsl(0, 0%, 80%)',
 };
 
 function formatBRL(val: number): string {
@@ -52,6 +49,7 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
 
 export default function Dashboard() {
   const { data: isEmpty, isLoading: loadingEmpty } = useCheckEmpty();
+  const { data: availability } = useDataAvailability();
   const { data: kpis, isLoading: loadingKPIs } = useKPIs();
   const { data: porPartido, isLoading: loadingPartido } = useCandidatosPorPartido();
   const { data: genero, isLoading: loadingGenero } = useDistribuicaoGenero();
@@ -69,6 +67,12 @@ export default function Dashboard() {
   if (loadingEmpty) return <KPISkeleton />;
   if (isEmpty) return <EmptyState />;
 
+  // Status indicators
+  const pendingTables = [];
+  if (availability && !availability.votacao) pendingTables.push('Votação');
+  if (availability && !availability.comparecimento) pendingTables.push('Comparecimento');
+  if (availability && !availability.comparecimentoSecao) pendingTables.push('Bairros');
+
   const kpiCards = [
     { icon: Users, label: 'Candidatos', value: formatNumber(kpis?.totalCandidatos), sub: 'no filtro atual', color: 'text-primary' },
     { icon: CheckCircle, label: 'Eleitos', value: formatNumber(kpis?.totalEleitos), sub: 'eleitos/média/QP', color: 'text-[hsl(var(--success))]' },
@@ -78,7 +82,20 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 max-w-[1600px] mx-auto">
-      {/* ═══ KPIs ═══ */}
+      {/* Data Status Banner */}
+      {pendingTables.length > 0 && (
+        <div className="bg-secondary/10 border border-secondary/30 rounded-xl px-4 py-3 flex items-center gap-3">
+          <AlertCircle className="w-5 h-5 text-secondary shrink-0" />
+          <div className="text-sm">
+            <span className="font-medium text-foreground">Dados parciais: </span>
+            <span className="text-muted-foreground">
+              {pendingTables.join(', ')} pendente(s) de importação. Exibindo dados de candidatos e patrimônio.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* KPIs */}
       {loadingKPIs ? <KPISkeleton /> : (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {kpiCards.map((kpi, i) => (
@@ -94,9 +111,8 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ═══ ROW 1: Partido + Gênero + Situação ═══ */}
+      {/* ROW 1: Partido + Gênero + Situação */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-        {/* Candidatos por Partido */}
         {loadingPartido ? <ChartSkeleton className="lg:col-span-5" /> : (
           <Card className="lg:col-span-5">
             <SectionTitle>Candidatos por Partido</SectionTitle>
@@ -115,7 +131,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Gênero */}
         {loadingGenero ? <ChartSkeleton className="lg:col-span-3" /> : (
           <Card className="lg:col-span-3">
             <SectionTitle>Distribuição por Gênero</SectionTitle>
@@ -133,7 +148,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Situação Final */}
         {loadingSit ? <ChartSkeleton className="lg:col-span-4" /> : (
           <Card className="lg:col-span-4">
             <SectionTitle>Resultado Eleitoral</SectionTitle>
@@ -152,9 +166,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ═══ ROW 2: Evolução + Faixa Etária ═══ */}
+      {/* ROW 2: Evolução + Faixa Etária */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Evolução por Ano */}
         {loadingEvol ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Evolução por Ano Eleitoral</SectionTitle>
@@ -172,7 +185,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Faixa Etária */}
         {loadingFaixa ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Faixa Etária dos Candidatos</SectionTitle>
@@ -188,9 +200,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ═══ ROW 3: Escolaridade + Ocupações ═══ */}
+      {/* ROW 3: Escolaridade + Ocupações */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Escolaridade */}
         {loadingEscol ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Grau de Instrução</SectionTitle>
@@ -205,7 +216,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Ocupações */}
         {loadingOcup ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Top 12 Ocupações</SectionTitle>
@@ -221,9 +231,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ═══ ROW 4: Por Cargo + Patrimônio Distribuição ═══ */}
+      {/* ROW 4: Por Cargo + Patrimônio Distribuição */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Candidatos por Cargo */}
         {loadingCargo ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Candidatos por Cargo</SectionTitle>
@@ -241,7 +250,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Patrimônio Distribuição por Faixa */}
         {loadingPatriDist ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Distribuição Patrimonial (por candidato)</SectionTitle>
@@ -257,9 +265,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ═══ ROW 5: Patrimônio Evolução + Top Patrimônio Table ═══ */}
+      {/* ROW 5: Patrimônio Evolução + Top Patrimônio Table */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Patrimônio Evolução por Ano */}
         {loadingPatriEvol ? <ChartSkeleton /> : (
           <Card>
             <SectionTitle>Patrimônio Total Declarado por Ano</SectionTitle>
@@ -276,7 +283,6 @@ export default function Dashboard() {
           </Card>
         )}
 
-        {/* Top 10 Patrimônio */}
         {loadingPatri ? <TableSkeleton /> : (
           <Card>
             <SectionTitle>Top 10 Maior Patrimônio</SectionTitle>
@@ -311,7 +317,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ═══ ROW 6: Eleitos Table ═══ */}
+      {/* ROW 6: Eleitos Table */}
       {loadingEleitos ? <TableSkeleton /> : (eleitos && eleitos.length > 0) && (
         <Card>
           <SectionTitle>Eleitos no Filtro Atual</SectionTitle>
