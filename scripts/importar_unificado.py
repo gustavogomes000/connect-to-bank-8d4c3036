@@ -212,8 +212,8 @@ def load_sources(fonte_filtro=None):
 # ═══════════════════════════════════════════════════════════
 #  HTTP com RETRY + BACKOFF EXPONENCIAL
 # ═══════════════════════════════════════════════════════════
-def http_get(sess: requests.Session, url: str, max_retries: int = 3,
-             timeout: int = 120, stream: bool = False) -> requests.Response:
+def http_get(sess: requests.Session, url: str, max_retries: int = 5,
+             timeout: int = 180, stream: bool = False) -> requests.Response:
     """GET robusto com backoff exponencial. Retries em 500, timeout, conexão."""
     for attempt in range(1, max_retries + 1):
         try:
@@ -258,7 +258,7 @@ def ensure_valid_zip(path: Path) -> bool:
         path.unlink(missing_ok=True); return False
 
 def download_zip(sess: requests.Session, url: str, dest: Path,
-                 retries: int = 3, timeout: int = 600) -> Tuple[bool, Optional[str]]:
+                 retries: int = 5, timeout: int = 900) -> Tuple[bool, Optional[str]]:
     dest.parent.mkdir(parents=True, exist_ok=True)
     last_err = None
     for attempt in range(1, retries + 1):
@@ -1293,6 +1293,8 @@ def main():
     p_imp.add_argument("--resume", action="store_true")
     p_imp.add_argument("--force", action="store_true")
     p_imp.add_argument("--fonte", type=str, default=None, help="Filtrar por fonte: tse, ibge, datasus, siconfi, camara...")
+    p_imp.add_argument("--tabela", type=str, default=None, help="Importar tabela específica pelo nome (ex: raw_filiados_2024)")
+    p_imp.add_argument("--retries", type=int, default=3, help="Retry no nível do item inteiro (default: 3)")
 
     p_dry = sub.add_parser("dry-run", help="Ver plano sem executar")
     p_dry.add_argument("--prioridade", type=int, default=99)
