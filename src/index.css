@@ -2,63 +2,67 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @layer base {
   :root {
-    --background: 340 30% 97%;
-    --foreground: 230 25% 18%;
+    /* Dark intelligence theme — matching reference screenshots */
+    --background: 210 29% 10%;
+    --foreground: 210 20% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 230 25% 18%;
+    --card: 210 25% 13%;
+    --card-foreground: 210 20% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 230 25% 18%;
+    --popover: 210 25% 15%;
+    --popover-foreground: 210 20% 92%;
 
-    --primary: 338 72% 60%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 190 80% 45%;
+    --primary-foreground: 210 29% 8%;
 
-    --secondary: 38 60% 58%;
+    --secondary: 338 72% 60%;
     --secondary-foreground: 0 0% 100%;
 
-    --muted: 340 20% 95%;
-    --muted-foreground: 230 10% 46%;
+    --muted: 210 20% 18%;
+    --muted-foreground: 210 15% 55%;
 
-    --accent: 338 40% 93%;
-    --accent-foreground: 338 72% 40%;
+    --accent: 190 40% 20%;
+    --accent-foreground: 190 80% 60%;
 
-    --destructive: 0 79% 52%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 156 72% 34%;
+    --success: 156 72% 40%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 45 93% 46%;
-    --warning-foreground: 0 0% 100%;
+    --warning: 45 93% 50%;
+    --warning-foreground: 0 0% 10%;
 
-    --border: 338 15% 90%;
-    --input: 338 15% 90%;
-    --ring: 338 72% 60%;
+    --info: 200 80% 55%;
+    --info-foreground: 0 0% 100%;
 
-    --radius: 0.625rem;
+    --border: 210 20% 20%;
+    --input: 210 20% 18%;
+    --ring: 190 80% 45%;
 
-    --sidebar-background: 230 25% 14%;
-    --sidebar-foreground: 340 20% 95%;
-    --sidebar-primary: 338 72% 60%;
+    --radius: 0.5rem;
+
+    --sidebar-background: 210 30% 8%;
+    --sidebar-foreground: 210 15% 80%;
+    --sidebar-primary: 190 80% 45%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 230 20% 20%;
-    --sidebar-accent-foreground: 340 20% 95%;
-    --sidebar-border: 230 20% 20%;
-    --sidebar-ring: 338 72% 60%;
+    --sidebar-accent: 210 25% 14%;
+    --sidebar-accent-foreground: 210 15% 85%;
+    --sidebar-border: 210 20% 16%;
+    --sidebar-ring: 190 80% 45%;
 
-    --chart-1: 338 72% 60%;
-    --chart-2: 38 60% 58%;
-    --chart-3: 156 72% 34%;
-    --chart-4: 280 50% 55%;
-    --chart-5: 200 70% 50%;
-
-    --gradient-sarelli: linear-gradient(135deg, hsl(338 72% 60%), hsl(338 60% 72%));
-    --gradient-gold: linear-gradient(135deg, hsl(38 60% 58%), hsl(42 70% 65%));
+    --chart-1: 190 80% 45%;
+    --chart-2: 338 72% 60%;
+    --chart-3: 156 72% 40%;
+    --chart-4: 45 93% 50%;
+    --chart-5: 280 60% 55%;
+    --chart-6: 25 85% 55%;
+    --chart-7: 160 60% 45%;
+    --chart-8: 320 65% 50%;
   }
 }
 
@@ -68,22 +72,29 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Poppins', sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+  }
+  code, .font-mono {
+    font-family: 'JetBrains Mono', monospace;
   }
 }
 
-/* Custom scrollbar */
+/* Scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary) / 0.3);
+  background: hsl(var(--muted-foreground) / 0.3);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
@@ -92,8 +103,32 @@
 
 /* Table striped rows */
 .table-striped tbody tr:nth-child(even) {
-  background-color: hsl(var(--muted) / 0.5);
+  background-color: hsl(var(--muted) / 0.3);
 }
 .table-striped tbody tr:hover {
-  background-color: hsl(var(--primary) / 0.05);
+  background-color: hsl(var(--primary) / 0.08);
+}
+
+/* Glow effects for KPI cards */
+.kpi-glow {
+  box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.15);
+}
+
+/* Data grid */
+.data-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+/* Metric highlight */
+.metric-value {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Glass morphism card */
+.glass-card {
+  background: hsl(var(--card) / 0.8);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(var(--border));
 }

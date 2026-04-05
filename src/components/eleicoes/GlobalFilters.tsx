@@ -1,81 +1,158 @@
 import { useFilterStore } from '@/stores/filterStore';
-import { useMunicipios, usePartidos } from '@/hooks/useEleicoes';
+import { useMunicipios, usePartidos, useFilterOptions } from '@/hooks/useEleicoes';
 import { ANOS_DISPONIVEIS, CARGOS_DISPONIVEIS } from '@/lib/eleicoes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { X } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { X, Filter, Search, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState } from 'react';
 
 export function GlobalFilters() {
-  const { ano, turno, cargo, municipio, partido, setAno, setTurno, setCargo, setMunicipio, setPartido, limpar } = useFilterStore();
+  const store = useFilterStore();
   const { data: municipios } = useMunicipios();
   const { data: partidos } = usePartidos();
+  const { data: filterOpts } = useFilterOptions();
+  const [expanded, setExpanded] = useState(false);
+  const activeCount = store.activeFiltersCount();
 
   return (
-    <div className="sticky top-0 z-30 bg-background/95 backdrop-blur border-b px-4 py-3">
-      <div className="flex flex-wrap gap-3 items-center max-w-[1400px] mx-auto">
-        <Select value={ano?.toString() || 'todos'} onValueChange={(v) => setAno(v === 'todos' ? null : parseInt(v))}>
-          <SelectTrigger className="w-[120px] h-9 text-sm">
-            <SelectValue placeholder="Ano" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os anos</SelectItem>
-            {ANOS_DISPONIVEIS.map((a) => (
-              <SelectItem key={a} value={a.toString()}>{a}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/50">
+      {/* Primary row */}
+      <div className="px-4 py-2.5">
+        <div className="flex flex-wrap gap-2 items-center max-w-[1600px] mx-auto">
+          <div className="flex items-center gap-2 mr-2">
+            <Filter className="w-4 h-4 text-primary" />
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Filtros</span>
+            {activeCount > 0 && (
+              <Badge variant="secondary" className="h-5 px-1.5 text-[10px] font-bold bg-primary text-primary-foreground">
+                {activeCount}
+              </Badge>
+            )}
+          </div>
 
-        <Select value={turno?.toString() || 'todos'} onValueChange={(v) => setTurno(v === 'todos' ? null : parseInt(v))}>
-          <SelectTrigger className="w-[130px] h-9 text-sm">
-            <SelectValue placeholder="Turno" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Ambos turnos</SelectItem>
-            <SelectItem value="1">1º Turno</SelectItem>
-            <SelectItem value="2">2º Turno</SelectItem>
-          </SelectContent>
-        </Select>
+          <div className="relative flex-1 max-w-[200px]">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              value={store.searchText}
+              onChange={e => store.setSearchText(e.target.value)}
+              placeholder="Buscar candidato..."
+              className="pl-8 h-8 text-xs bg-muted/50 border-border/50"
+            />
+          </div>
 
-        <Select value={cargo || 'todos'} onValueChange={(v) => setCargo(v === 'todos' ? null : v)}>
-          <SelectTrigger className="w-[170px] h-9 text-sm">
-            <SelectValue placeholder="Cargo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os cargos</SelectItem>
-            {CARGOS_DISPONIVEIS.map((c) => (
-              <SelectItem key={c} value={c}>{c}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={store.ano?.toString() || 'todos'} onValueChange={v => store.setAno(v === 'todos' ? null : parseInt(v))}>
+            <SelectTrigger className="w-[100px] h-8 text-xs bg-muted/50 border-border/50">
+              <SelectValue placeholder="Ano" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos anos</SelectItem>
+              {ANOS_DISPONIVEIS.map(a => <SelectItem key={a} value={a.toString()}>{a}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-        <Select value={municipio || 'todos'} onValueChange={(v) => setMunicipio(v === 'todos' ? null : v)}>
-          <SelectTrigger className="w-[170px] h-9 text-sm">
-            <SelectValue placeholder="Município" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos municípios</SelectItem>
-            {(municipios || []).map((m) => (
-              <SelectItem key={m} value={m}>{m}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={store.turno?.toString() || 'todos'} onValueChange={v => store.setTurno(v === 'todos' ? null : parseInt(v))}>
+            <SelectTrigger className="w-[110px] h-8 text-xs bg-muted/50 border-border/50">
+              <SelectValue placeholder="Turno" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Ambos turnos</SelectItem>
+              <SelectItem value="1">1º Turno</SelectItem>
+              <SelectItem value="2">2º Turno</SelectItem>
+            </SelectContent>
+          </Select>
 
-        <Select value={partido || 'todos'} onValueChange={(v) => setPartido(v === 'todos' ? null : v)}>
-          <SelectTrigger className="w-[140px] h-9 text-sm">
-            <SelectValue placeholder="Partido" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos partidos</SelectItem>
-            {(partidos || []).map((p) => (
-              <SelectItem key={p} value={p}>{p}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          <Select value={store.cargo || 'todos'} onValueChange={v => store.setCargo(v === 'todos' ? null : v)}>
+            <SelectTrigger className="w-[140px] h-8 text-xs bg-muted/50 border-border/50">
+              <SelectValue placeholder="Cargo" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos cargos</SelectItem>
+              {CARGOS_DISPONIVEIS.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            </SelectContent>
+          </Select>
 
-        <Button variant="ghost" size="sm" onClick={limpar} className="h-9 text-muted-foreground">
-          <X className="w-4 h-4 mr-1" /> Limpar
-        </Button>
+          <Select value={store.municipio || 'todos'} onValueChange={v => store.setMunicipio(v === 'todos' ? null : v)}>
+            <SelectTrigger className="w-[150px] h-8 text-xs bg-muted/50 border-border/50">
+              <SelectValue placeholder="Município" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos municípios</SelectItem>
+              {(municipios || []).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select value={store.partido || 'todos'} onValueChange={v => store.setPartido(v === 'todos' ? null : v)}>
+            <SelectTrigger className="w-[120px] h-8 text-xs bg-muted/50 border-border/50">
+              <SelectValue placeholder="Partido" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos partidos</SelectItem>
+              {(partidos || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)} className="h-8 text-xs text-muted-foreground px-2">
+            {expanded ? <ChevronUp className="w-3.5 h-3.5 mr-1" /> : <ChevronDown className="w-3.5 h-3.5 mr-1" />}
+            Avançado
+          </Button>
+
+          {activeCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={store.limpar} className="h-8 text-xs text-destructive hover:text-destructive px-2">
+              <X className="w-3.5 h-3.5 mr-1" /> Limpar
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Expanded advanced filters */}
+      {expanded && (
+        <div className="px-4 py-2 border-t border-border/30 bg-muted/20">
+          <div className="flex flex-wrap gap-2 items-center max-w-[1600px] mx-auto">
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-2">Demográfico</span>
+
+            <Select value={store.genero || 'todos'} onValueChange={v => store.setGenero(v === 'todos' ? null : v)}>
+              <SelectTrigger className="w-[120px] h-7 text-xs bg-muted/50 border-border/50">
+                <SelectValue placeholder="Gênero" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos gêneros</SelectItem>
+                {(filterOpts?.generos || []).map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={store.escolaridade || 'todos'} onValueChange={v => store.setEscolaridade(v === 'todos' ? null : v)}>
+              <SelectTrigger className="w-[170px] h-7 text-xs bg-muted/50 border-border/50">
+                <SelectValue placeholder="Escolaridade" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas escolaridades</SelectItem>
+                {(filterOpts?.escolaridades || []).map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={store.ocupacao || 'todos'} onValueChange={v => store.setOcupacao(v === 'todos' ? null : v)}>
+              <SelectTrigger className="w-[170px] h-7 text-xs bg-muted/50 border-border/50">
+                <SelectValue placeholder="Ocupação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas ocupações</SelectItem>
+                {(filterOpts?.ocupacoes || []).slice(0, 30).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={store.situacao || 'todos'} onValueChange={v => store.setSituacao(v === 'todos' ? null : v)}>
+              <SelectTrigger className="w-[140px] h-7 text-xs bg-muted/50 border-border/50">
+                <SelectValue placeholder="Situação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todas situações</SelectItem>
+                {(filterOpts?.situacoes || []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

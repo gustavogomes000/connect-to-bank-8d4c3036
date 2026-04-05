@@ -1,28 +1,30 @@
 import { Link, useLocation } from 'react-router-dom';
-import { BarChart3, Trophy, Users, Building2, Target, Download, HelpCircle, MapPin, DollarSign, UserCheck } from 'lucide-react';
 import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarHeader,
-  useSidebar,
+  BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck,
+  Database, HelpCircle, TrendingUp, Users
+} from 'lucide-react';
+import {
+  Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
+  SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarHeader, useSidebar,
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
-const menuItems = [
+const analysisItems = [
   { title: 'Dashboard', url: '/', icon: BarChart3 },
   { title: 'Ranking', url: '/ranking', icon: Trophy },
-  { title: 'Candidatos', url: '/candidatos', icon: Users },
-  { title: 'Por Município', url: '/municipio', icon: Building2 },
-  { title: 'Por Partido', url: '/partido', icon: Target },
-  { title: 'Por Bairro', url: '/bairro', icon: MapPin },
+  { title: 'Explorador', url: '/explorador', icon: TrendingUp },
+];
+
+const dimensionItems = [
+  { title: 'Municípios', url: '/municipio', icon: Building2 },
+  { title: 'Partidos', url: '/partido', icon: Target },
+  { title: 'Bairros', url: '/bairro', icon: MapPin },
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
-  { title: 'Perfil Candidatos', url: '/perfil-candidatos', icon: UserCheck },
-  { title: 'Importar Dados', url: '/importar', icon: Download },
+  { title: 'Perfil', url: '/perfil-candidatos', icon: UserCheck },
+];
+
+const systemItems = [
+  { title: 'Importar', url: '/importar', icon: Database },
   { title: 'Ajuda', url: '/ajuda', icon: HelpCircle },
 ];
 
@@ -31,51 +33,66 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
 
+  const MenuItem = ({ item }: { item: typeof analysisItems[0] }) => {
+    const isActive = location.pathname === item.url;
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton asChild>
+          <Link
+            to={item.url}
+            className={cn(
+              'flex items-center gap-3 px-3 py-2 rounded-md transition-all text-sm',
+              isActive
+                ? 'bg-primary/15 text-primary font-semibold border border-primary/20'
+                : 'text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
+            )}
+          >
+            <item.icon className={cn('w-4 h-4 shrink-0', isActive && 'text-primary')} />
+            {!collapsed && <span>{item.title}</span>}
+          </Link>
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    );
+  };
+
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link to="/" className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center shrink-0">
-            <span className="text-primary-foreground font-bold text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>S</span>
+          <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+            <BarChart3 className="w-4 h-4 text-primary" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-sidebar-foreground tracking-tight" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Dra. Sarelli
+              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
+                EleiçõesGO
               </span>
-              <span className="text-[10px] text-sidebar-foreground/50 uppercase tracking-widest">
-                Inteligência Eleitoral
+              <span className="text-[10px] text-sidebar-foreground/40 uppercase tracking-widest">
+                Inteligência de Dados
               </span>
             </div>
           )}
         </Link>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="px-2 py-3">
         <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Análise</SidebarGroupLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>
-              {menuItems.map((item) => {
-                const isActive = location.pathname === item.url;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild>
-                      <Link
-                        to={item.url}
-                        className={cn(
-                          'flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-sm',
-                          isActive
-                            ? 'bg-primary/20 text-primary font-semibold'
-                            : 'text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent/50'
-                        )}
-                      >
-                        <item.icon className="w-5 h-5 shrink-0" />
-                        {!collapsed && <span>{item.title}</span>}
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
+            <SidebarMenu>{analysisItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Dimensões</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>{dimensionItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Sistema</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>{systemItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
