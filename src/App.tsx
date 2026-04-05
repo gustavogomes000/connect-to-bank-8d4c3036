@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/eleicoes/AppSidebar";
 import { GlobalFilters } from "@/components/eleicoes/GlobalFilters";
 import Dashboard from "./pages/Dashboard";
 import Ranking from "./pages/Ranking";
+import Explorador from "./pages/Explorador";
 import CandidatoPerfil from "./pages/CandidatoPerfil";
 import PorMunicipio from "./pages/PorMunicipio";
 import PorPartido from "./pages/PorPartido";
@@ -22,23 +23,26 @@ const queryClient = new QueryClient();
 
 function Layout() {
   const location = useLocation();
-  const hideFilters = location.pathname === '/importar' || location.pathname === '/ajuda' || location.pathname === '/bairro' || location.pathname === '/patrimonio';
+  const hideFilters = ['/importar', '/ajuda'].includes(location.pathname);
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-12 flex items-center border-b bg-card px-4 shrink-0">
+          <header className="h-11 flex items-center border-b border-border/50 bg-card/50 backdrop-blur-sm px-4 shrink-0">
             <SidebarTrigger />
-            <span className="ml-3 text-sm font-semibold text-foreground" style={{ fontFamily: 'Poppins, sans-serif' }}>Dra. Sarelli</span>
-            <span className="ml-1.5 text-xs text-muted-foreground">— Inteligência Eleitoral GO</span>
+            <div className="ml-3 flex items-center gap-2">
+              <span className="text-xs font-semibold text-foreground">EleiçõesGO</span>
+              <span className="text-[10px] text-muted-foreground">Inteligência de Dados Eleitorais</span>
+            </div>
           </header>
           {!hideFilters && <GlobalFilters />}
-          <main className="flex-1 p-4 md:p-6 overflow-auto">
+          <main className="flex-1 p-3 md:p-4 overflow-auto">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/ranking" element={<Ranking />} />
+              <Route path="/explorador" element={<Explorador />} />
               <Route path="/candidatos" element={<Ranking />} />
               <Route path="/candidato/:id" element={<CandidatoPerfil />} />
               <Route path="/municipio" element={<PorMunicipio />} />
