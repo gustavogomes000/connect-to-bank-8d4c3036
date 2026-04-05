@@ -2,176 +2,496 @@ import { supabase } from '@/integrations/supabase/client';
 import { useFilterStore } from '@/stores/filterStore';
 import { useQuery } from '@tanstack/react-query';
 
-const TABELA_VOTOS = 'bd_eleicoes_votacao_munzona' as any;
 const TABELA_CANDIDATOS = 'bd_eleicoes_candidatos' as any;
-const TABELA_COMPARECIMENTO = 'bd_eleicoes_comparecimento' as any;
 const TABELA_BENS = 'bd_eleicoes_bens_candidatos' as any;
-const TABELA_SECAO = 'bd_eleicoes_votacao_secao' as any;
-const TABELA_COMP_SECAO = 'bd_eleicoes_comparecimento_secao' as any;
 
-type TableType = 'votacao' | 'candidatos' | 'comparecimento';
+type Filters = { ano: number | null; turno: number | null; cargo: string | null; municipio: string | null; partido: string | null };
 
-function applyFilters(query: any, filters: { ano: number | null; turno: number | null; cargo: string | null; municipio: string | null; partido: string | null }, table: TableType) {
-  if (filters.ano) query = query.eq('ano', filters.ano);
-  if (filters.turno) query = query.eq('turno', filters.turno);
-  if (table !== 'comparecimento') {
-    if (filters.cargo) query = query.ilike('cargo', filters.cargo);
-    if (filters.partido) query = query.eq('sigla_partido', filters.partido);
-  }
-  if (filters.municipio) query = query.eq('municipio', filters.municipio);
+function applyFilters(query: any, f: Filters, skipMunicipio = false) {
+  if (f.ano) query = query.eq('ano', f.ano);
+  if (f.turno) query = query.eq('turno', f.turno);
+  if (f.cargo) query = query.ilike('cargo', f.cargo);
+  if (f.partido) query = query.eq('sigla_partido', f.partido);
+  if (!skipMunicipio && f.municipio) query = query.eq('municipio', f.municipio);
   return query;
 }
 
+// ═══ HELPERS ═══
+async function fetchAll(baseQuery: any, pageSize = 1000) {
+  const results: any[] = [];
+  let page = 0;
+  while (true) {
+    const { data, error } = await baseQuery.range(page * pageSize, (page + 1) * pageSize - 1);
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+    results.push(...data);
+    if (data.length < pageSize) break;
+    page++;
+  }
+  return results;
+}
+
+// ═══ CHECK EMPTY ═══
+export function useCheckEmpty() {
+  return useQuery({
+    queryKey: ['checkEmpty'],
+    queryFn: async () => {
+      const { count } = await (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact', head: true });
+      return (count || 0) === 0;
+    },
+  });
+}
+
+// ═══ KPIs DASHBOARD ═══
 export function useKPIs() {
-  const { ano, turno, cargo, municipio, partido } = useFilterStore();
-  const filters = { ano, turno, cargo, municipio, partido };
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
 
   return useQuery({
-    queryKey: ['kpis', filters],
+    queryKey: ['kpis', f],
     queryFn: async () => {
-      // Count candidatos - fetch minimal data
-      let cq = (supabase.from(TABELA_CANDIDATOS) as any).select('id, situacao_final').limit(1000);
-      cq = applyFilters(cq, filters, 'candidatos');
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('id, situacao_final, genero, sigla_partido'),
+        f
+      );
+      const data = await fetchAll(q);
 
-      // Comparecimento
-      let compQ = (supabase.from(TABELA_COMPARECIMENTO) as any).select('eleitorado_apto, comparecimento').limit(1000);
-      compQ = applyFilters(compQ, filters, 'comparecimento');
-
-      // Run in parallel
-      const [candRes, compRes] = await Promise.all([cq, compQ]);
-
-      const candData = candRes.data || [];
-      const totalCandidatos = candData.length;
-      const totalEleitos = candData.filter((c: any) => {
+      const totalCandidatos = data.length;
+      const totalEleitos = data.filter((c: any) => {
         const s = (c.situacao_final || '').toUpperCase();
-        return s.includes('ELEITO') && !s.includes('NÃO ELEITO');
+        return (s.includes('ELEITO') || s.includes('MÉDIA') || s.includes('QP')) && !s.includes('NÃO ELEITO');
       }).length;
+      const totalMulheres = data.filter((c: any) => (c.genero || '').toUpperCase() === 'FEMININO').length;
+      const pctMulheres = totalCandidatos > 0 ? (totalMulheres / totalCandidatos) * 100 : 0;
+      const totalPartidos = new Set(data.map((c: any) => c.sigla_partido).filter(Boolean)).size;
 
-      let totalApto = 0, totalComp = 0;
-      (compRes.data || []).forEach((r: any) => {
-        totalApto += r.eleitorado_apto || 0;
-        totalComp += r.comparecimento || 0;
-      });
-      const pctComparecimento = totalApto > 0 ? (totalComp / totalApto) * 100 : 0;
-
-      // Total votos: use votacao_munzona with limit
-      let vq = supabase.from(TABELA_VOTOS).select('total_votos').limit(1000);
-      if (filters.ano) vq = vq.eq('ano', filters.ano);
-      if (filters.turno) vq = vq.eq('turno', filters.turno);
-      if (filters.cargo) vq = (vq as any).ilike('cargo', filters.cargo);
-      if (filters.municipio) vq = vq.eq('municipio', filters.municipio);
-      if (filters.partido) vq = vq.eq('sigla_partido', filters.partido);
-      const { data: votosData } = await vq;
-      const totalVotos = (votosData || []).reduce((sum: number, r: any) => sum + (r.total_votos || 0), 0);
-
-      return { totalCandidatos, totalVotos, totalEleitos, pctComparecimento };
+      return { totalCandidatos, totalEleitos, pctMulheres, totalPartidos, totalMulheres };
     },
   });
 }
 
-export function useTop10Votados() {
-  const { ano, turno, cargo, municipio, partido } = useFilterStore();
-  const filters = { ano, turno, cargo, municipio, partido };
+// ═══ CANDIDATOS POR PARTIDO ═══
+export function useCandidatosPorPartido() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
 
   return useQuery({
-    queryKey: ['top10', filters],
+    queryKey: ['candidatosPorPartido', f],
     queryFn: async () => {
-      let q = supabase.from(TABELA_VOTOS).select('nome_candidato, sigla_partido, total_votos').order('total_votos', { ascending: false }).limit(100);
-      q = applyFilters(q, filters, 'votacao');
-      const { data } = await q;
-      
-      const map = new Map<string, { nome_candidato: string; partido: string; total_votos: number }>();
-      (data || []).forEach((r: any) => {
-        const key = r.nome_candidato;
-        const cur = map.get(key);
-        if (cur) {
-          cur.total_votos += r.total_votos || 0;
-        } else {
-          map.set(key, { nome_candidato: r.nome_candidato, partido: r.sigla_partido, total_votos: r.total_votos || 0 });
-        }
-      });
-
-      return Array.from(map.values()).sort((a, b) => b.total_votos - a.total_votos).slice(0, 10);
-    },
-  });
-}
-
-export function useVotosPorPartido() {
-  const { ano, turno, cargo, municipio, partido } = useFilterStore();
-  const filters = { ano, turno, cargo, municipio, partido };
-
-  return useQuery({
-    queryKey: ['votosPorPartido', filters],
-    queryFn: async () => {
-      let q = supabase.from('bd_eleicoes_votacao_partido' as any).select('sigla_partido, total_votos');
-      if (filters.ano) q = q.eq('ano', filters.ano);
-      if (filters.turno) q = q.eq('turno', filters.turno);
-      if (filters.cargo) q = q.ilike('cargo', filters.cargo);
-      if (filters.municipio) q = q.eq('municipio', filters.municipio);
-      if (filters.partido) q = q.eq('sigla_partido', filters.partido);
-      const { data } = await q.limit(1000);
-      
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('sigla_partido'),
+        f
+      );
+      const data = await fetchAll(q);
       const map = new Map<string, number>();
-      (data || []).forEach((r: any) => {
+      data.forEach((r: any) => {
         const p = r.sigla_partido || 'OUTROS';
-        map.set(p, (map.get(p) || 0) + (r.total_votos || 0));
+        map.set(p, (map.get(p) || 0) + 1);
       });
-
-      return Array.from(map.entries()).map(([partido, votos]) => ({ partido, votos })).sort((a, b) => b.votos - a.votos);
+      return Array.from(map.entries())
+        .map(([partido, total]) => ({ partido, total }))
+        .sort((a, b) => b.total - a.total);
     },
   });
 }
 
-export function useComparecimentoPorAno() {
-  const { municipio } = useFilterStore();
+// ═══ DISTRIBUIÇÃO POR GÊNERO ═══
+export function useDistribuicaoGenero() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
 
   return useQuery({
-    queryKey: ['comparecimentoAno', municipio],
+    queryKey: ['genero', f],
     queryFn: async () => {
-      let q = supabase.from(TABELA_COMPARECIMENTO).select('ano, eleitorado_apto, comparecimento');
-      if (municipio) q = q.eq('municipio', municipio);
-      const { data } = await q.limit(1000);
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('genero'),
+        f
+      );
+      const data = await fetchAll(q);
+      const map = new Map<string, number>();
+      data.forEach((r: any) => {
+        const g = r.genero || 'NÃO INFORMADO';
+        map.set(g, (map.get(g) || 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([nome, total]) => ({ nome, total }))
+        .sort((a, b) => b.total - a.total);
+    },
+  });
+}
 
-      const map = new Map<number, { apto: number; comp: number }>();
-      (data || []).forEach((r: any) => {
-        const cur = map.get(r.ano) || { apto: 0, comp: 0 };
-        cur.apto += r.eleitorado_apto || 0;
-        cur.comp += r.comparecimento || 0;
+// ═══ DISTRIBUIÇÃO POR ESCOLARIDADE ═══
+export function useDistribuicaoEscolaridade() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['escolaridade', f],
+    queryFn: async () => {
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('grau_instrucao'),
+        f
+      );
+      const data = await fetchAll(q);
+      const map = new Map<string, number>();
+      data.forEach((r: any) => {
+        const g = r.grau_instrucao || 'NÃO INFORMADO';
+        map.set(g, (map.get(g) || 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([nome, total]) => ({ nome, total }))
+        .sort((a, b) => b.total - a.total);
+    },
+  });
+}
+
+// ═══ TOP OCUPAÇÕES ═══
+export function useTopOcupacoes() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['ocupacoes', f],
+    queryFn: async () => {
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('ocupacao'),
+        f
+      );
+      const data = await fetchAll(q);
+      const map = new Map<string, number>();
+      data.forEach((r: any) => {
+        const o = r.ocupacao || 'NÃO INFORMADO';
+        map.set(o, (map.get(o) || 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([nome, total]) => ({ nome, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 12);
+    },
+  });
+}
+
+// ═══ SITUAÇÃO FINAL (RESULTADO) ═══
+export function useSituacaoFinal() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['situacao', f],
+    queryFn: async () => {
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('situacao_final'),
+        f
+      );
+      const data = await fetchAll(q);
+      const map = new Map<string, number>();
+      data.forEach((r: any) => {
+        let s = (r.situacao_final || 'NÃO DEFINIDO').toUpperCase().trim();
+        if (s === '#NULO' || s === 'NONE' || s === '') s = 'NÃO DEFINIDO';
+        map.set(s, (map.get(s) || 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([nome, total]) => ({ nome, total }))
+        .sort((a, b) => b.total - a.total);
+    },
+  });
+}
+
+// ═══ EVOLUÇÃO POR ANO ═══
+export function useEvolucaoPorAno() {
+  const filters = useFilterStore();
+  const f = { ano: null, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['evolucaoAno', f],
+    queryFn: async () => {
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('ano, genero, situacao_final'),
+        { ...f, ano: null }
+      );
+      const data = await fetchAll(q);
+
+      const map = new Map<number, { total: number; mulheres: number; eleitos: number }>();
+      data.forEach((r: any) => {
+        const cur = map.get(r.ano) || { total: 0, mulheres: 0, eleitos: 0 };
+        cur.total++;
+        if ((r.genero || '').toUpperCase() === 'FEMININO') cur.mulheres++;
+        const s = (r.situacao_final || '').toUpperCase();
+        if ((s.includes('ELEITO') || s.includes('MÉDIA') || s.includes('QP')) && !s.includes('NÃO ELEITO')) cur.eleitos++;
         map.set(r.ano, cur);
       });
 
-      return Array.from(map.entries()).map(([ano, v]) => ({ ano, eleitorado: v.apto, comparecimento: v.comp })).sort((a, b) => a.ano - b.ano);
+      return Array.from(map.entries())
+        .map(([ano, v]) => ({ ano, ...v, pctMulheres: v.total > 0 ? Math.round(v.mulheres / v.total * 100) : 0 }))
+        .sort((a, b) => a.ano - b.ano);
     },
   });
 }
 
-export function useEleitos() {
-  const { ano, turno, cargo, municipio, partido } = useFilterStore();
-  const filters = { ano, turno, cargo, municipio, partido };
+// ═══ TOP PATRIMÔNIO ═══
+export function useTopPatrimonio() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
 
   return useQuery({
-    queryKey: ['eleitos', filters],
+    queryKey: ['topPatrimonio', f],
     queryFn: async () => {
-      let q = supabase.from(TABELA_CANDIDATOS).select('*').ilike('situacao_final', '%ELEITO%').not('situacao_final', 'ilike', '%NÃO ELEITO%').order('nome_urna').limit(8);
-      q = applyFilters(q, filters, 'candidatos');
+      // Get bens grouped by sequencial
+      let bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem, ano');
+      if (f.ano) bensQ = bensQ.eq('ano', f.ano);
+      const bens = await fetchAll(bensQ);
+
+      const patriMap = new Map<string, number>();
+      bens.forEach((b: any) => {
+        const key = b.sequencial_candidato;
+        if (!key) return;
+        patriMap.set(key, (patriMap.get(key) || 0) + (b.valor_bem || 0));
+      });
+
+      // Get top 20 sequenciais
+      const topSeqs = Array.from(patriMap.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 20);
+
+      if (topSeqs.length === 0) return [];
+
+      // Fetch candidate info for these sequenciais
+      const seqIds = topSeqs.map(([s]) => s);
+      const { data: cands } = await (supabase.from(TABELA_CANDIDATOS) as any)
+        .select('sequencial_candidato, nome_urna, sigla_partido, cargo, foto_url')
+        .in('sequencial_candidato', seqIds);
+
+      const candMap = new Map<string, any>();
+      (cands || []).forEach((c: any) => {
+        if (!candMap.has(c.sequencial_candidato)) candMap.set(c.sequencial_candidato, c);
+      });
+
+      return topSeqs.map(([seq, total]) => {
+        const c = candMap.get(seq) || {};
+        return {
+          sequencial: seq,
+          nome: c.nome_urna || 'N/A',
+          partido: c.sigla_partido || '',
+          cargo: c.cargo || '',
+          foto_url: c.foto_url || null,
+          patrimonio: total,
+        };
+      });
+    },
+  });
+}
+
+// ═══ PATRIMÔNIO POR PARTIDO ═══
+export function usePatrimonioPorPartido() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['patrimonioPorPartido', f],
+    queryFn: async () => {
+      let bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem, ano');
+      if (f.ano) bensQ = bensQ.eq('ano', f.ano);
+      const bens = await fetchAll(bensQ);
+
+      // Get all sequenciais
+      const seqs = [...new Set(bens.map((b: any) => b.sequencial_candidato).filter(Boolean))];
+      if (seqs.length === 0) return [];
+
+      // Batch fetch candidates
+      const candMap = new Map<string, string>();
+      for (let i = 0; i < seqs.length; i += 500) {
+        const batch = seqs.slice(i, i + 500);
+        const { data } = await (supabase.from(TABELA_CANDIDATOS) as any)
+          .select('sequencial_candidato, sigla_partido')
+          .in('sequencial_candidato', batch);
+        (data || []).forEach((c: any) => {
+          if (!candMap.has(c.sequencial_candidato)) candMap.set(c.sequencial_candidato, c.sigla_partido);
+        });
+      }
+
+      const partyMap = new Map<string, { total: number; count: number }>();
+      bens.forEach((b: any) => {
+        const partido = candMap.get(b.sequencial_candidato) || 'OUTROS';
+        const cur = partyMap.get(partido) || { total: 0, count: 0 };
+        cur.total += b.valor_bem || 0;
+        cur.count++;
+        partyMap.set(partido, cur);
+      });
+
+      return Array.from(partyMap.entries())
+        .map(([partido, v]) => ({ partido, total: v.total, media: v.count > 0 ? v.total / v.count : 0 }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 15);
+    },
+  });
+}
+
+// ═══ FAIXA ETÁRIA ═══
+export function useFaixaEtaria() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['faixaEtaria', f],
+    queryFn: async () => {
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('data_nascimento, ano'),
+        f
+      );
+      const data = await fetchAll(q);
+
+      const faixas: Record<string, number> = {
+        '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '56-65': 0, '66+': 0,
+      };
+
+      data.forEach((r: any) => {
+        if (!r.data_nascimento) return;
+        const parts = r.data_nascimento.split('/');
+        if (parts.length < 3) return;
+        const birthYear = parseInt(parts[2]);
+        const refYear = r.ano || 2024;
+        const age = refYear - birthYear;
+        if (age < 18) return;
+        if (age <= 25) faixas['18-25']++;
+        else if (age <= 35) faixas['26-35']++;
+        else if (age <= 45) faixas['36-45']++;
+        else if (age <= 55) faixas['46-55']++;
+        else if (age <= 65) faixas['56-65']++;
+        else faixas['66+']++;
+      });
+
+      return Object.entries(faixas).map(([faixa, total]) => ({ faixa, total }));
+    },
+  });
+}
+
+// ═══ CANDIDATOS POR CARGO ═══
+export function useCandidatosPorCargo() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: null, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['porCargo', f],
+    queryFn: async () => {
+      const q = applyFilters(
+        (supabase.from(TABELA_CANDIDATOS) as any).select('cargo'),
+        f
+      );
+      const data = await fetchAll(q);
+      const map = new Map<string, number>();
+      data.forEach((r: any) => {
+        const c = r.cargo || 'NÃO DEFINIDO';
+        map.set(c, (map.get(c) || 0) + 1);
+      });
+      return Array.from(map.entries())
+        .map(([cargo, total]) => ({ cargo, total }))
+        .sort((a, b) => b.total - a.total);
+    },
+  });
+}
+
+// ═══ ELEITOS TABLE ═══
+export function useEleitos() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['eleitos', f],
+    queryFn: async () => {
+      let q = (supabase.from(TABELA_CANDIDATOS) as any)
+        .select('*')
+        .or('situacao_final.ilike.%ELEITO%,situacao_final.ilike.%MÉDIA%,situacao_final.ilike.%QP%')
+        .not('situacao_final', 'ilike', '%NÃO ELEITO%')
+        .order('nome_urna')
+        .limit(20);
+      q = applyFilters(q, f);
       const { data } = await q;
       return data || [];
     },
   });
 }
 
+// ═══ PATRIMÔNIO EVOLUÇÃO POR ANO ═══
+export function usePatrimonioEvolucaoAno() {
+  return useQuery({
+    queryKey: ['patrimonioEvolucao'],
+    queryFn: async () => {
+      const bens = await fetchAll(
+        (supabase.from(TABELA_BENS) as any).select('ano, valor_bem')
+      );
+      const map = new Map<number, { total: number; count: number }>();
+      bens.forEach((b: any) => {
+        const cur = map.get(b.ano) || { total: 0, count: 0 };
+        cur.total += b.valor_bem || 0;
+        cur.count++;
+        map.set(b.ano, cur);
+      });
+      return Array.from(map.entries())
+        .map(([ano, v]) => ({ ano, total: v.total, media: v.count > 0 ? v.total / v.count : 0, registros: v.count }))
+        .sort((a, b) => a.ano - b.ano);
+    },
+  });
+}
+
+// ═══ PATRIMÔNIO DISTRIBUIÇÃO (FAIXAS) ═══
+export function usePatrimonioDistribuicao() {
+  const filters = useFilterStore();
+  const f = { ano: filters.ano, turno: filters.turno, cargo: filters.cargo, municipio: filters.municipio, partido: filters.partido };
+
+  return useQuery({
+    queryKey: ['patrimonioDistrib', f],
+    queryFn: async () => {
+      let bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem, ano');
+      if (f.ano) bensQ = bensQ.eq('ano', f.ano);
+      const bens = await fetchAll(bensQ);
+
+      // Aggregate by candidate
+      const candTotal = new Map<string, number>();
+      bens.forEach((b: any) => {
+        const k = b.sequencial_candidato;
+        if (!k) return;
+        candTotal.set(k, (candTotal.get(k) || 0) + (b.valor_bem || 0));
+      });
+
+      const faixas: Record<string, number> = {
+        'Até R$ 10k': 0,
+        'R$ 10k - 50k': 0,
+        'R$ 50k - 100k': 0,
+        'R$ 100k - 500k': 0,
+        'R$ 500k - 1M': 0,
+        'R$ 1M - 5M': 0,
+        'Acima R$ 5M': 0,
+      };
+
+      candTotal.forEach((total) => {
+        if (total <= 10_000) faixas['Até R$ 10k']++;
+        else if (total <= 50_000) faixas['R$ 10k - 50k']++;
+        else if (total <= 100_000) faixas['R$ 50k - 100k']++;
+        else if (total <= 500_000) faixas['R$ 100k - 500k']++;
+        else if (total <= 1_000_000) faixas['R$ 500k - 1M']++;
+        else if (total <= 5_000_000) faixas['R$ 1M - 5M']++;
+        else faixas['Acima R$ 5M']++;
+      });
+
+      return Object.entries(faixas).map(([faixa, total]) => ({ faixa, total }));
+    },
+  });
+}
+
+// ═══ EXISTING HOOKS (kept for other pages) ═══
+
 export function useRanking(search: string, page: number, sortBy: string, sortAsc: boolean) {
   const { ano, turno, cargo, municipio, partido } = useFilterStore();
-  const filters = { ano, turno, cargo, municipio, partido };
+  const f = { ano, turno, cargo, municipio, partido };
   const pageSize = 20;
 
   return useQuery({
-    queryKey: ['ranking', filters, search, page, sortBy, sortAsc],
+    queryKey: ['ranking', f, search, page, sortBy, sortAsc],
     queryFn: async () => {
-      let q = supabase.from(TABELA_VOTOS).select('*', { count: 'exact' });
-      q = applyFilters(q, filters, 'votacao');
-      if (search) q = q.ilike('nome_candidato', `%${search}%`);
-      q = q.order(sortBy, { ascending: sortAsc });
+      let q = (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact' });
+      q = applyFilters(q, f);
+      if (search) q = q.ilike('nome_urna', `%${search}%`);
+      q = q.order(sortBy || 'nome_urna', { ascending: sortAsc });
       q = q.range(page * pageSize, (page + 1) * pageSize - 1);
       const { data, count } = await q;
       return { data: data || [], count: count || 0, pageSize };
@@ -190,29 +510,60 @@ export function useCandidato(id: string) {
   });
 }
 
-export function useCandidatoVotos(nomeCandidato: string, ano: number) {
-  return useQuery({
-    queryKey: ['candidatoVotos', nomeCandidato, ano],
-    queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_VOTOS) as any).select('*').eq('nome_candidato', nomeCandidato).eq('ano', ano).order('total_votos', { ascending: false });
-      return data || [];
-    },
-    enabled: !!nomeCandidato,
-  });
-}
-
 export function useCandidatoHistorico(nomeUrna: string, numeroUrna: number, partido: string) {
   return useQuery({
     queryKey: ['candidatoHistorico', nomeUrna, numeroUrna],
     queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_CANDIDATOS) as any).select('*').or(`nome_urna.eq.${nomeUrna},nome_completo.eq.${nomeUrna}`).order('ano');
+      const { data } = await (supabase.from(TABELA_CANDIDATOS) as any)
+        .select('*')
+        .or(`nome_urna.eq.${nomeUrna},nome_completo.eq.${nomeUrna}`)
+        .order('ano');
       return data || [];
     },
     enabled: !!nomeUrna,
   });
 }
 
-// Pull municipios from candidatos (filtered by latest year for speed)
+export function usePatrimonioCandidato(sequencialCandidato: string) {
+  return useQuery({
+    queryKey: ['patrimonio', sequencialCandidato],
+    queryFn: async () => {
+      const { data } = await (supabase.from(TABELA_BENS) as any)
+        .select('*')
+        .eq('sequencial_candidato', sequencialCandidato)
+        .order('ordem_bem');
+      return data || [];
+    },
+    enabled: !!sequencialCandidato,
+  });
+}
+
+export function useEvolucaoPatrimonio(nomeUrna: string) {
+  return useQuery({
+    queryKey: ['evolucaoPatrimonio', nomeUrna],
+    queryFn: async () => {
+      if (!nomeUrna) return [];
+      const { data: cands } = await (supabase.from(TABELA_CANDIDATOS) as any)
+        .select('ano, sequencial_candidato, nome_urna')
+        .eq('nome_urna', nomeUrna);
+      if (!cands || cands.length === 0) return [];
+      const seqs = cands.map((c: any) => c.sequencial_candidato).filter(Boolean);
+      if (seqs.length === 0) return [];
+      const { data: bens } = await (supabase.from(TABELA_BENS) as any)
+        .select('ano, sequencial_candidato, valor_bem')
+        .in('sequencial_candidato', seqs);
+      const map = new Map<number, number>();
+      (bens || []).forEach((b: any) => {
+        map.set(b.ano, (map.get(b.ano) || 0) + (b.valor_bem || 0));
+      });
+      return Array.from(map.entries())
+        .map(([ano, total]) => ({ ano, patrimonio: total }))
+        .sort((a, b) => a.ano - b.ano);
+    },
+    enabled: !!nomeUrna,
+  });
+}
+
 export function useMunicipios() {
   return useQuery({
     queryKey: ['municipiosLista'],
@@ -228,14 +579,12 @@ export function useMunicipios() {
   });
 }
 
-// Pull partidos from candidatos
 export function usePartidos() {
   return useQuery({
     queryKey: ['partidosLista'],
     queryFn: async () => {
       const { data } = await (supabase.from(TABELA_CANDIDATOS) as any)
         .select('sigla_partido')
-        .eq('ano', 2024)
         .not('sigla_partido', 'is', null)
         .limit(1000);
       const unique = [...new Set((data || []).map((r: any) => r.sigla_partido).filter(Boolean))].sort();
@@ -248,154 +597,16 @@ export function useImportLogs() {
   return useQuery({
     queryKey: ['importLogs'],
     queryFn: async () => {
-      const { data } = await (supabase.from('bd_eleicoes_importacoes_log' as any) as any).select('*').order('created_at', { ascending: false }).limit(50);
+      const { data } = await (supabase.from('bd_eleicoes_importacoes_log' as any) as any)
+        .select('*').order('created_at', { ascending: false }).limit(50);
       return data || [];
     },
   });
 }
 
-export function useCheckEmpty() {
-  return useQuery({
-    queryKey: ['checkEmpty'],
-    queryFn: async () => {
-      // Check candidatos (always imported first)
-      const { count } = await (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact', head: true });
-      return (count || 0) === 0;
-    },
-  });
-}
-
-// ═══════════════════════════════════════════
-// NEW BI HOOKS
-// ═══════════════════════════════════════════
-
-// Patrimônio de candidato (bens declarados)
-export function usePatrimonioCandidato(sequencialCandidato: string) {
-  return useQuery({
-    queryKey: ['patrimonio', sequencialCandidato],
-    queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_BENS) as any)
-        .select('*')
-        .eq('sequencial_candidato', sequencialCandidato)
-        .order('ordem_bem');
-      return data || [];
-    },
-    enabled: !!sequencialCandidato,
-  });
-}
-
-// Evolução patrimonial por candidato (agrupa por ano)
-export function useEvolucaoPatrimonio(nomeUrna: string) {
-  return useQuery({
-    queryKey: ['evolucaoPatrimonio', nomeUrna],
-    queryFn: async () => {
-      if (!nomeUrna) return [];
-      // Find all sequenciais for this candidate
-      const { data: cands } = await (supabase.from(TABELA_CANDIDATOS) as any)
-        .select('ano, sequencial_candidato, nome_urna')
-        .eq('nome_urna', nomeUrna);
-      
-      if (!cands || cands.length === 0) return [];
-      
-      const seqs = cands.map((c: any) => c.sequencial_candidato).filter(Boolean);
-      if (seqs.length === 0) return [];
-
-      const { data: bens } = await (supabase.from(TABELA_BENS) as any)
-        .select('ano, sequencial_candidato, valor_bem')
-        .in('sequencial_candidato', seqs);
-      
-      // Aggregate by ano
-      const map = new Map<number, number>();
-      (bens || []).forEach((b: any) => {
-        map.set(b.ano, (map.get(b.ano) || 0) + (b.valor_bem || 0));
-      });
-
-      return Array.from(map.entries())
-        .map(([ano, total]) => ({ ano, patrimonio: total }))
-        .sort((a, b) => a.ano - b.ano);
-    },
-    enabled: !!nomeUrna,
-  });
-}
-
-// Votos por bairro (usando comparecimento_secao que tem bairro)
-export function useVotosPorBairro(municipio: string, ano?: number) {
-  return useQuery({
-    queryKey: ['votosBairro', municipio, ano],
-    queryFn: async () => {
-      let q = (supabase.from(TABELA_COMP_SECAO) as any)
-        .select('bairro, eleitorado_apto, comparecimento, abstencoes')
-        .eq('municipio', municipio)
-        .not('bairro', 'is', null);
-      if (ano) q = q.eq('ano', ano);
-      const { data } = await q.limit(1000);
-
-      const map = new Map<string, { bairro: string; apto: number; comp: number; abst: number }>();
-      (data || []).forEach((r: any) => {
-        const b = (r.bairro || 'SEM BAIRRO').trim();
-        const cur = map.get(b) || { bairro: b, apto: 0, comp: 0, abst: 0 };
-        cur.apto += r.eleitorado_apto || 0;
-        cur.comp += r.comparecimento || 0;
-        cur.abst += r.abstencoes || 0;
-        map.set(b, cur);
-      });
-
-      return Array.from(map.values()).sort((a, b) => b.apto - a.apto);
-    },
-    enabled: !!municipio,
-  });
-}
-
-// Votos por local de votação (escola) em um município
-export function useVotosPorLocal(municipio: string, ano?: number, bairro?: string) {
-  return useQuery({
-    queryKey: ['votosLocal', municipio, ano, bairro],
-    queryFn: async () => {
-      let q = (supabase.from(TABELA_COMP_SECAO) as any)
-        .select('local_votacao, bairro, endereco, eleitorado_apto, comparecimento')
-        .eq('municipio', municipio)
-        .not('local_votacao', 'is', null);
-      if (ano) q = q.eq('ano', ano);
-      if (bairro) q = q.eq('bairro', bairro);
-      const { data } = await q.limit(1000);
-
-      const map = new Map<string, { local: string; bairro: string; endereco: string; apto: number; comp: number }>();
-      (data || []).forEach((r: any) => {
-        const key = r.local_votacao;
-        const cur = map.get(key) || { local: key, bairro: r.bairro || '', endereco: r.endereco || '', apto: 0, comp: 0 };
-        cur.apto += r.eleitorado_apto || 0;
-        cur.comp += r.comparecimento || 0;
-        map.set(key, cur);
-      });
-
-      return Array.from(map.values()).sort((a, b) => b.apto - a.apto);
-    },
-    enabled: !!municipio,
-  });
-}
-
-// Votos de um candidato por seção (granular)
-export function useVotosCandidatoSecao(nomeCandidato: string, municipio: string, ano: number) {
-  return useQuery({
-    queryKey: ['votosCandSecao', nomeCandidato, municipio, ano],
-    queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_SECAO) as any)
-        .select('zona, secao, total_votos')
-        .eq('nome_candidato', nomeCandidato)
-        .eq('municipio', municipio)
-        .eq('ano', ano)
-        .order('total_votos', { ascending: false })
-        .limit(500);
-      return data || [];
-    },
-    enabled: !!nomeCandidato && !!municipio && !!ano,
-  });
-}
-
-// Perfil dos candidatos (faixa etária, gênero, instrução, ocupação)
+// Kept for compatibility — delegates
 export function usePerfilCandidatos() {
   const { ano, cargo, municipio, partido } = useFilterStore();
-  
   return useQuery({
     queryKey: ['perfilCandidatos', ano, cargo, municipio, partido],
     queryFn: async () => {
@@ -405,22 +616,15 @@ export function usePerfilCandidatos() {
       if (cargo) q = q.ilike('cargo', cargo);
       if (municipio) q = q.eq('municipio', municipio);
       if (partido) q = q.eq('sigla_partido', partido);
-      const { data } = await q.limit(1000);
-
-      // Aggregate by gender
+      const data = await fetchAll(q);
       const generos = new Map<string, number>();
       const instrucoes = new Map<string, number>();
       const ocupacoes = new Map<string, number>();
-
-      (data || []).forEach((r: any) => {
-        const g = r.genero || 'NÃO INFORMADO';
-        generos.set(g, (generos.get(g) || 0) + 1);
-        const i = r.grau_instrucao || 'NÃO INFORMADO';
-        instrucoes.set(i, (instrucoes.get(i) || 0) + 1);
-        const o = r.ocupacao || 'NÃO INFORMADO';
-        ocupacoes.set(o, (ocupacoes.get(o) || 0) + 1);
+      data.forEach((r: any) => {
+        generos.set(r.genero || 'NÃO INFORMADO', (generos.get(r.genero || 'NÃO INFORMADO') || 0) + 1);
+        instrucoes.set(r.grau_instrucao || 'NÃO INFORMADO', (instrucoes.get(r.grau_instrucao || 'NÃO INFORMADO') || 0) + 1);
+        ocupacoes.set(r.ocupacao || 'NÃO INFORMADO', (ocupacoes.get(r.ocupacao || 'NÃO INFORMADO') || 0) + 1);
       });
-
       return {
         generos: Array.from(generos.entries()).map(([k, v]) => ({ nome: k, total: v })).sort((a, b) => b.total - a.total),
         instrucoes: Array.from(instrucoes.entries()).map(([k, v]) => ({ nome: k, total: v })).sort((a, b) => b.total - a.total),
@@ -430,25 +634,16 @@ export function usePerfilCandidatos() {
   });
 }
 
-// Bens: top candidatos mais ricos
-export function useTopPatrimonio(ano?: number) {
-  return useQuery({
-    queryKey: ['topPatrimonio', ano],
-    queryFn: async () => {
-      let q = (supabase.from(TABELA_BENS) as any)
-        .select('sequencial_candidato, nome_candidato, sigla_partido, cargo, valor_bem, ano');
-      if (ano) q = q.eq('ano', ano);
-      const { data } = await q.limit(1000);
-
-      const map = new Map<string, { seq: string; nome: string; partido: string; cargo: string; total: number }>();
-      (data || []).forEach((r: any) => {
-        const key = r.sequencial_candidato || r.nome_candidato || '';
-        const cur = map.get(key) || { seq: r.sequencial_candidato, nome: r.nome_candidato || 'N/A', partido: r.sigla_partido || '', cargo: r.cargo || '', total: 0 };
-        cur.total += r.valor_bem || 0;
-        map.set(key, cur);
-      });
-
-      return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 20);
-    },
-  });
+// Stub hooks for pages that need empty-table data
+export function useVotosPorBairro(municipio: string, ano?: number) {
+  return useQuery({ queryKey: ['votosBairro', municipio, ano], queryFn: async () => [], enabled: !!municipio });
+}
+export function useVotosPorLocal(municipio: string, ano?: number, bairro?: string) {
+  return useQuery({ queryKey: ['votosLocal', municipio, ano, bairro], queryFn: async () => [], enabled: !!municipio });
+}
+export function useVotosCandidatoSecao(n: string, m: string, a: number) {
+  return useQuery({ queryKey: ['votosCandSecao', n, m, a], queryFn: async () => [], enabled: !!n });
+}
+export function useCandidatoVotos(n: string, a: number) {
+  return useQuery({ queryKey: ['candidatoVotos', n, a], queryFn: async () => [], enabled: !!n });
 }
