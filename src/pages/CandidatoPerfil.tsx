@@ -1,9 +1,10 @@
 import { useParams } from 'react-router-dom';
-import { useCandidato, useCandidatoVotos, usePatrimonioCandidato, useEvolucaoPatrimonio } from '@/hooks/useEleicoes';
+import { useCandidato, useCandidatoVotos, usePatrimonioCandidato, useEvolucaoPatrimonio, useDataAvailability } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent } from '@/lib/eleicoes';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
-import { KPISkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
+import { KPISkeleton } from '@/components/eleicoes/Skeletons';
+import { DataPendingCard } from '@/components/eleicoes/DataPendingCard';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -14,14 +15,14 @@ import { ChevronLeft, ChevronRight, DollarSign } from 'lucide-react';
 export default function CandidatoPerfil() {
   const { id } = useParams<{ id: string }>();
   const { data: candidato, isLoading } = useCandidato(id || '');
-  const { data: votos, isLoading: loadingVotos } = useCandidatoVotos(candidato?.nome_urna || '', candidato?.ano || 0);
+  const { data: availability } = useDataAvailability();
+  const { data: votos } = useCandidatoVotos(candidato?.nome_urna || '', candidato?.ano || 0);
   const { data: bens } = usePatrimonioCandidato(candidato?.sequencial_candidato || '');
   const { data: evolucaoPatrimonio } = useEvolucaoPatrimonio(candidato?.nome_urna || '');
   const [votosPage, setVotosPage] = useState(0);
 
-  // Historical
   const { data: historico } = useQuery({
-    queryKey: ['historicoCandidato', candidato?.nome_urna, candidato?.numero_urna],
+    queryKey: ['historicoCandidato', candidato?.nome_urna],
     queryFn: async () => {
       if (!candidato) return [];
       const { data } = await (supabase.from('bd_eleicoes_candidatos' as any) as any)
@@ -33,39 +34,26 @@ export default function CandidatoPerfil() {
     enabled: !!candidato,
   });
 
-  // Votos by municipality aggregated - using munzona table
-  const { data: votosMun } = useQuery({
-    queryKey: ['votosMunicipio', candidato?.nome_urna, candidato?.ano],
-    queryFn: async () => {
-      if (!candidato) return [];
-      const { data } = await (supabase.from('bd_eleicoes_votacao_munzona' as any) as any)
-        .select('municipio, zona, total_votos')
-        .eq('nome_candidato', candidato.nome_urna)
-        .eq('ano', candidato.ano)
-        .order('total_votos', { ascending: false });
-      
-      const map = new Map<string, { municipio: string; votos: number; zonas: Set<number> }>();
-      (data || []).forEach((r: any) => {
-        const cur = map.get(r.municipio) || { municipio: r.municipio, votos: 0, zonas: new Set() };
-        cur.votos += r.total_votos || 0;
-        if (r.zona) cur.zonas.add(r.zona);
-        map.set(r.municipio, cur);
-      });
-      return Array.from(map.values()).sort((a, b) => b.votos - a.votos);
-    },
-    enabled: !!candidato,
-  });
-
   if (isLoading) return <KPISkeleton />;
   if (!candidato) return <div className="text-center py-10 text-muted-foreground">Candidato não encontrado</div>;
 
+  const hasVotacao = availability?.votacao;
   const totalVotos = (votos || []).reduce((s: number, v: any) => s + (v.total_votos || 0), 0);
-  const totalMunicipios = votosMun?.length || 0;
   const totalPatrimonio = (bens || []).reduce((s: number, b: any) => s + (b.valor_bem || 0), 0);
-  const votosMunPageSize = 10;
-  const votosMunPaged = (votosMun || []).slice(votosPage * votosMunPageSize, (votosPage + 1) * votosMunPageSize);
-  const totalVotosMunPages = Math.ceil((votosMun || []).length / votosMunPageSize);
   const formatBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 });
+
+  // Group votos by municipio
+  const votosMun = new Map<string, number>();
+  (votos || []).forEach((v: any) => {
+    votosMun.set(v.municipio, (votosMun.get(v.municipio) || 0) + (v.total_votos || 0));
+  });
+  const votosMunArr = Array.from(votosMun.entries())
+    .map(([municipio, total]) => ({ municipio, votos: total }))
+    .sort((a, b) => b.votos - a.votos);
+
+  const votosMunPageSize = 10;
+  const votosMunPaged = votosMunArr.slice(votosPage * votosMunPageSize, (votosPage + 1) * votosMunPageSize);
+  const totalVotosMunPages = Math.ceil(votosMunArr.length / votosMunPageSize);
 
   return (
     <div className="space-y-6">
@@ -86,11 +74,7 @@ export default function CandidatoPerfil() {
       </div>
 
       {/* Mini KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <div className="bg-card rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Total de Votos</p>
-          <p className="text-2xl font-bold">{formatNumber(totalVotos)}</p>
-        </div>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-card rounded-xl border p-4">
           <p className="text-sm text-muted-foreground">Ano</p>
           <p className="text-2xl font-bold">{candidato.ano}</p>
@@ -99,13 +83,28 @@ export default function CandidatoPerfil() {
           <p className="text-sm text-muted-foreground">Turno</p>
           <p className="text-2xl font-bold">{candidato.turno}º</p>
         </div>
-        <div className="bg-card rounded-xl border p-4">
-          <p className="text-sm text-muted-foreground">Municípios c/ Votos</p>
-          <p className="text-2xl font-bold">{totalMunicipios}</p>
-        </div>
+        {hasVotacao && (
+          <div className="bg-card rounded-xl border p-4">
+            <p className="text-sm text-muted-foreground">Total de Votos</p>
+            <p className="text-2xl font-bold">{formatNumber(totalVotos)}</p>
+          </div>
+        )}
         <div className="bg-card rounded-xl border p-4">
           <p className="text-sm text-muted-foreground flex items-center gap-1"><DollarSign className="w-3 h-3" /> Patrimônio</p>
           <p className="text-2xl font-bold">{formatBRL(totalPatrimonio)}</p>
+        </div>
+      </div>
+
+      {/* Info pessoal */}
+      <div className="bg-card rounded-xl border p-5">
+        <h3 className="text-base font-semibold mb-4">Informações Pessoais</h3>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div><span className="text-muted-foreground">Gênero:</span> <span className="font-medium ml-1">{candidato.genero || '—'}</span></div>
+          <div><span className="text-muted-foreground">Nascimento:</span> <span className="font-medium ml-1">{candidato.data_nascimento || '—'}</span></div>
+          <div><span className="text-muted-foreground">Escolaridade:</span> <span className="font-medium ml-1">{candidato.grau_instrucao || '—'}</span></div>
+          <div><span className="text-muted-foreground">Ocupação:</span> <span className="font-medium ml-1">{candidato.ocupacao || '—'}</span></div>
+          <div><span className="text-muted-foreground">Nacionalidade:</span> <span className="font-medium ml-1">{candidato.nacionalidade || '—'}</span></div>
+          <div><span className="text-muted-foreground">Situação:</span> <span className="font-medium ml-1">{candidato.situacao_candidatura || '—'}</span></div>
         </div>
       </div>
 
@@ -141,42 +140,46 @@ export default function CandidatoPerfil() {
       )}
 
       {/* Votação por Município */}
-      <div className="bg-card rounded-xl border p-5">
-        <h3 className="text-base font-semibold mb-4">Votação por Município</h3>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm table-striped">
-            <thead>
-              <tr className="border-b text-left">
-                <th className="pb-2 font-medium">Município</th>
-                <th className="pb-2 font-medium">Votos</th>
-                <th className="pb-2 font-medium">% do Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {votosMunPaged.map((r: any, i: number) => (
-                <tr key={i} className="border-b last:border-0">
-                  <td className="py-2 font-medium">{r.municipio}</td>
-                  <td className="py-2">{formatNumber(r.votos)}</td>
-                  <td className="py-2">{totalVotos > 0 ? formatPercent((r.votos / totalVotos) * 100) : '0%'}</td>
+      {hasVotacao && votosMunArr.length > 0 ? (
+        <div className="bg-card rounded-xl border p-5">
+          <h3 className="text-base font-semibold mb-4">Votação por Município</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm table-striped">
+              <thead>
+                <tr className="border-b text-left">
+                  <th className="pb-2 font-medium">Município</th>
+                  <th className="pb-2 font-medium text-right">Votos</th>
+                  <th className="pb-2 font-medium text-right">% do Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {totalVotosMunPages > 1 && (
-          <div className="flex items-center justify-between mt-3">
-            <span className="text-sm text-muted-foreground">Página {votosPage + 1} de {totalVotosMunPages}</span>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" disabled={votosPage === 0} onClick={() => setVotosPage(votosPage - 1)}>
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <Button variant="outline" size="sm" disabled={votosPage >= totalVotosMunPages - 1} onClick={() => setVotosPage(votosPage + 1)}>
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
+              </thead>
+              <tbody>
+                {votosMunPaged.map((r, i) => (
+                  <tr key={i} className="border-b last:border-0">
+                    <td className="py-2 font-medium">{r.municipio}</td>
+                    <td className="py-2 text-right">{formatNumber(r.votos)}</td>
+                    <td className="py-2 text-right">{totalVotos > 0 ? formatPercent((r.votos / totalVotos) * 100) : '0%'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+          {totalVotosMunPages > 1 && (
+            <div className="flex items-center justify-between mt-3">
+              <span className="text-sm text-muted-foreground">Página {votosPage + 1} de {totalVotosMunPages}</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" disabled={votosPage === 0} onClick={() => setVotosPage(votosPage - 1)}>
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button variant="outline" size="sm" disabled={votosPage >= totalVotosMunPages - 1} onClick={() => setVotosPage(votosPage + 1)}>
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : !hasVotacao ? (
+        <DataPendingCard titulo="Votação não disponível" tabela="bd_eleicoes_votacao" descricao="Dados de votos por município serão exibidos após importação." />
+      ) : null}
 
       {/* Patrimônio */}
       {(bens || []).length > 0 && (
