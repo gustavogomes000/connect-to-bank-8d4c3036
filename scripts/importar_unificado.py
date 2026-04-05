@@ -44,7 +44,7 @@ DATASET    = "eleicoes_go_clean"
 FULL_DS    = f"{PROJECT}.{DATASET}"
 LOCATION   = "US"
 UF_FILTRO  = "GO"
-VERSION    = "unificado-v8.0"
+VERSION    = "unificado-v9.0"
 
 BASE_DIR   = Path(__file__).resolve().parent
 CWD_DIR    = Path.cwd().resolve()
@@ -212,8 +212,8 @@ def load_sources(fonte_filtro=None):
 # ═══════════════════════════════════════════════════════════
 #  HTTP com RETRY + BACKOFF EXPONENCIAL
 # ═══════════════════════════════════════════════════════════
-def http_get(sess: requests.Session, url: str, max_retries: int = 3,
-             timeout: int = 120, stream: bool = False) -> requests.Response:
+def http_get(sess: requests.Session, url: str, max_retries: int = 5,
+             timeout: int = 180, stream: bool = False) -> requests.Response:
     """GET robusto com backoff exponencial. Retries em 500, timeout, conexão."""
     for attempt in range(1, max_retries + 1):
         try:
@@ -258,7 +258,7 @@ def ensure_valid_zip(path: Path) -> bool:
         path.unlink(missing_ok=True); return False
 
 def download_zip(sess: requests.Session, url: str, dest: Path,
-                 retries: int = 3, timeout: int = 600) -> Tuple[bool, Optional[str]]:
+                 retries: int = 5, timeout: int = 900) -> Tuple[bool, Optional[str]]:
     dest.parent.mkdir(parents=True, exist_ok=True)
     last_err = None
     for attempt in range(1, retries + 1):
@@ -1185,7 +1185,19 @@ def cmd_importar(args):
     t_start = time.time()
     banner(f"IMPORTADOR UNIFICADO → BigQuery  {VERSION}")
 
-    sources = [s for s in load_sources(args.fonte) if s.get("prioridade", 1) <= args.prioridade]
+    sources = load_sources(args.fonte)
+
+    # Filtro --tabela: importar tabela específica
+    if args.tabela:
+        sources = [s for s in sources if s["tabela_bq"] == args.tabela]
+        if not sources:
+            log_err(f"Tabela '{args.tabela}' não encontrada em sources_unified.json")
+            log_info("Use: python importar_unificado.py dry-run  para ver tabelas disponíveis")
+            return
+        log_info(f"Modo tabela específica: {args.tabela}")
+    else:
+        sources = [s for s in sources if s.get("prioridade", 1) <= args.prioridade]
+
     if not sources:
         log_err("Nenhuma fonte!"); return
 
@@ -1197,9 +1209,12 @@ def cmd_importar(args):
     sess = requests.Session()
     sess.headers.update({"User-Agent": f"EleicoesGO-Importador/{VERSION}"})
 
+    item_retries = getattr(args, 'retries', 3)
+
     log_info(f"{len(sources)} fontes | Prioridade ≤ {args.prioridade}" +
-             (f" | Fonte: {args.fonte}" if args.fonte else ""))
-    log_info(f"Dataset: {FULL_DS} | Resume: {'SIM' if args.resume else 'NÃO'}")
+             (f" | Fonte: {args.fonte}" if args.fonte else "") +
+             (f" | Tabela: {args.tabela}" if args.tabela else ""))
+    log_info(f"Dataset: {FULL_DS} | Resume: {'SIM' if args.resume else 'NÃO'} | Retries/item: {item_retries}")
     log_info(f"FILTRO: Goiânia + Aparecida de Goiânia")
 
     n_ok = n_err = n_skip = total_rows = 0
@@ -1219,15 +1234,34 @@ def cmd_importar(args):
         print(f"\n  {C.B}{'─'*60}{C.RST}")
         log_info(f"{tag} [{fonte}] {tipo}/{ano or 'ATUAL'} → {tabela}")
 
-        if key in ok_keys:
+        if key in ok_keys and not args.tabela:
             log_skip("Já importado (resume)")
             n_skip += 1
             results.append({"tabela": tabela, "status": "skip", "linhas": 0})
             continue
 
-        t0 = time.time()
-        loaded, err = process_and_load(sess, bq, item)
-        dur = time.time() - t0
+        # Retry no nível do item inteiro para tabelas difíceis
+        loaded = 0
+        err = ""
+        for attempt in range(1, item_retries + 1):
+            t0 = time.time()
+            loaded, err = process_and_load(sess, bq, item)
+            dur = time.time() - t0
+
+            if not err:
+                break  # sucesso!
+
+            if attempt < item_retries:
+                wait = min(2 ** attempt * 15, 300)
+                log_info(f"  ⟳ Retry item {attempt}/{item_retries} em {wait}s — erro: {err[:100]}")
+                # Limpa cache do ZIP para forçar re-download
+                if "Download" in err or "Timeout" in err or "Connection" in err:
+                    for f in CACHE_DIR.glob(f"*{tipo}*{ano}*"):
+                        f.unlink(missing_ok=True)
+                        log_info(f"  Cache limpo: {f.name}")
+                time.sleep(wait)
+            else:
+                log_info(f"  ✗ Esgotou {item_retries} tentativas para {tabela}")
 
         if err:
             log_error_detail(tipo, ano or "ATUAL", tabela, err)
@@ -1293,6 +1327,8 @@ def main():
     p_imp.add_argument("--resume", action="store_true")
     p_imp.add_argument("--force", action="store_true")
     p_imp.add_argument("--fonte", type=str, default=None, help="Filtrar por fonte: tse, ibge, datasus, siconfi, camara...")
+    p_imp.add_argument("--tabela", type=str, default=None, help="Importar tabela específica pelo nome (ex: raw_filiados_2024)")
+    p_imp.add_argument("--retries", type=int, default=3, help="Retry no nível do item inteiro (default: 3)")
 
     p_dry = sub.add_parser("dry-run", help="Ver plano sem executar")
     p_dry.add_argument("--prioridade", type=int, default=99)
@@ -1315,6 +1351,8 @@ def main():
         print(f"    python importar_unificado.py importar --prioridade 1")
         print(f"    python importar_unificado.py importar --resume")
         print(f"    python importar_unificado.py importar --fonte ibge")
+        print(f"    python importar_unificado.py importar --tabela raw_filiados_2024")
+        print(f"    python importar_unificado.py importar --tabela raw_boletim_urna_2024 --retries 5")
         print(f"    python importar_unificado.py importar --fonte datasus --resume")
         print(f"    python importar_unificado.py purge")
         print(f"    python importar_unificado.py status\n")
