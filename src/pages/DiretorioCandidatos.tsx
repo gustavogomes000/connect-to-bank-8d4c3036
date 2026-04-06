@@ -1,6 +1,6 @@
-import { useState, useMemo } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { mdQuery, MD, COL } from '@/lib/motherduck';
 import { formatNumber, getPartidoCor } from '@/lib/eleicoes';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
@@ -8,52 +8,66 @@ import { TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { Pagination } from '@/components/eleicoes/Pagination';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Badge } from '@/components/ui/badge';
 import { Search, Users, Filter, Grid3x3, List, ArrowUpDown } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-const TABELA = 'bd_eleicoes_candidatos' as any;
 
 function useDiretorio(cidade: string, search: string, cargo: string | null, partido: string | null, genero: string | null, situacao: string | null, page: number, pageSize: number, sortBy: string, sortAsc: boolean) {
   return useQuery({
     queryKey: ['diretorio', cidade, search, cargo, partido, genero, situacao, page, pageSize, sortBy, sortAsc],
     queryFn: async () => {
-      let q = (supabase.from(TABELA) as any)
-        .select('id, nome_urna, nome_completo, sigla_partido, cargo, municipio, ano, genero, grau_instrucao, ocupacao, situacao_final, numero_urna, foto_url, data_nascimento, nacionalidade', { count: 'exact' });
+      const conds: string[] = [];
+      if (cidade === 'GOIÂNIA') conds.push(`${COL.municipio} = 'GOIÂNIA'`);
+      else if (cidade === 'APARECIDA DE GOIÂNIA') conds.push(`${COL.municipio} = 'APARECIDA DE GOIÂNIA'`);
+      else conds.push(`${COL.municipio} IN ('GOIÂNIA', 'APARECIDA DE GOIÂNIA')`);
 
-      if (cidade === 'GOIÂNIA') q = q.eq('municipio', 'GOIÂNIA');
-      else if (cidade === 'APARECIDA DE GOIÂNIA') q = q.eq('municipio', 'APARECIDA DE GOIÂNIA');
-      else q = q.in('municipio', ['GOIÂNIA', 'APARECIDA DE GOIÂNIA']);
+      if (search) conds.push(`(${COL.nomeUrna} ILIKE '%${search.replace(/'/g, "''")}%' OR ${COL.nomeCompleto} ILIKE '%${search.replace(/'/g, "''")}%')`);
+      if (cargo) conds.push(`${COL.cargo} ILIKE '%${cargo.replace(/'/g, "''")}%'`);
+      if (partido) conds.push(`${COL.partido} = '${partido.replace(/'/g, "''")}'`);
+      if (genero) conds.push(`${COL.genero} = '${genero.replace(/'/g, "''")}'`);
+      if (situacao) conds.push(`${COL.situacaoFinal} ILIKE '%${situacao.replace(/'/g, "''")}%'`);
 
-      if (search) q = q.or(`nome_urna.ilike.%${search}%,nome_completo.ilike.%${search}%`);
-      if (cargo) q = q.ilike('cargo', cargo);
-      if (partido) q = q.eq('sigla_partido', partido);
-      if (genero) q = q.eq('genero', genero);
-      if (situacao) q = q.ilike('situacao_final', `%${situacao}%`);
+      const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+      const sortMap: Record<string, string> = {
+        nome_urna: COL.nomeUrna, nome_completo: COL.nomeCompleto, sigla_partido: COL.partido,
+        cargo: COL.cargo, municipio: COL.municipio, ano: COL.ano,
+      };
+      const orderCol = sortMap[sortBy] || COL.nomeUrna;
+      const dir = sortAsc ? 'ASC' : 'DESC';
+      const offset = page * pageSize;
 
-      q = q.order(sortBy, { ascending: sortAsc });
-      q = q.range(page * pageSize, (page + 1) * pageSize - 1);
+      const [countRes, dataRes] = await Promise.all([
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${where}`),
+        mdQuery(
+          `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
+            ${COL.partido} as sigla_partido, ${COL.cargo} as cargo, ${COL.municipio} as municipio,
+            ${COL.ano} as ano, ${COL.genero} as genero, ${COL.escolaridade} as grau_instrucao,
+            ${COL.ocupacao} as ocupacao, ${COL.situacaoFinal} as situacao_final,
+            ${COL.numero} as numero_urna
+          FROM ${MD.candidatos} ${where}
+          ORDER BY ${orderCol} ${dir} LIMIT ${pageSize} OFFSET ${offset}`
+        ),
+      ]);
 
-      const { data, count, error } = await q;
-      if (error) throw error;
-      return { data: data || [], count: count || 0 };
+      return { data: dataRes, count: Number(countRes[0]?.total || 0) };
     },
   });
 }
 
 function useFilterOptionsDiretorio() {
   return useQuery({
-    queryKey: ['diretorioFilterOptions'],
+    queryKey: ['diretorioFilterOptionsMD'],
     queryFn: async () => {
-      const { data } = await (supabase.from(TABELA) as any)
-        .select('cargo, sigla_partido, genero, situacao_final')
-        .in('municipio', ['GOIÂNIA', 'APARECIDA DE GOIÂNIA'])
-        .limit(5000);
+      const [cargos, partidos, generos, situacoes] = await Promise.all([
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.cargo} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.cargo} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.partido} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.partido} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.genero} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.genero} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.situacaoFinal} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.situacaoFinal} IS NOT NULL ORDER BY v`),
+      ]);
       return {
-        cargos: [...new Set((data || []).map((r: any) => r.cargo).filter(Boolean))].sort() as string[],
-        partidos: [...new Set((data || []).map((r: any) => r.sigla_partido).filter(Boolean))].sort() as string[],
-        generos: [...new Set((data || []).map((r: any) => r.genero).filter(Boolean))].sort() as string[],
-        situacoes: [...new Set((data || []).map((r: any) => r.situacao_final).filter(Boolean))].sort() as string[],
+        cargos: cargos.map(r => r.v),
+        partidos: partidos.map(r => r.v),
+        generos: generos.map(r => r.v),
+        situacoes: situacoes.map(r => r.v),
       };
     },
     staleTime: 10 * 60 * 1000,
@@ -94,7 +108,6 @@ export default function DiretorioCandidatos() {
 
   return (
     <div className="space-y-3 max-w-[1600px] mx-auto">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" /> Diretório de Candidatos
@@ -102,41 +115,25 @@ export default function DiretorioCandidatos() {
         <span className="text-xs text-muted-foreground">{formatNumber(data?.count || 0)} candidatos</span>
       </div>
 
-      {/* Search + City Toggle */}
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={e => handleSearch(e.target.value)}
-            placeholder="Buscar candidato por nome..."
-            className="pl-10 h-9 text-sm"
-          />
+          <Input value={search} onChange={e => handleSearch(e.target.value)} placeholder="Buscar candidato por nome..." className="pl-10 h-9 text-sm" />
         </div>
         <div className="flex gap-1.5">
           {['TODOS', 'GOIÂNIA', 'APARECIDA DE GOIÂNIA'].map(c => (
-            <button
-              key={c}
-              onClick={() => { setCidade(c); setPage(0); }}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                cidade === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'
-              }`}
-            >
+            <button key={c} onClick={() => { setCidade(c); setPage(0); }}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${cidade === c ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}>
               {c === 'TODOS' ? 'Ambas' : c === 'GOIÂNIA' ? 'Goiânia' : 'Aparecida'}
             </button>
           ))}
         </div>
         <div className="flex gap-1 ml-auto">
-          <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
-            <Grid3x3 className="w-4 h-4" />
-          </button>
-          <button onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}>
-            <List className="w-4 h-4" />
-          </button>
+          <button onClick={() => setViewMode('grid')} className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><Grid3x3 className="w-4 h-4" /></button>
+          <button onClick={() => setViewMode('list')} className={`p-1.5 rounded ${viewMode === 'list' ? 'bg-primary/10 text-primary' : 'text-muted-foreground'}`}><List className="w-4 h-4" /></button>
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-wrap gap-2 items-center">
         <Filter className="w-3.5 h-3.5 text-muted-foreground" />
         <Select value={cargo || 'todos'} onValueChange={v => { setCargo(v === 'todos' ? null : v); setPage(0); }}>
@@ -167,23 +164,15 @@ export default function DiretorioCandidatos() {
             {(filterOpts?.situacoes || []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
           </SelectContent>
         </Select>
-        {hasFilters && (
-          <button onClick={clearFilters} className="text-xs text-destructive hover:underline ml-1">Limpar filtros</button>
-        )}
+        {hasFilters && <button onClick={clearFilters} className="text-xs text-destructive hover:underline ml-1">Limpar filtros</button>}
       </div>
 
-      {/* Results */}
       {isLoading ? <TableSkeleton /> : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {(data?.data || []).map((c: any) => (
-            <button
-              key={c.id}
-              onClick={() => navigate(`/candidato/${c.id}`)}
-              className="bg-card rounded-lg border border-border/50 p-3 hover:border-primary/30 hover:shadow-md transition-all text-left group"
-            >
-              <div className="flex justify-center mb-2">
-                <CandidatoAvatar nome={c.nome_urna || c.nome_completo} fotoUrl={c.foto_url} size={56} />
-              </div>
+            <button key={c.id} onClick={() => navigate(`/candidato/${c.id}`)}
+              className="bg-card rounded-lg border border-border/50 p-3 hover:border-primary/30 hover:shadow-md transition-all text-left group">
+              <div className="flex justify-center mb-2"><CandidatoAvatar nome={c.nome_urna || c.nome_completo} fotoUrl={null} size={56} /></div>
               <p className="text-xs font-semibold text-center truncate group-hover:text-primary transition-colors">{c.nome_urna}</p>
               <p className="text-[10px] text-muted-foreground text-center truncate">{c.nome_completo}</p>
               <div className="flex items-center justify-center gap-1 mt-1.5">
@@ -191,9 +180,7 @@ export default function DiretorioCandidatos() {
                 <span className="text-[9px] text-muted-foreground">· {c.numero_urna}</span>
               </div>
               <p className="text-[9px] text-muted-foreground text-center mt-0.5">{c.cargo}</p>
-              <div className="flex justify-center mt-1.5">
-                <SituacaoBadge situacao={c.situacao_final} />
-              </div>
+              <div className="flex justify-center mt-1.5"><SituacaoBadge situacao={c.situacao_final} /></div>
               <p className="text-[9px] text-muted-foreground text-center mt-1">{c.municipio} · {c.ano}</p>
             </button>
           ))}
@@ -222,7 +209,7 @@ export default function DiretorioCandidatos() {
               <tbody>
                 {(data?.data || []).map((c: any) => (
                   <tr key={c.id} className="border-b last:border-0 hover:bg-primary/5 cursor-pointer" onClick={() => navigate(`/candidato/${c.id}`)}>
-                    <td className="p-1.5"><CandidatoAvatar nome={c.nome_urna} fotoUrl={c.foto_url} size={24} /></td>
+                    <td className="p-1.5"><CandidatoAvatar nome={c.nome_urna} fotoUrl={null} size={24} /></td>
                     <td className="p-1.5 font-medium">{c.nome_urna}</td>
                     <td className="p-1.5 font-semibold" style={{ color: getPartidoCor(c.sigla_partido) }}>{c.sigla_partido}</td>
                     <td className="p-1.5 text-muted-foreground">{c.numero_urna}</td>

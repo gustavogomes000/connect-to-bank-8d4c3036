@@ -5,16 +5,13 @@ import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { KPISkeleton } from '@/components/eleicoes/Skeletons';
 import { DataPendingCard } from '@/components/eleicoes/DataPendingCard';
-import { supabase } from '@/integrations/supabase/client';
+import { mdQuery, MD, COL } from '@/lib/motherduck';
 import { useQuery } from '@tanstack/react-query';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ChevronLeft, ChevronRight, DollarSign, MapPin, Vote, Users, TrendingUp, Award, ArrowLeft } from 'lucide-react';
-
-const TABELA_VOTACAO = 'bd_eleicoes_votacao' as any;
-const TABELA_COMPARECIMENTO = 'bd_eleicoes_comparecimento' as any;
 
 export default function CandidatoPerfil() {
   const { id } = useParams<{ id: string }>();
@@ -26,87 +23,96 @@ export default function CandidatoPerfil() {
   const [votosPage, setVotosPage] = useState(0);
   const [activeTab, setActiveTab] = useState<'info' | 'votos' | 'patrimonio' | 'historico'>('info');
 
-  // Histórico eleitoral
+  // Histórico eleitoral via MotherDuck
   const { data: historico } = useQuery({
     queryKey: ['historicoCandidato', candidato?.nome_urna],
     queryFn: async () => {
       if (!candidato) return [];
-      const { data } = await (supabase.from('bd_eleicoes_candidatos' as any) as any)
-        .select('*')
-        .or(`nome_urna.eq.${candidato.nome_urna},nome_completo.eq.${candidato.nome_completo}`)
-        .order('ano');
-      return data || [];
+      const nomeUrna = candidato.nome_urna?.replace(/'/g, "''") || '';
+      const nomeCompleto = candidato.nome_completo?.replace(/'/g, "''") || '';
+      return mdQuery(
+        `SELECT ${COL.sequencial} as id, ${COL.ano} as ano, ${COL.cargo} as cargo, ${COL.partido} as sigla_partido,
+          ${COL.municipio} as municipio, ${COL.numero} as numero_urna, ${COL.situacaoFinal} as situacao_final,
+          ${COL.nomeUrna} as nome_urna
+        FROM ${MD.candidatos}
+        WHERE ${COL.nomeUrna} = '${nomeUrna}' OR ${COL.nomeCompleto} = '${nomeCompleto}'
+        ORDER BY ${COL.ano}`
+      );
     },
     enabled: !!candidato,
   });
 
-  // Votos por zona (granular)
+  // Votos por zona via MotherDuck
   const { data: votosPorZona } = useQuery({
     queryKey: ['votosPorZona', candidato?.nome_urna, candidato?.ano, candidato?.municipio],
     queryFn: async () => {
       if (!candidato) return [];
-      const { data } = await (supabase.from(TABELA_VOTACAO) as any)
-        .select('zona, total_votos')
-        .ilike('nome_candidato', candidato.nome_urna)
-        .eq('ano', candidato.ano)
-        .eq('municipio', candidato.municipio)
-        .order('zona');
-      return data || [];
+      const ano = Number(candidato.ano);
+      const nomeUrna = candidato.nome_urna?.replace(/'/g, "''") || '';
+      const mun = candidato.municipio?.replace(/'/g, "''") || '';
+      try {
+        return await mdQuery(
+          `SELECT nr_zona as zona, sum(qt_votos_nominais) as total_votos
+          FROM ${MD.votacao(ano)} WHERE nm_urna_candidato = '${nomeUrna}' AND nm_municipio = '${mun}'
+          GROUP BY nr_zona ORDER BY zona`
+        ).then(rows => rows.map((r: any) => ({ zona: Number(r.zona), total_votos: Number(r.total_votos) })));
+      } catch { return []; }
     },
     enabled: !!candidato && !!availability?.votacao,
   });
 
-  // Ranking no partido (mesma cidade/cargo/ano)
+  // Ranking no partido via MotherDuck
   const { data: rankingPartido } = useQuery({
     queryKey: ['rankingPartido', candidato?.sigla_partido, candidato?.cargo, candidato?.municipio, candidato?.ano],
     queryFn: async () => {
       if (!candidato) return null;
-      // Get all candidates from same party/city/cargo/year with their votes
-      const { data: colegas } = await (supabase.from('bd_eleicoes_candidatos' as any) as any)
-        .select('id, nome_urna, situacao_final')
-        .eq('sigla_partido', candidato.sigla_partido)
-        .eq('cargo', candidato.cargo)
-        .eq('municipio', candidato.municipio)
-        .eq('ano', candidato.ano);
-      return { total: (colegas || []).length, colegas: colegas || [] };
+      const partido = candidato.sigla_partido?.replace(/'/g, "''") || '';
+      const cargo = candidato.cargo?.replace(/'/g, "''") || '';
+      const mun = candidato.municipio?.replace(/'/g, "''") || '';
+      const ano = Number(candidato.ano);
+      const colegas = await mdQuery(
+        `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.situacaoFinal} as situacao_final
+        FROM ${MD.candidatos}
+        WHERE ${COL.partido} = '${partido}' AND ${COL.cargo} = '${cargo}' AND ${COL.municipio} = '${mun}' AND ${COL.ano} = ${ano}`
+      );
+      return { total: colegas.length, colegas };
     },
     enabled: !!candidato,
   });
 
-  // Comparecimento na zona do candidato
+  // Comparecimento na zona do candidato via MotherDuck
   const { data: comparecimentoZona } = useQuery({
     queryKey: ['comparecimentoZona', candidato?.zona, candidato?.municipio, candidato?.ano],
     queryFn: async () => {
       if (!candidato?.zona) return null;
-      const { data } = await (supabase.from(TABELA_COMPARECIMENTO) as any)
-        .select('eleitorado_apto, comparecimento, abstencoes, votos_brancos, votos_nulos')
-        .eq('zona', candidato.zona)
-        .eq('municipio', candidato.municipio)
-        .eq('ano', candidato.ano);
-      if (!data || data.length === 0) return null;
-      const agg = data.reduce((acc: any, r: any) => ({
-        eleitorado: acc.eleitorado + (r.eleitorado_apto || 0),
-        comparecimento: acc.comparecimento + (r.comparecimento || 0),
-        abstencoes: acc.abstencoes + (r.abstencoes || 0),
-        brancos: acc.brancos + (r.votos_brancos || 0),
-        nulos: acc.nulos + (r.votos_nulos || 0),
-      }), { eleitorado: 0, comparecimento: 0, abstencoes: 0, brancos: 0, nulos: 0 });
-      return agg;
+      const ano = Number(candidato.ano);
+      const mun = candidato.municipio?.replace(/'/g, "''") || '';
+      try {
+        const [r] = await mdQuery<any>(
+          `SELECT sum(qt_aptos) as eleitorado, sum(qt_comparecimento) as comparecimento,
+            sum(qt_abstencoes) as abstencoes, sum(qt_votos_brancos) as brancos, sum(qt_votos_nulos) as nulos
+          FROM ${MD.comparecimento(ano)} WHERE nm_municipio = '${mun}' AND nr_zona = ${candidato.zona}`
+        );
+        if (!r || Number(r.eleitorado) === 0) return null;
+        return { eleitorado: Number(r.eleitorado), comparecimento: Number(r.comparecimento), abstencoes: Number(r.abstencoes), brancos: Number(r.brancos), nulos: Number(r.nulos) };
+      } catch { return null; }
     },
     enabled: !!candidato?.zona && !!availability?.comparecimento,
   });
 
-  // Candidatos com mesmo cargo na mesma cidade (para contexto)
+  // Concorrentes via MotherDuck
   const { data: totalMesmoCargo } = useQuery({
     queryKey: ['totalMesmoCargo', candidato?.cargo, candidato?.municipio, candidato?.ano],
     queryFn: async () => {
       if (!candidato) return 0;
-      const { count } = await (supabase.from('bd_eleicoes_candidatos' as any) as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('cargo', candidato.cargo)
-        .eq('municipio', candidato.municipio)
-        .eq('ano', candidato.ano);
-      return count || 0;
+      const cargo = candidato.cargo?.replace(/'/g, "''") || '';
+      const mun = candidato.municipio?.replace(/'/g, "''") || '';
+      const ano = Number(candidato.ano);
+      const [r] = await mdQuery<{total: string}>(
+        `SELECT count(*) as total FROM ${MD.candidatos}
+        WHERE ${COL.cargo} = '${cargo}' AND ${COL.municipio} = '${mun}' AND ${COL.ano} = ${ano}`
+      );
+      return Number(r?.total || 0);
     },
     enabled: !!candidato,
   });
@@ -139,7 +145,6 @@ export default function CandidatoPerfil() {
 
   return (
     <div className="space-y-4 max-w-[1200px] mx-auto">
-      {/* Back */}
       <Link to="/diretorio" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
         <ArrowLeft className="w-3 h-3" /> Voltar ao diretório
       </Link>
@@ -200,13 +205,8 @@ export default function CandidatoPerfil() {
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border/50 pb-0">
         {tabs.map(t => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${
-              activeTab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
+          <button key={t.id} onClick={() => setActiveTab(t.id)}
+            className={`flex items-center gap-1.5 px-3 py-2 text-xs font-medium border-b-2 transition-colors ${activeTab === t.id ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}`}>
             <t.icon className="w-3.5 h-3.5" /> {t.label}
           </button>
         ))}
@@ -224,12 +224,9 @@ export default function CandidatoPerfil() {
                 ['Escolaridade', candidato.grau_instrucao],
                 ['Ocupação', candidato.ocupacao],
                 ['Nacionalidade', candidato.nacionalidade],
-                ['Sit. Candidatura', candidato.situacao_candidatura],
                 ['Sit. Final', candidato.situacao_final],
-                ['Zona Eleitoral', candidato.zona ? `Zona ${candidato.zona}` : null],
                 ['Turno', candidato.turno ? `${candidato.turno}º Turno` : null],
                 ['Sequencial', candidato.sequencial_candidato],
-                ['Nº Partido', candidato.numero_partido],
                 ['Nome Partido', candidato.nome_partido],
               ].map(([label, value], i) => (
                 <div key={i}>
@@ -240,7 +237,6 @@ export default function CandidatoPerfil() {
             </div>
           </div>
 
-          {/* Comparecimento da zona */}
           {comparecimentoZona && (
             <div className="bg-card rounded-xl border p-5">
               <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"><MapPin className="w-4 h-4 text-primary" /> Zona Eleitoral {candidato.zona} — {candidato.municipio}</h3>
@@ -254,17 +250,13 @@ export default function CandidatoPerfil() {
             </div>
           )}
 
-          {/* Colegas de partido */}
           {rankingPartido && rankingPartido.colegas.length > 1 && (
             <div className="bg-card rounded-xl border p-5">
               <h3 className="text-sm font-semibold mb-3">Candidatos do {candidato.sigla_partido} — {candidato.cargo} — {candidato.municipio} ({candidato.ano})</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 {rankingPartido.colegas.map((c: any) => (
-                  <Link
-                    key={c.id}
-                    to={`/candidato/${c.id}`}
-                    className={`text-xs p-2 rounded border transition-colors ${c.id === Number(id) ? 'bg-primary/10 border-primary/30 font-bold' : 'hover:bg-muted'}`}
-                  >
+                  <Link key={c.id} to={`/candidato/${c.id}`}
+                    className={`text-xs p-2 rounded border transition-colors ${String(c.id) === id ? 'bg-primary/10 border-primary/30 font-bold' : 'hover:bg-muted'}`}>
                     {c.nome_urna} <SituacaoBadge situacao={c.situacao_final} />
                   </Link>
                 ))}
@@ -281,7 +273,6 @@ export default function CandidatoPerfil() {
             <DataPendingCard titulo="Votação não disponível" tabela="bd_eleicoes_votacao" descricao="Dados de votos serão exibidos após importação." />
           ) : (
             <>
-              {/* Votos por Zona */}
               {zonaChartData.length > 0 && (
                 <div className="bg-card rounded-xl border p-5">
                   <h3 className="text-sm font-semibold mb-3">Votos por Zona — {candidato.municipio}</h3>
@@ -298,7 +289,6 @@ export default function CandidatoPerfil() {
                 </div>
               )}
 
-              {/* Votos por Município */}
               {votosMunArr.length > 0 && (
                 <div className="bg-card rounded-xl border p-5">
                   <h3 className="text-sm font-semibold mb-3">Votação por Município</h3>
@@ -347,7 +337,6 @@ export default function CandidatoPerfil() {
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
                   <DollarSign className="w-4 h-4" /> {bens?.length} Bens Declarados — {formatBRL(totalPatrimonio)}
                 </h3>
-                {/* Tipo de bens pie */}
                 {(() => {
                   const tipoMap = new Map<string, number>();
                   (bens || []).forEach((b: any) => tipoMap.set(b.tipo_bem || 'Outros', (tipoMap.get(b.tipo_bem || 'Outros') || 0) + (b.valor_bem || 0)));
@@ -441,12 +430,12 @@ export default function CandidatoPerfil() {
                       <tr key={i} className="border-b last:border-0">
                         <td className="py-2 font-medium">{h.ano}</td>
                         <td className="py-2">{h.cargo}</td>
-                        <td className="py-2 font-semibold" style={{ color: getPartidoCor(h.sigla_partido) }}>{h.sigla_partido || h.partido}</td>
+                        <td className="py-2 font-semibold" style={{ color: getPartidoCor(h.sigla_partido) }}>{h.sigla_partido}</td>
                         <td className="py-2">{h.municipio}</td>
                         <td className="py-2 text-muted-foreground">{h.numero_urna}</td>
                         <td className="py-2"><SituacaoBadge situacao={h.situacao_final} /></td>
                         <td className="py-2">
-                          {h.id !== Number(id) && (
+                          {String(h.id) !== id && (
                             <Link to={`/candidato/${h.id}`} className="text-primary text-xs hover:underline">Ver →</Link>
                           )}
                         </td>
