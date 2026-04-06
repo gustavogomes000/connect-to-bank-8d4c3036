@@ -5,15 +5,16 @@ import {
   useSituacaoFinal, useEvolucaoPorAno,
   useTopPatrimonio, useCandidatosPorCargo, useMunicipiosRanking,
   useFaixaEtaria, useDataAvailability,
+  useVotosBrancosNulos, useTaxaReeleicao, useComparativoAnos,
 } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, SITUACAO_CORES, formatBRLCompact } from '@/lib/eleicoes';
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { EmptyState } from '@/components/eleicoes/EmptyState';
-import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Database, Loader2, Vote, TrendingUp } from 'lucide-react';
+import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Database, Loader2, Vote, TrendingUp, RefreshCw } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area,
+  PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import { Link } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
@@ -109,6 +110,9 @@ export default function Dashboard() {
   const { data: faixaEtaria, isLoading: loadingIdade } = useFaixaEtaria();
   const { data: comparecimento } = useComparecimentoGeral();
   const { data: availability } = useDataAvailability();
+  const { data: brancosNulos, isLoading: loadingBN } = useVotosBrancosNulos();
+  const { data: reeleicao, isLoading: loadingReeleicao } = useTaxaReeleicao();
+  const { data: comparativoAnos, isLoading: loadingComp } = useComparativoAnos();
 
   if (loadingEmpty) return <KPISkeleton />;
   if (isEmpty) return <EmptyState />;
@@ -337,6 +341,94 @@ export default function Dashboard() {
             </div>
             <div className="mt-2 text-right">
               <Link to="/patrimonio" className="text-xs text-primary hover:underline">Ver todos →</Link>
+            </div>
+          </Card>
+        )}
+      </div>
+
+      {/* ROW 4: Reeleição + Votos Brancos/Nulos + Comparativo */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        {/* Taxa de Reeleição */}
+        {loadingReeleicao ? <ChartSkeleton /> : reeleicao && reeleicao.recandidatos > 0 && (
+          <Card title="Taxa de Reeleição">
+            <div className="flex flex-col items-center justify-center py-6">
+              <div className="relative w-32 h-32">
+                <svg className="w-32 h-32 -rotate-90" viewBox="0 0 128 128">
+                  <circle cx="64" cy="64" r="56" fill="none" stroke="hsl(var(--muted))" strokeWidth="12" />
+                  <circle cx="64" cy="64" r="56" fill="none" stroke="hsl(var(--primary))" strokeWidth="12"
+                    strokeDasharray={`${(reeleicao.taxa / 100) * 352} 352`} strokeLinecap="round" />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold metric-value">{formatPercent(reeleicao.taxa, 0)}</span>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mt-4 text-center text-xs">
+                <div>
+                  <p className="text-lg font-bold metric-value">{formatNumber(reeleicao.recandidatos)}</p>
+                  <p className="text-muted-foreground">Recandidatos</p>
+                </div>
+                <div>
+                  <p className="text-lg font-bold text-success metric-value">{formatNumber(reeleicao.reeleitos)}</p>
+                  <p className="text-muted-foreground">Reeleitos</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+        )}
+
+        {/* Votos Brancos/Nulos por Ano */}
+        {loadingBN ? <ChartSkeleton /> : brancosNulos && brancosNulos.length > 0 && (
+          <Card title="Votos Brancos e Nulos por Ano">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={brancosNulos}>
+                <XAxis dataKey="ano" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} tickFormatter={(v: number) => formatNumber(v)} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Bar dataKey="brancos" name="Brancos" fill="hsl(45, 93%, 50%)" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="nulos" name="Nulos" fill="hsl(0, 50%, 55%)" radius={[3, 3, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
+
+        {/* Comparativo entre Anos */}
+        {loadingComp ? <ChartSkeleton /> : comparativoAnos && comparativoAnos.length > 1 && (
+          <Card title="Comparativo entre Eleições">
+            <ResponsiveContainer width="100%" height={260}>
+              <LineChart data={comparativoAnos}>
+                <XAxis dataKey="ano" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Line type="monotone" dataKey="pctMulheres" name="% Mulheres" stroke="hsl(338, 72%, 60%)" strokeWidth={2} dot={{ r: 3 }} />
+                <Line type="monotone" dataKey="pctEleitos" name="% Eleitos" stroke="hsl(156, 72%, 40%)" strokeWidth={2} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+            {/* Summary table */}
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full text-[10px]">
+                <thead>
+                  <tr className="border-b border-border/30">
+                    <th className="pb-1 text-left text-muted-foreground">Ano</th>
+                    <th className="pb-1 text-right text-muted-foreground">Total</th>
+                    <th className="pb-1 text-right text-muted-foreground">Eleitos</th>
+                    <th className="pb-1 text-right text-muted-foreground">Mulheres</th>
+                    <th className="pb-1 text-right text-muted-foreground">Cargos</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {comparativoAnos.map((a: any) => (
+                    <tr key={a.ano} className="border-b border-border/10">
+                      <td className="py-0.5 font-semibold">{a.ano}</td>
+                      <td className="py-0.5 text-right metric-value">{formatNumber(a.total)}</td>
+                      <td className="py-0.5 text-right text-success metric-value">{formatNumber(a.eleitos)}</td>
+                      <td className="py-0.5 text-right text-secondary metric-value">{formatNumber(a.mulheres)}</td>
+                      <td className="py-0.5 text-right text-muted-foreground">{a.cargos}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </Card>
         )}
