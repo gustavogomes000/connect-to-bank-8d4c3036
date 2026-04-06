@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useVotosPorBairro, useVotosPorLocal, useMunicipios, useDataAvailability } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent } from '@/lib/eleicoes';
 import { ANOS_DISPONIVEIS } from '@/lib/eleicoes';
@@ -9,12 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { Search, MapPin, School } from 'lucide-react';
+import { Pagination } from '@/components/eleicoes/Pagination';
 
 export default function AnaliseBairro() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string>('GOIÂNIA');
   const [anoFiltro, setAnoFiltro] = useState<number | null>(null);
   const [bairroSelecionado, setBairroSelecionado] = useState<string | null>(null);
+  const [bairroPage, setBairroPage] = useState(0);
+  const [bairroPageSize, setBairroPageSize] = useState(30);
+  const [localPage, setLocalPage] = useState(0);
+  const [localPageSize, setLocalPageSize] = useState(30);
   const { data: municipios } = useMunicipios();
   const { data: availability } = useDataAvailability();
 
@@ -107,39 +112,44 @@ export default function AnaliseBairro() {
                   </div>
                 )}
 
-                <div className="bg-card rounded-xl border p-5 overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b text-left">
-                        <th className="pb-2 font-medium">Bairro</th>
-                        <th className="pb-2 font-medium text-right">Eleitorado</th>
-                        <th className="pb-2 font-medium text-right">Comparecimento</th>
-                        <th className="pb-2 font-medium text-right">Abstenções</th>
-                        <th className="pb-2 font-medium text-right">% Comp.</th>
-                        <th className="pb-2 font-medium"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(bairros || []).map((b, i) => (
-                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                          <td className="py-2 font-medium">{b.bairro}</td>
-                          <td className="py-2 text-right">{formatNumber(b.apto)}</td>
-                          <td className="py-2 text-right">{formatNumber(b.comp)}</td>
-                          <td className="py-2 text-right">{formatNumber(b.abst)}</td>
-                          <td className="py-2 text-right">{b.apto > 0 ? formatPercent((b.comp / b.apto) * 100) : '-'}</td>
-                          <td className="py-2">
-                            <button className="text-xs text-primary hover:underline" onClick={() => setBairroSelecionado(b.bairro)}>
-                              Ver locais →
-                            </button>
-                          </td>
+                <div className="bg-card rounded-xl border overflow-hidden">
+                  <div className="p-5 pb-0 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left">
+                          <th className="pb-2 font-medium">Bairro</th>
+                          <th className="pb-2 font-medium text-right">Eleitorado</th>
+                          <th className="pb-2 font-medium text-right">Comparecimento</th>
+                          <th className="pb-2 font-medium text-right">Abstenções</th>
+                          <th className="pb-2 font-medium text-right">% Comp.</th>
+                          <th className="pb-2 font-medium"></th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {(!bairros || bairros.length === 0) && (
-                    <p className="text-center text-muted-foreground py-8">
-                      Nenhum dado de bairro encontrado para {selected}.
-                    </p>
+                      </thead>
+                      <tbody>
+                        {(bairros || []).slice(bairroPage * bairroPageSize, (bairroPage + 1) * bairroPageSize).map((b, i) => (
+                          <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                            <td className="py-2 font-medium">{b.bairro}</td>
+                            <td className="py-2 text-right">{formatNumber(b.apto)}</td>
+                            <td className="py-2 text-right">{formatNumber(b.comp)}</td>
+                            <td className="py-2 text-right">{formatNumber(b.abst)}</td>
+                            <td className="py-2 text-right">{b.apto > 0 ? formatPercent((b.comp / b.apto) * 100) : '-'}</td>
+                            <td className="py-2">
+                              <button className="text-xs text-primary hover:underline" onClick={() => { setBairroSelecionado(b.bairro); setLocalPage(0); }}>
+                                Ver locais →
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {(!bairros || bairros.length === 0) && (
+                      <p className="text-center text-muted-foreground py-8">
+                        Nenhum dado de bairro encontrado para {selected}.
+                      </p>
+                    )}
+                  </div>
+                  {bairros && bairros.length > 0 && (
+                    <Pagination page={bairroPage} totalItems={bairros.length} pageSize={bairroPageSize} onPageChange={setBairroPage} onPageSizeChange={setBairroPageSize} />
                   )}
                 </div>
               </div>
@@ -154,31 +164,36 @@ export default function AnaliseBairro() {
               </div>
             )}
             {loadingLocais ? <TableSkeleton /> : (
-              <div className="bg-card rounded-xl border p-5 overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b text-left">
-                      <th className="pb-2 font-medium">Local de Votação</th>
-                      <th className="pb-2 font-medium">Bairro</th>
-                      <th className="pb-2 font-medium text-right">Eleitorado</th>
-                      <th className="pb-2 font-medium text-right">Comparecimento</th>
-                      <th className="pb-2 font-medium text-right">% Comp.</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(locais || []).map((l, i) => (
-                      <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
-                        <td className="py-2 font-medium">{l.local}</td>
-                        <td className="py-2 text-muted-foreground">{l.bairro}</td>
-                        <td className="py-2 text-right">{formatNumber(l.apto)}</td>
-                        <td className="py-2 text-right">{formatNumber(l.comp)}</td>
-                        <td className="py-2 text-right">{l.apto > 0 ? formatPercent((l.comp / l.apto) * 100) : '-'}</td>
+              <div className="bg-card rounded-xl border overflow-hidden">
+                <div className="p-5 pb-0 overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left">
+                        <th className="pb-2 font-medium">Local de Votação</th>
+                        <th className="pb-2 font-medium">Bairro</th>
+                        <th className="pb-2 font-medium text-right">Eleitorado</th>
+                        <th className="pb-2 font-medium text-right">Comparecimento</th>
+                        <th className="pb-2 font-medium text-right">% Comp.</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {(!locais || locais.length === 0) && (
-                  <p className="text-center text-muted-foreground py-8">Nenhum dado de local de votação encontrado.</p>
+                    </thead>
+                    <tbody>
+                      {(locais || []).slice(localPage * localPageSize, (localPage + 1) * localPageSize).map((l, i) => (
+                        <tr key={i} className="border-b last:border-0 hover:bg-muted/50">
+                          <td className="py-2 font-medium">{l.local}</td>
+                          <td className="py-2 text-muted-foreground">{l.bairro}</td>
+                          <td className="py-2 text-right">{formatNumber(l.apto)}</td>
+                          <td className="py-2 text-right">{formatNumber(l.comp)}</td>
+                          <td className="py-2 text-right">{l.apto > 0 ? formatPercent((l.comp / l.apto) * 100) : '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(!locais || locais.length === 0) && (
+                    <p className="text-center text-muted-foreground py-8">Nenhum dado de local de votação encontrado.</p>
+                  )}
+                </div>
+                {locais && locais.length > 0 && (
+                  <Pagination page={localPage} totalItems={locais.length} pageSize={localPageSize} onPageChange={setLocalPage} onPageSizeChange={setLocalPageSize} />
                 )}
               </div>
             )}

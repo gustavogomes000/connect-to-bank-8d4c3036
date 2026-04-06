@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { useChatEleicoes, type ChatMessage, type ChatResultado } from '@/hooks/useChatEleicoes';
+import { useChatFavoritos } from '@/hooks/useChatFavoritos';
 import { formatNumber, CHART_COLORS } from '@/lib/eleicoes';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,17 +11,13 @@ import {
 } from 'recharts';
 import {
   MessageSquare, Send, Loader2, Code2, Trash2, Database,
-  ChevronDown, Lightbulb, BarChart3,
+  ChevronDown, Lightbulb, BarChart3, Star, StarOff, Bookmark, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-// =============================================
-// MINI CHART RENDERER (inline in chat)
-// =============================================
-
+// ── INLINE CHART ──
 function InlineChart({ resultado }: { resultado: ChatResultado }) {
   const { tipo_grafico, dados, colunas } = resultado;
-
   if (!dados || dados.length === 0) return null;
 
   const numericCols = colunas.filter(c => typeof dados[0]?.[c] === 'number' || !isNaN(Number(dados[0]?.[c])));
@@ -36,6 +33,8 @@ function InlineChart({ resultado }: { resultado: ChatResultado }) {
     });
     return converted;
   });
+
+  const tooltipStyle = { background: 'hsl(var(--popover))', border: '1px solid hsl(var(--border))', borderRadius: 8, fontSize: 11 };
 
   if (tipo_grafico === 'kpi') {
     return (
@@ -60,7 +59,7 @@ function InlineChart({ resultado }: { resultado: ChatResultado }) {
             <Pie data={chartData} dataKey={valueCols[0] || colunas[1]} nameKey={labelCol} cx="50%" cy="50%" innerRadius={50} outerRadius={100} paddingAngle={2} strokeWidth={0}>
               {chartData.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
             </Pie>
-            <Tooltip formatter={(v: number) => formatNumber(v)} contentStyle={{ background: 'hsl(210 25% 13%)', border: '1px solid hsl(210 20% 20%)', borderRadius: 8, fontSize: 11 }} />
+            <Tooltip formatter={(v: number) => formatNumber(v)} contentStyle={tooltipStyle} />
             <Legend wrapperStyle={{ fontSize: 10 }} />
           </PieChart>
         </ResponsiveContainer>
@@ -76,7 +75,7 @@ function InlineChart({ resultado }: { resultado: ChatResultado }) {
           <ChartComp data={chartData}>
             <XAxis dataKey={labelCol} tick={{ fontSize: 10, fill: 'hsl(210 15% 55%)' }} />
             <YAxis tick={{ fontSize: 10, fill: 'hsl(210 15% 55%)' }} />
-            <Tooltip formatter={(v: number) => formatNumber(v)} contentStyle={{ background: 'hsl(210 25% 13%)', border: '1px solid hsl(210 20% 20%)', borderRadius: 8, fontSize: 11 }} />
+            <Tooltip formatter={(v: number) => formatNumber(v)} contentStyle={tooltipStyle} />
             {valueCols.map((col, i) =>
               tipo_grafico === 'line'
                 ? <Line key={col} type="monotone" dataKey={col} stroke={CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={{ r: 3 }} />
@@ -105,7 +104,7 @@ function InlineChart({ resultado }: { resultado: ChatResultado }) {
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(210 15% 55%)' }} />
               </>
             )}
-            <Tooltip formatter={(v: number) => formatNumber(v)} contentStyle={{ background: 'hsl(210 25% 13%)', border: '1px solid hsl(210 20% 20%)', borderRadius: 8, fontSize: 11 }} />
+            <Tooltip formatter={(v: number) => formatNumber(v)} contentStyle={tooltipStyle} />
             {valueCols.map((col, i) => (
               <Bar key={col} dataKey={col} fill={CHART_COLORS[i % CHART_COLORS.length]} radius={isHorizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} />
             ))}
@@ -115,7 +114,7 @@ function InlineChart({ resultado }: { resultado: ChatResultado }) {
     );
   }
 
-  // Table
+  // Table fallback
   return (
     <div className="mt-3 overflow-x-auto max-h-[400px] rounded-lg border border-border/30">
       <table className="w-full text-xs table-striped">
@@ -144,11 +143,8 @@ function InlineChart({ resultado }: { resultado: ChatResultado }) {
   );
 }
 
-// =============================================
-// MESSAGE BUBBLE
-// =============================================
-
-function MessageBubble({ message }: { message: ChatMessage }) {
+// ── MESSAGE BUBBLE ──
+function MessageBubble({ message, onSalvar, isSalvo }: { message: ChatMessage; onSalvar: (p: string) => void; isSalvo: boolean }) {
   const [showSQL, setShowSQL] = useState(false);
   const isUser = message.role === 'user';
 
@@ -172,7 +168,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </div>
         ) : (
           <>
-            {/* Text content with simple markdown bold */}
             <div className="text-sm leading-relaxed whitespace-pre-wrap">
               {message.content.split(/(\*\*[^*]+\*\*)/).map((part, i) =>
                 part.startsWith('**') && part.endsWith('**')
@@ -181,7 +176,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               )}
             </div>
 
-            {/* Chart / Data visualization */}
             {message.resultado?.sucesso && message.resultado.dados?.length > 0 && (
               <>
                 <div className="flex items-center gap-2 mt-3 mb-1">
@@ -207,7 +201,6 @@ function MessageBubble({ message }: { message: ChatMessage }) {
               </>
             )}
 
-            {/* Entity debug info */}
             {message.resultado?.entities_encontradas && !isUser && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {message.resultado.entities_encontradas.anos?.map((a: number) => (
@@ -227,7 +220,26 @@ function MessageBubble({ message }: { message: ChatMessage }) {
           </>
         )}
       </div>
-      {isUser && (
+
+      {isUser && !message.loading && (
+        <div className="flex flex-col items-center gap-1 mt-1">
+          <div className="w-8 h-8 rounded-lg bg-muted border border-border/50 flex items-center justify-center shrink-0">
+            <span className="text-xs font-semibold text-muted-foreground">Eu</span>
+          </div>
+          <button
+            onClick={() => onSalvar(message.content)}
+            title={isSalvo ? 'Já salvo nos favoritos' : 'Salvar como favorito'}
+            className={cn(
+              'w-6 h-6 rounded flex items-center justify-center transition-colors',
+              isSalvo ? 'text-warning' : 'text-muted-foreground/40 hover:text-warning'
+            )}
+          >
+            {isSalvo ? <Star className="w-3.5 h-3.5 fill-current" /> : <Star className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      )}
+
+      {isUser && message.loading && (
         <div className="w-8 h-8 rounded-lg bg-muted border border-border/50 flex items-center justify-center shrink-0 mt-1">
           <span className="text-xs font-semibold text-muted-foreground">Eu</span>
         </div>
@@ -236,10 +248,55 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-// =============================================
-// MAIN CHAT PAGE
-// =============================================
+// ── FAVORITES PANEL ──
+function FavoritosPanel({ onUsar, onFechar }: { onUsar: (p: string) => void; onFechar: () => void }) {
+  const { favoritos, remover } = useChatFavoritos();
 
+  if (favoritos.length === 0) {
+    return (
+      <div className="bg-card border border-border/50 rounded-lg p-4 text-center">
+        <Bookmark className="w-6 h-6 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-xs text-muted-foreground">Nenhum favorito salvo ainda.</p>
+        <p className="text-[10px] text-muted-foreground/60 mt-1">Clique na ★ ao lado de uma pergunta para salvar.</p>
+        <Button variant="ghost" size="sm" onClick={onFechar} className="mt-3 text-xs h-7">Fechar</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card border border-border/50 rounded-lg overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border/30 bg-muted/20">
+        <span className="text-xs font-semibold flex items-center gap-1.5">
+          <Bookmark className="w-3.5 h-3.5 text-warning" />
+          Favoritos ({favoritos.length})
+        </span>
+        <Button variant="ghost" size="icon" onClick={onFechar} className="h-6 w-6">
+          <X className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+      <div className="max-h-[300px] overflow-y-auto divide-y divide-border/20">
+        {favoritos.map(fav => (
+          <div key={fav.id} className="flex items-center gap-2 px-3 py-2 hover:bg-muted/30 group">
+            <button
+              onClick={() => onUsar(fav.pergunta)}
+              className="flex-1 text-left text-xs text-foreground/80 hover:text-foreground truncate"
+            >
+              {fav.pergunta}
+            </button>
+            <button
+              onClick={() => remover(fav.id)}
+              className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── MAIN ──
 const SUGESTOES_RAPIDAS = [
   "Top 10 vereadores mais votados em Goiânia 2024",
   "Resumo geral da eleição de 2024",
@@ -257,16 +314,13 @@ const SUGESTOES_RAPIDAS = [
 
 export default function ChatEleicoes() {
   const { messages, loading, enviar, limpar } = useChatEleicoes();
+  const { favoritos, adicionar, isFavorito } = useChatFavoritos();
   const [input, setInput] = useState('');
+  const [showFavoritos, setShowFavoritos] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // Auto-scroll
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
-
-  // Auto-resize textarea
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -282,10 +336,13 @@ export default function ChatEleicoes() {
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
+  }
+
+  function handleUsarFavorito(pergunta: string) {
+    setShowFavoritos(false);
+    setInput(pergunta);
+    enviar(pergunta);
   }
 
   const isEmpty = messages.length === 0;
@@ -303,12 +360,33 @@ export default function ChatEleicoes() {
             <p className="text-[10px] text-muted-foreground">Pergunte qualquer coisa sobre os dados eleitorais de Goiás</p>
           </div>
         </div>
-        {messages.length > 0 && (
-          <Button variant="ghost" size="sm" onClick={limpar} className="text-xs h-7 text-muted-foreground hover:text-destructive">
-            <Trash2 className="w-3 h-3 mr-1" /> Limpar
+        <div className="flex items-center gap-1">
+          <Button
+            variant={showFavoritos ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setShowFavoritos(!showFavoritos)}
+            className="text-xs h-7"
+          >
+            <Bookmark className="w-3 h-3 mr-1" />
+            Favoritos
+            {favoritos.length > 0 && (
+              <Badge variant="secondary" className="ml-1 text-[8px] h-4 px-1">{favoritos.length}</Badge>
+            )}
           </Button>
-        )}
+          {messages.length > 0 && (
+            <Button variant="ghost" size="sm" onClick={limpar} className="text-xs h-7 text-muted-foreground hover:text-destructive">
+              <Trash2 className="w-3 h-3 mr-1" /> Limpar
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Favoritos panel */}
+      {showFavoritos && (
+        <div className="py-3 shrink-0">
+          <FavoritosPanel onUsar={handleUsarFavorito} onFechar={() => setShowFavoritos(false)} />
+        </div>
+      )}
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4 min-h-0">
@@ -320,8 +398,30 @@ export default function ChatEleicoes() {
             <h2 className="text-lg font-semibold text-foreground mb-1">Chat Eleições GO</h2>
             <p className="text-xs text-muted-foreground max-w-md mb-6">
               Converse com o banco de dados eleitorais de Goiás. Pergunte sobre candidatos, votos, partidos, comparecimento, patrimônio e mais.
-              O sistema interpreta sua pergunta e busca os dados automaticamente.
             </p>
+
+            {/* Quick Favoritos */}
+            {favoritos.length > 0 && (
+              <div className="w-full max-w-lg mb-4">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Star className="w-3.5 h-3.5 text-warning fill-warning" />
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Suas consultas salvas</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                  {favoritos.slice(0, 6).map(fav => (
+                    <button
+                      key={fav.id}
+                      onClick={() => handleUsarFavorito(fav.pergunta)}
+                      className="text-[11px] text-left px-3 py-2 rounded-lg border border-warning/20 bg-warning/5 text-foreground/80 hover:text-foreground hover:border-warning/40 transition-all flex items-center gap-2"
+                    >
+                      <Star className="w-2.5 h-2.5 text-warning fill-warning shrink-0" />
+                      <span className="truncate">{fav.pergunta}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center gap-1.5 mb-3">
               <Lightbulb className="w-3.5 h-3.5 text-warning" />
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Experimente perguntar</span>
@@ -339,7 +439,14 @@ export default function ChatEleicoes() {
             </div>
           </div>
         ) : (
-          messages.map(msg => <MessageBubble key={msg.id} message={msg} />)
+          messages.map(msg => (
+            <MessageBubble
+              key={msg.id}
+              message={msg}
+              onSalvar={adicionar}
+              isSalvo={msg.role === 'user' ? isFavorito(msg.content) : false}
+            />
+          ))
         )}
         <div ref={messagesEndRef} />
       </div>

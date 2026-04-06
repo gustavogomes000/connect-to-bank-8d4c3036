@@ -11,9 +11,13 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, Ba
 import { Search, Trophy, Users, TrendingUp, MapPin } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+import { Pagination } from '@/components/eleicoes/Pagination';
+
 export default function PorMunicipio() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string | null>(null);
+  const [votosPage, setVotosPage] = useState(0);
+  const [votosPageSize, setVotosPageSize] = useState(30);
   const { data: municipios } = useMunicipios();
   const { data: availability } = useDataAvailability();
   const navigate = useNavigate();
@@ -163,30 +167,35 @@ export default function PorMunicipio() {
             {hasVotacao && (
               <TabsContent value="votados">
                 {loadingVotos ? <TableSkeleton /> : (
-                  <div className="bg-card rounded-lg border border-border/50 p-4 overflow-x-auto">
-                    <table className="w-full text-xs table-striped">
-                      <thead>
-                        <tr className="border-b border-border/30 text-left">
-                          <th className="pb-2 font-medium text-muted-foreground">#</th>
-                          <th className="pb-2 font-medium text-muted-foreground">Nome</th>
-                          <th className="pb-2 font-medium text-muted-foreground">Partido</th>
-                          <th className="pb-2 font-medium text-muted-foreground">Cargo</th>
-                          <th className="pb-2 font-medium text-muted-foreground text-right">Votos</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {(votos || []).slice(0, 50).map((r: any, i: number) => (
-                          <tr key={i} className="border-b border-border/20 last:border-0">
-                            <td className="py-1.5 text-muted-foreground">{i + 1}</td>
-                            <td className="py-1.5 font-medium">{r.nome_candidato}</td>
-                            <td className="py-1.5">{r.partido}</td>
-                            <td className="py-1.5">{r.cargo}</td>
-                            <td className="py-1.5 text-right font-semibold text-primary metric-value">{formatNumber(r.total_votos)}</td>
+                  <div className="bg-card rounded-lg border border-border/50 overflow-hidden">
+                    <div className="overflow-x-auto p-4 pb-0">
+                      <table className="w-full text-xs table-striped">
+                        <thead>
+                          <tr className="border-b border-border/30 text-left">
+                            <th className="pb-2 font-medium text-muted-foreground">#</th>
+                            <th className="pb-2 font-medium text-muted-foreground">Nome</th>
+                            <th className="pb-2 font-medium text-muted-foreground">Partido</th>
+                            <th className="pb-2 font-medium text-muted-foreground">Cargo</th>
+                            <th className="pb-2 font-medium text-muted-foreground text-right">Votos</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {(!votos || votos.length === 0) && <p className="text-center text-muted-foreground py-8 text-xs">Nenhum dado de votação.</p>}
+                        </thead>
+                        <tbody>
+                          {(votos || []).slice(votosPage * votosPageSize, (votosPage + 1) * votosPageSize).map((r: any, i: number) => (
+                            <tr key={i} className="border-b border-border/20 last:border-0">
+                              <td className="py-1.5 text-muted-foreground">{votosPage * votosPageSize + i + 1}</td>
+                              <td className="py-1.5 font-medium">{r.nome_candidato}</td>
+                              <td className="py-1.5">{r.partido}</td>
+                              <td className="py-1.5">{r.cargo}</td>
+                              <td className="py-1.5 text-right font-semibold text-primary metric-value">{formatNumber(r.total_votos)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {(!votos || votos.length === 0) && <p className="text-center text-muted-foreground py-8 text-xs">Nenhum dado de votação.</p>}
+                    </div>
+                    {votos && votos.length > 0 && (
+                      <Pagination page={votosPage} totalItems={votos.length} pageSize={votosPageSize} onPageChange={setVotosPage} onPageSizeChange={setVotosPageSize} />
+                    )}
                   </div>
                 )}
               </TabsContent>

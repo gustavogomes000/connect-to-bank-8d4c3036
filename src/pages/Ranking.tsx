@@ -4,10 +4,9 @@ import { formatNumber } from '@/lib/eleicoes';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { TableSkeleton } from '@/components/eleicoes/Skeletons';
+import { Pagination } from '@/components/eleicoes/Pagination';
 import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, ChevronLeft, ChevronRight, ArrowUpDown, Trophy, Download } from 'lucide-react';
+import { Search, ArrowUpDown, Trophy } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getPartidoCor } from '@/lib/eleicoes';
 
@@ -29,7 +28,6 @@ export default function Ranking() {
   };
 
   const { data, isLoading } = useRanking(debouncedSearch, page, sortBy, sortAsc, pageSize);
-  const totalPages = Math.ceil((data?.count || 0) / pageSize);
   const hasVotos = data?.hasVotos || false;
 
   const toggleSort = (col: string) => {
@@ -69,14 +67,6 @@ export default function Ranking() {
             className="pl-9 h-8 text-xs bg-muted/50 border-border/50"
           />
         </div>
-        <Select value={String(pageSize)} onValueChange={v => { setPageSize(Number(v)); setPage(0); }}>
-          <SelectTrigger className="w-24 h-8 text-xs">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {[20, 30, 50, 100].map(n => <SelectItem key={n} value={String(n)} className="text-xs">{n} por pág</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
       {isLoading ? <TableSkeleton /> : (
@@ -123,22 +113,13 @@ export default function Ranking() {
             </table>
           </div>
 
-          <div className="flex items-center justify-between px-3 py-2 border-t border-border/30">
-            <span className="text-[10px] text-muted-foreground">
-              {formatNumber(page * pageSize + 1)}–{formatNumber(Math.min((page + 1) * pageSize, data?.count || 0))} de {formatNumber(data?.count || 0)}
-            </span>
-            <div className="flex gap-1">
-              <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(page - 1)} className="h-6 px-2">
-                <ChevronLeft className="w-3 h-3" />
-              </Button>
-              <span className="text-[10px] text-muted-foreground px-2 flex items-center">
-                {page + 1} / {totalPages || 1}
-              </span>
-              <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)} className="h-6 px-2">
-                <ChevronRight className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
+          <Pagination
+            page={page}
+            totalItems={data?.count || 0}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         </div>
       )}
     </div>
