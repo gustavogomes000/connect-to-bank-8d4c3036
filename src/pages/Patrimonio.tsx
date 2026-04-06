@@ -1,11 +1,11 @@
 import { useState } from 'react';
-import { useTopPatrimonio, useEvolucaoPatrimonio, usePatrimonioDistribuicao, usePatrimonioPorPartido, usePatrimonioEvolucaoAno } from '@/hooks/useEleicoes';
+import { useTopPatrimonio, useEvolucaoPatrimonio, usePatrimonioDistribuicao, usePatrimonioPorPartido, usePatrimonioEvolucaoAno, usePatrimonioVsVotos } from '@/hooks/useEleicoes';
 import { formatNumber, formatBRL, formatBRLCompact, getPartidoCor, CHART_COLORS } from '@/lib/eleicoes';
 import { TableSkeleton, ChartSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell, Legend, ScatterChart, Scatter, ZAxis } from 'recharts';
 import { DollarSign, Search, TrendingUp } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,6 +19,7 @@ export default function Patrimonio() {
   const { data: distribuicao, isLoading: loadingDist } = usePatrimonioDistribuicao();
   const { data: porPartido, isLoading: loadingPartido } = usePatrimonioPorPartido();
   const { data: evolucaoAno, isLoading: loadingEvolAno } = usePatrimonioEvolucaoAno();
+  const { data: scatterData, isLoading: loadingScatter } = usePatrimonioVsVotos();
 
   const chartData = (topPatrimonio || []).slice(0, 12).map(c => ({
     nome: c.nome.length > 18 ? c.nome.slice(0, 16) + '…' : c.nome,
@@ -41,10 +42,10 @@ export default function Patrimonio() {
           <TabsTrigger value="distribuicao">Distribuição</TabsTrigger>
           <TabsTrigger value="partido">Por Partido</TabsTrigger>
           <TabsTrigger value="evolucao">Evolução Anual</TabsTrigger>
+          <TabsTrigger value="correlacao">Patrimônio vs Votos</TabsTrigger>
         </TabsList>
 
         <TabsContent value="ranking" className="space-y-4">
-          {/* Top chart */}
           {isLoading ? <ChartSkeleton /> : chartData.length > 0 && (
             <div className="bg-card rounded-lg border border-border/50 p-4">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Top 12 — Maior Patrimônio Declarado</h3>
@@ -59,7 +60,6 @@ export default function Patrimonio() {
             </div>
           )}
 
-          {/* Evolução candidato selecionado */}
           {candidatoSelecionado && (
             <div className="bg-card rounded-lg border border-border/50 p-4">
               <div className="flex items-center justify-between mb-3">
@@ -81,7 +81,6 @@ export default function Patrimonio() {
             </div>
           )}
 
-          {/* Table */}
           <div className="bg-card rounded-lg border border-border/50 p-4">
             <div className="flex items-center gap-3 mb-3">
               <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Ranking Completo</h3>
@@ -170,7 +169,6 @@ export default function Patrimonio() {
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
-              {/* Table summary */}
               <div className="mt-4 overflow-x-auto">
                 <table className="w-full text-xs table-striped">
                   <thead>
@@ -222,6 +220,38 @@ export default function Patrimonio() {
               </div>
             </div>
           ) : <p className="text-center text-muted-foreground py-8">Dados não disponíveis.</p>}
+        </TabsContent>
+
+        <TabsContent value="correlacao" className="space-y-4">
+          {loadingScatter ? <ChartSkeleton /> : scatterData && scatterData.length > 0 ? (
+            <div className="bg-card rounded-lg border border-border/50 p-4">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Correlação: Patrimônio × Votos</h3>
+              <p className="text-[10px] text-muted-foreground mb-3">Cada ponto é um candidato. Hover para ver detalhes.</p>
+              <ResponsiveContainer width="100%" height={450}>
+                <ScatterChart margin={{ left: 20 }}>
+                  <XAxis type="number" dataKey="patrimonio" name="Patrimônio" tickFormatter={(v: number) => formatBRLCompact(v)} tick={{ fontSize: 10 }} />
+                  <YAxis type="number" dataKey="votos" name="Votos" tickFormatter={(v: number) => formatNumber(v)} tick={{ fontSize: 10 }} />
+                  <ZAxis range={[30, 120]} />
+                  <Tooltip
+                    cursor={{ strokeDasharray: '3 3' }}
+                    content={({ active, payload }: any) => {
+                      if (!active || !payload?.[0]) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div className="bg-popover border border-border rounded-md px-3 py-2 shadow-lg text-xs">
+                          <p className="font-semibold">{d.nome}</p>
+                          <p className="text-muted-foreground">{d.partido}</p>
+                          <p>Patrimônio: <span className="font-semibold">{formatBRL(d.patrimonio)}</span></p>
+                          <p>Votos: <span className="font-semibold">{formatNumber(d.votos)}</span></p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <Scatter data={scatterData} fill="hsl(var(--primary))" fillOpacity={0.6} />
+                </ScatterChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <p className="text-center text-muted-foreground py-8 text-sm">Dados de patrimônio e/ou votação ainda não importados.</p>}
         </TabsContent>
       </Tabs>
     </div>
