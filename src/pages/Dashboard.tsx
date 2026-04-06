@@ -7,6 +7,7 @@ import {
   useFaixaEtaria, useDataAvailability,
   useVotosBrancosNulos, useTaxaReeleicao, useComparativoAnos,
 } from '@/hooks/useEleicoes';
+import { useMotherDuckQuery } from '@/hooks/useMotherDuckQuery';
 import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, SITUACAO_CORES, formatBRLCompact } from '@/lib/eleicoes';
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
