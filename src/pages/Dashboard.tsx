@@ -7,6 +7,7 @@ import {
   useFaixaEtaria, useDataAvailability,
   useVotosBrancosNulos, useTaxaReeleicao, useComparativoAnos,
 } from '@/hooks/useEleicoes';
+import { useMotherDuckQuery } from '@/hooks/useMotherDuckQuery';
 import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, SITUACAO_CORES, formatBRLCompact } from '@/lib/eleicoes';
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
@@ -14,7 +15,7 @@ import { EmptyState } from '@/components/eleicoes/EmptyState';
 import { KPIDrillDownPanel, type DrillDownType } from '@/components/eleicoes/KPIDrillDown';
 import {
   Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Vote, TrendingUp,
-  PieChart as PieIcon, DollarSign, Calendar, Target,
+  PieChart as PieIcon, DollarSign, Calendar, Target, Database,
 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -25,6 +26,36 @@ import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useFilterStore } from '@/stores/filterStore';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
+
+// ── MotherDuck Status Card ──
+function MotherDuckStatusCard() {
+  const { data, isLoading, error } = useMotherDuckQuery(
+    "SELECT count(*) as total FROM my_db.candidatos",
+    ['motherduck-status']
+  );
+
+  const total = data?.rows?.[0]?.total ?? null;
+
+  return (
+    <div className="bg-card rounded-lg border border-border/50 p-3 flex items-center gap-3">
+      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
+        <Database className="w-4 h-4 text-primary" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">MotherDuck</p>
+        {isLoading ? (
+          <Skeleton className="h-5 w-24 mt-0.5" />
+        ) : error ? (
+          <p className="text-xs text-destructive truncate">{error.message}</p>
+        ) : (
+          <p className="text-lg font-bold metric-value">{Number(total).toLocaleString('pt-BR')} <span className="text-xs font-normal text-muted-foreground">candidatos</span></p>
+        )}
+      </div>
+      <span className={`w-2 h-2 rounded-full ${error ? 'bg-destructive' : isLoading ? 'bg-warning animate-pulse' : 'bg-success'}`} />
+    </div>
+  );
+}
 
 // ── Shared UI ──
 function Card({ children, className = '', title }: { children: React.ReactNode; className?: string; title?: string }) {
@@ -597,6 +628,8 @@ export default function Dashboard() {
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-foreground">EleiçõesGO — Visão Geral</h1>
       </div>
+
+      <MotherDuckStatusCard />
 
       <DashboardNav active={activeTab} onChange={setActiveTab} />
 
