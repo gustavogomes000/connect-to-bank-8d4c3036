@@ -347,7 +347,7 @@ export function useRanking(search: string, page: number, sortBy: string, sortAsc
     queryKey: ['ranking', f, search, page, sortBy, sortAsc],
     queryFn: async () => {
       const searchExtra = search ? `(${COL.nomeUrna} ILIKE '%${search}%' OR ${COL.nomeCompleto} ILIKE '%${search}%')` : undefined;
-      const w = buildWhere(f, searchExtra);
+      const w = buildWhere(f, searchExtra, !f.ano);
       const sortMap: Record<string, string> = {
         nome_urna: COL.nomeUrna, nome_completo: COL.nomeCompleto, numero_urna: COL.numero,
         sigla_partido: COL.partido, cargo: COL.cargo, municipio: COL.municipio, ano: COL.ano,
