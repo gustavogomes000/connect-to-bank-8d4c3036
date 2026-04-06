@@ -124,11 +124,6 @@
 
     {"fonte": "camara", "tipo": "deputados_go",               "formato": "api_json", "url": "https://dadosabertos.camara.leg.br/api/v2/deputados?siglaUf=GO&ordem=ASC&ordenarPor=nome", "tabela_bq": "raw_camara_deputados_go", "chave_lista": "dados", "skip_filtro_municipal": true, "prioridade": 1},
 
-    {"fonte": "transparencia_goiania", "tipo": "servidores",  "formato": "download_csv", "url": "https://www.goiania.go.gov.br/Download/transparencia/remuneracao/remuneracao.csv", "tabela_bq": "raw_transp_goiania_servidores", "skip_filtro_municipal": true, "prioridade": 2},
-    {"fonte": "transparencia_goiania", "tipo": "despesas",    "formato": "api_json_paginado", "url": "https://ws.goiania.go.gov.br/apiTransparencia/despesas/empenhos?exercicio={ano}&pagina={pagina}&tamanhoPagina=1000", "tabela_bq": "raw_transp_goiania_despesas", "skip_filtro_municipal": true, "prioridade": 2, "parametros_dinamicos": {"ano": [2021, 2022, 2023, 2024]}, "bigquery_config": {"schema_override": {"valor_empenho": "FLOAT64", "data_empenho": "DATE"}}},
-    {"fonte": "transparencia_goiania", "tipo": "licitacoes",  "formato": "api_json_paginado", "url": "https://ws.goiania.go.gov.br/apiTransparencia/licitacoes?exercicio={ano}&pagina={pagina}&tamanhoPagina=1000", "tabela_bq": "raw_transp_goiania_licitacoes", "skip_filtro_municipal": true, "prioridade": 2, "parametros_dinamicos": {"ano": [2023, 2024]}},
-
-    {"fonte": "transparencia_aparecida", "tipo": "servidores","formato": "download_csv", "url": "https://transparencia.aparecida.go.gov.br/api/v1/servidores/download?formato=csv", "tabela_bq": "raw_transp_aparecida_servidores", "skip_filtro_municipal": true, "prioridade": 2},
     {"fonte": "transparencia_aparecida", "tipo": "despesas",  "formato": "api_json_paginado", "url": "https://transparencia.aparecida.go.gov.br/api/v1/despesas?exercicio={ano}&pagina={pagina}", "tabela_bq": "raw_transp_aparecida_despesas", "skip_filtro_municipal": true, "prioridade": 2, "parametros_dinamicos": {"ano": [2021, 2022, 2023, 2024]}},
     {"fonte": "transparencia_aparecida", "tipo": "licitacoes","formato": "api_json_paginado", "url": "https://transparencia.aparecida.go.gov.br/api/v1/licitacoes?exercicio={ano}&pagina={pagina}", "tabela_bq": "raw_transp_aparecida_licitacoes", "skip_filtro_municipal": true, "prioridade": 2, "parametros_dinamicos": {"ano": [2023, 2024]}}
   ]
