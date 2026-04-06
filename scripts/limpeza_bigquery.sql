@@ -321,15 +321,13 @@ SELECT * FROM `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2014`;
 CREATE OR REPLACE TABLE `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2022` AS
 SELECT * FROM `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2022`;
 
--- 2016 municipal → GYN+APA
+-- 2016 municipal → sem filtro (base sem cd_municipio/sg_ue)
 CREATE OR REPLACE TABLE `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2016` AS
-SELECT * FROM `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2016`
-WHERE cd_municipio IN ('93734', '91758') OR sg_ue IN ('93734', '91758');
+SELECT * FROM `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2016`;
 
--- 2020 municipal → GYN+APA
+-- 2020 municipal → sem filtro (base sem cd_municipio/sg_ue)
 CREATE OR REPLACE TABLE `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2020` AS
-SELECT * FROM `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2020`
-WHERE cd_municipio IN ('93734', '91758') OR sg_ue IN ('93734', '91758');
+SELECT * FROM `silver-idea-389314.eleicoes_go_clean.raw_cnpj_campanha_2020`;
 
 
 -- ============================================================
