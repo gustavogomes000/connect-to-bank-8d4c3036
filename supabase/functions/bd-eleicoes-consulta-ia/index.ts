@@ -1,51 +1,76 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
-
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
 const TABELAS_SCHEMA = `
-Tabelas disponíveis no banco PostgreSQL (schema public):
+Tabelas disponíveis no MotherDuck (DuckDB via Postgres wire protocol), database "my_db":
 
-1. bd_eleicoes_candidatos: candidatos eleitorais de Goiás
-   Colunas: id (bigint PK), ano (int), turno (int), nome_completo (text), nome_urna (text), 
-   numero_urna (int), sigla_partido (text), partido (text), cargo (text), municipio (text), 
-   codigo_municipio (text), situacao_candidatura (text), situacao_final (text), genero (text), 
-   grau_instrucao (text), ocupacao (text), data_nascimento (text), nacionalidade (text), 
-   foto_url (text), sequencial_candidato (text), zona (int)
+IMPORTANTE: As tabelas são separadas POR ANO. Use o padrão: nome_YYYY_GO
+Anos disponíveis: 2012, 2014, 2016, 2018, 2020, 2022, 2024.
 
-2. bd_eleicoes_votacao: votos por candidato por zona
-   Colunas: id (bigint PK), ano (int), turno (int), municipio (text), codigo_municipio (text), 
-   zona (int), cargo (text), nome_candidato (text), numero_urna (int), partido (text), total_votos (int)
+1. candidatos_YYYY_GO: candidatos eleitorais de Goiás
+   Colunas: ano_eleicao, nr_turno, nm_candidato (nome completo), nm_urna_candidato (nome de urna),
+   nr_candidato (número), sg_partido, nm_partido, ds_cargo, nm_ue (município),
+   ds_sit_tot_turno (situação final: ELEITO, NÃO ELEITO, SUPLENTE, etc),
+   ds_genero (MASCULINO/FEMININO), ds_grau_instrucao, ds_ocupacao,
+   dt_nascimento, ds_nacionalidade, ds_cor_raca, ds_estado_civil,
+   sq_candidato (sequencial único), nr_cpf_candidato, nr_idade_data_posse
 
-3. bd_eleicoes_votacao_partido: votos por partido
-   Colunas: id (bigint PK), ano (int), turno (int), municipio (text), codigo_municipio (text), 
-   zona (int), cargo (text), sigla_partido (text), numero_partido (int), total_votos (int), 
-   votos_nominais (int), votos_legenda (int)
+2. bens_candidatos_YYYY_GO: bens declarados (anos 2014-2024)
+   Colunas: ano_eleicao, sq_candidato, nm_candidato, sg_partido, ds_cargo, nm_ue,
+   nr_ordem_bem_candidato, ds_tipo_bem_candidato, ds_bem_candidato,
+   vr_bem_candidato (VARCHAR! Use CAST(vr_bem_candidato AS DOUBLE) para somas)
 
-4. bd_eleicoes_comparecimento: comparecimento por zona
-   Colunas: id (bigint PK), ano (int), turno (int), municipio (text), codigo_municipio (text), 
-   zona (int), eleitorado_apto (int), comparecimento (int), abstencoes (int), 
-   votos_brancos (int), votos_nulos (int), votos_nominais (int), votos_legenda (int)
+3. votacao_munzona_YYYY_GO: votos por candidato por zona
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
+   nm_urna_candidato, nr_candidato, sg_partido, qt_votos_nominais
 
-5. bd_eleicoes_comparecimento_secao: comparecimento por seção/bairro
-   Colunas: id (bigint PK), ano (int), turno (int), municipio (text), codigo_municipio (text),
-   zona (int), secao (int), local_votacao (text), bairro (text), endereco (text),
-   eleitorado_apto (int), comparecimento (int), abstencoes (int), votos_brancos (int), votos_nulos (int)
+4. votacao_partido_munzona_YYYY_GO: votos por partido
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
+   sg_partido, nr_partido, qt_votos_nominais, qt_votos_legenda
 
-6. bd_eleicoes_bens_candidatos: bens declarados
-   Colunas: id (bigint PK), ano (int), turno (int), sequencial_candidato (text), nome_candidato (text),
-   sigla_partido (text), cargo (text), municipio (text), codigo_municipio (text),
-   ordem_bem (int), tipo_bem (text), descricao_bem (text), valor_bem (float)
+5. comparecimento_munzona_YYYY_GO: comparecimento por zona (anos 2014-2024)
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona,
+   qt_aptos, qt_comparecimento, qt_abstencoes, qt_votos_brancos, qt_votos_nulos
 
-7. bd_eleicoes_locais_votacao: locais de votação
-   Colunas: id (bigint PK), ano (int), municipio (text), codigo_municipio (text), zona (int), 
-   secao (int), local_votacao (text), bairro (text), endereco_local (text), eleitorado_apto (int)
+6. perfil_eleitorado_YYYY_GO: perfil do eleitorado (anos 2018-2024)
+   Colunas: ano_eleicao, nm_municipio, nr_zona, ds_genero, ds_faixa_etaria,
+   ds_grau_escolaridade, qt_eleitores_perfil
 
-Contexto: Dados eleitorais do estado de Goiás (GO), Brasil. Anos disponíveis: 2012-2024.
+Contexto: Dados eleitorais do estado de Goiás (GO), Brasil.
 Principais municípios: GOIÂNIA, APARECIDA DE GOIÂNIA, ANÁPOLIS.
+Nomes de municípios são SEMPRE em MAIÚSCULAS.
 `;
+
+async function queryMotherDuck(sql: string) {
+  const token = Deno.env.get("MOTHERDUCK_TOKEN");
+  if (!token) throw new Error("MOTHERDUCK_TOKEN não configurado");
+
+  const { default: postgres } = await import("https://deno.land/x/postgresjs@v3.4.5/mod.js");
+
+  const pg = postgres({
+    hostname: "pg.us-east-1-aws.motherduck.com",
+    port: 5432,
+    username: "postgres",
+    password: token,
+    database: "md:",
+    ssl: "require",
+    connection: { application_name: "consulta-ia" },
+    max: 1,
+    idle_timeout: 5,
+    connect_timeout: 15,
+  });
+
+  try {
+    const rows = await pg.unsafe(sql);
+    await pg.end();
+    return Array.from(rows);
+  } catch (err) {
+    await pg.end().catch(() => {});
+    throw err;
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -62,25 +87,29 @@ Deno.serve(async (req) => {
 
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiKey) {
-      return new Response(JSON.stringify({ erro: "GEMINI_API_KEY não configurada" }), {
+      return new Response(JSON.stringify({ erro: "GEMINI_API_KEY não configurada no Supabase. Configure em Project Settings > Edge Functions > Secrets." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     // Step 1: Ask Gemini to generate SQL
-    const prompt = `Você é um analista de dados eleitorais. Com base no schema abaixo, gere uma consulta SQL PostgreSQL para responder a pergunta do usuário.
+    const prompt = `Você é um analista de dados eleitorais especializado em Goiás. Com base no schema abaixo, gere uma consulta SQL DuckDB para responder a pergunta do usuário.
 
 ${TABELAS_SCHEMA}
 
 REGRAS IMPORTANTES:
 - Gere APENAS SELECT, nunca INSERT/UPDATE/DELETE
 - Use LIMIT máximo de 200 linhas
-- Sempre use nomes de tabela completos (bd_eleicoes_*)
+- Use nomes de tabela completos com prefixo my_db. (ex: my_db.candidatos_2024_GO)
+- SEMPRE use o ano correto na tabela. Se o usuário pedir 2024, use _2024_GO
+- Se o usuário não especificar ano, use 2024
 - Para comparações de texto use UPPER() ou ILIKE
 - Retorne colunas com nomes descritivos usando AS
 - Escolha o tipo de gráfico mais adequado: bar, pie, line, area, table, kpi
 - Para KPIs, retorne uma única linha com valores numéricos
 - Sempre ordene os resultados de forma relevante
+- Para somar vr_bem_candidato use CAST(vr_bem_candidato AS DOUBLE)
+- Para evolução temporal, faça UNION ALL de tabelas de diferentes anos
 
 Responda APENAS em JSON válido com esta estrutura:
 {
@@ -128,7 +157,12 @@ Pergunta do usuário: ${pergunta}`;
 
     // Safety check
     const sqlUpper = sql.toUpperCase().trim();
-    if (!sqlUpper.startsWith("SELECT") || sqlUpper.includes("DROP") || sqlUpper.includes("DELETE") || 
+    if (!sqlUpper.startsWith("SELECT") && !sqlUpper.startsWith("WITH")) {
+      return new Response(JSON.stringify({ erro: "Query não permitida por segurança" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (sqlUpper.includes("DROP") || sqlUpper.includes("DELETE") || 
         sqlUpper.includes("INSERT") || sqlUpper.includes("UPDATE") || sqlUpper.includes("ALTER") ||
         sqlUpper.includes("TRUNCATE") || sqlUpper.includes("CREATE")) {
       return new Response(JSON.stringify({ erro: "Query não permitida por segurança" }), {
@@ -136,38 +170,8 @@ Pergunta do usuário: ${pergunta}`;
       });
     }
 
-    // Step 2: Execute SQL via Supabase
-    const supabaseUrl = Deno.env.get("EXTERNAL_SUPABASE_URL") || Deno.env.get("SUPABASE_URL") || "";
-    const supabaseKey = Deno.env.get("EXTERNAL_SUPABASE_SERVICE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-
-    const dbClient = createClient(supabaseUrl, supabaseKey);
-    
-    // Use rpc to execute raw SQL safely
-    const { data: queryResult, error: queryError } = await dbClient.rpc('execute_readonly_query' as any, {
-      query_text: sql
-    }) as any;
-
-    // Fallback: if rpc doesn't exist, try direct table queries
-    if (queryError) {
-      console.error("RPC error, trying direct approach:", queryError.message);
-      
-      // Parse the SQL to extract table and basic structure, then use Supabase client
-      // For now, return the SQL and let the frontend know
-      return new Response(JSON.stringify({
-        sucesso: false,
-        erro: `Função RPC não encontrada. SQL gerado: ${sql}`,
-        sql_gerado: sql,
-        tipo_grafico: tipo_grafico || "table",
-        titulo: titulo || "Consulta",
-        descricao: descricao || "",
-        colunas: [],
-        dados: [],
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const dados = Array.isArray(queryResult) ? queryResult : [];
+    // Step 2: Execute SQL via MotherDuck
+    const dados = await queryMotherDuck(sql);
     const colunas = dados.length > 0 ? Object.keys(dados[0]) : [];
 
     return new Response(JSON.stringify({
