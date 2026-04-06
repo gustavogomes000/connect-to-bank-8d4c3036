@@ -24,9 +24,14 @@ const PERFIL_ANOS = [2018, 2020, 2022, 2024];
  * When ano is given: returns single table.
  * When ano is null: returns UNION ALL subquery.
  */
-function yearTable(base: string, anos: number[], ano?: number | null): string {
+// Common columns that exist across ALL year tables for safe UNION ALL
+const CAND_COMMON_COLS = 'ano_eleicao, nr_turno, nm_candidato, nm_urna_candidato, sg_partido, nm_partido, ds_cargo, nm_ue, ds_genero, ds_grau_instrucao, ds_ocupacao, ds_sit_tot_turno, sq_candidato, nr_candidato, nr_cpf_candidato, dt_nascimento, ds_nacionalidade, ds_cor_raca, ds_estado_civil, nm_social_candidato';
+const BENS_COMMON_COLS = 'ano_eleicao, sq_candidato, nr_ordem_bem_candidato, ds_tipo_bem_candidato, ds_bem_candidato, vr_bem_candidato';
+
+function yearTable(base: string, anos: number[], ano?: number | null, commonCols?: string): string {
   if (ano) return `my_db.${base}_${ano}_GO`;
-  const union = anos.map(a => `SELECT * FROM my_db.${base}_${a}_GO`).join(' UNION ALL ');
+  const cols = commonCols || '*';
+  const union = anos.map(a => `SELECT ${cols} FROM my_db.${base}_${a}_GO`).join(' UNION ALL ');
   return `(${union})`;
 }
 
@@ -36,9 +41,9 @@ function yearTable(base: string, anos: number[], ano?: number | null): string {
  */
 export const MD = {
   /** Candidatos — year-specific or union */
-  candidatos: (ano?: number | null) => yearTable('candidatos', CAND_ANOS, ano),
+  candidatos: (ano?: number | null) => yearTable('candidatos', CAND_ANOS, ano, CAND_COMMON_COLS),
   /** Bens declarados */
-  bens: (ano?: number | null) => yearTable('bens_candidatos', BENS_ANOS, ano),
+  bens: (ano?: number | null) => yearTable('bens_candidatos', BENS_ANOS, ano, BENS_COMMON_COLS),
   /** Votação por município/zona */
   votacao: (ano: number) => `my_db.votacao_munzona_${ano}_GO`,
   /** Votação por partido */
@@ -93,7 +98,7 @@ export const COL = {
   tipoBem: 'ds_tipo_bem_candidato',
   descBem: 'ds_bem_candidato',
   valorBem: 'vr_bem_candidato',         // VARCHAR in MotherDuck! Use CAST.
-  valorBemNum: 'CAST(vr_bem_candidato AS DOUBLE)', // Use this for SUM/AVG
+  valorBemNum: "CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)", // Use this for SUM/AVG
   ordemBem: 'nr_ordem_bem_candidato',
 
   // votacao
