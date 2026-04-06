@@ -34,7 +34,7 @@ export default function CandidatoPerfil() {
         `SELECT ${COL.sequencial} as id, ${COL.ano} as ano, ${COL.cargo} as cargo, ${COL.partido} as sigla_partido,
           ${COL.municipio} as municipio, ${COL.numero} as numero_urna, ${COL.situacaoFinal} as situacao_final,
           ${COL.nomeUrna} as nome_urna
-        FROM ${MD.candidatos}
+        FROM ${MD.candidatos(null)}
         WHERE ${COL.nomeUrna} = '${nomeUrna}' OR ${COL.nomeCompleto} = '${nomeCompleto}'
         ORDER BY ${COL.ano}`
       );
@@ -72,8 +72,8 @@ export default function CandidatoPerfil() {
       const ano = Number(candidato.ano);
       const colegas = await mdQuery(
         `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.situacaoFinal} as situacao_final
-        FROM ${MD.candidatos}
-        WHERE ${COL.partido} = '${partido}' AND ${COL.cargo} = '${cargo}' AND ${COL.municipio} = '${mun}' AND ${COL.ano} = ${ano}`
+        FROM ${MD.candidatos(ano)}
+        WHERE ${COL.partido} = '${partido}' AND ${COL.cargo} = '${cargo}' AND ${COL.municipio} = '${mun}'`
       );
       return { total: colegas.length, colegas };
     },
@@ -109,8 +109,8 @@ export default function CandidatoPerfil() {
       const mun = candidato.municipio?.replace(/'/g, "''") || '';
       const ano = Number(candidato.ano);
       const [r] = await mdQuery<{total: string}>(
-        `SELECT count(*) as total FROM ${MD.candidatos}
-        WHERE ${COL.cargo} = '${cargo}' AND ${COL.municipio} = '${mun}' AND ${COL.ano} = ${ano}`
+        `SELECT count(*) as total FROM ${MD.candidatos(ano)}
+        WHERE ${COL.cargo} = '${cargo}' AND ${COL.municipio} = '${mun}'`
       );
       return Number(r?.total || 0);
     },

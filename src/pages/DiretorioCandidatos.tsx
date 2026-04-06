@@ -36,14 +36,14 @@ function useDiretorio(cidade: string, search: string, cargo: string | null, part
       const offset = page * pageSize;
 
       const [countRes, dataRes] = await Promise.all([
-        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${where}`),
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos(2024)} ${where}`),
         mdQuery(
           `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
             ${COL.partido} as sigla_partido, ${COL.cargo} as cargo, ${COL.municipio} as municipio,
             ${COL.ano} as ano, ${COL.genero} as genero, ${COL.escolaridade} as grau_instrucao,
             ${COL.ocupacao} as ocupacao, ${COL.situacaoFinal} as situacao_final,
             ${COL.numero} as numero_urna
-          FROM ${MD.candidatos} ${where}
+          FROM ${MD.candidatos(2024)} ${where}
           ORDER BY ${orderCol} ${dir} LIMIT ${pageSize} OFFSET ${offset}`
         ),
       ]);
@@ -58,10 +58,10 @@ function useFilterOptionsDiretorio() {
     queryKey: ['diretorioFilterOptionsMD'],
     queryFn: async () => {
       const [cargos, partidos, generos, situacoes] = await Promise.all([
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.cargo} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.cargo} IS NOT NULL ORDER BY v`),
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.partido} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.partido} IS NOT NULL ORDER BY v`),
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.genero} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.genero} IS NOT NULL ORDER BY v`),
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.situacaoFinal} as v FROM ${MD.candidatos} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.situacaoFinal} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.cargo} as v FROM ${MD.candidatos(2024)} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.cargo} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.partido} as v FROM ${MD.candidatos(2024)} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.partido} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.genero} as v FROM ${MD.candidatos(2024)} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.genero} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.situacaoFinal} as v FROM ${MD.candidatos(2024)} WHERE ${COL.municipio} IN ('GOIÂNIA','APARECIDA DE GOIÂNIA') AND ${COL.situacaoFinal} IS NOT NULL ORDER BY v`),
       ]);
       return {
         cargos: cargos.map(r => r.v),
