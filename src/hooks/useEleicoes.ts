@@ -1,14 +1,7 @@
-import { supabase } from '@/integrations/supabase/client';
 import { useFilterStore } from '@/stores/filterStore';
 import { useQuery } from '@tanstack/react-query';
-
-const TABELA_CANDIDATOS = 'bd_eleicoes_candidatos' as any;
-const TABELA_BENS = 'bd_eleicoes_bens_candidatos' as any;
-const TABELA_VOTACAO = 'bd_eleicoes_votacao' as any;
-const TABELA_VOTACAO_PARTIDO = 'bd_eleicoes_votacao_partido' as any;
-const TABELA_COMPARECIMENTO = 'bd_eleicoes_comparecimento' as any;
-const TABELA_COMPARECIMENTO_SECAO = 'bd_eleicoes_comparecimento_secao' as any;
-const TABELA_LOCAIS = 'bd_eleicoes_locais_votacao' as any;
+import { mdQuery, MD, COL } from '@/lib/motherduck';
+import { supabase } from '@/integrations/supabase/client';
 
 type Filters = {
   ano: number | null; turno: number | null; cargo: string | null;
@@ -16,15 +9,6 @@ type Filters = {
   escolaridade: string | null; ocupacao: string | null; situacao: string | null;
   searchText: string;
 };
-
-function getFilters(): Filters {
-  const s = useFilterStore.getState();
-  return {
-    ano: s.ano, turno: s.turno, cargo: s.cargo, municipio: s.municipio,
-    partido: s.partido, genero: s.genero, escolaridade: s.escolaridade,
-    ocupacao: s.ocupacao, situacao: s.situacao, searchText: s.searchText,
-  };
-}
 
 function useFilters(): Filters {
   const s = useFilterStore();
@@ -35,73 +19,55 @@ function useFilters(): Filters {
   };
 }
 
-function applyFilters(query: any, f: Filters, skipMunicipio = false) {
-  if (f.ano) query = query.eq('ano', f.ano);
-  if (f.turno) query = query.eq('turno', f.turno);
-  if (f.cargo) query = query.ilike('cargo', f.cargo);
-  if (f.partido) query = query.eq('sigla_partido', f.partido);
-  if (!skipMunicipio && f.municipio) query = query.eq('municipio', f.municipio);
-  if (f.genero) query = query.eq('genero', f.genero);
-  if (f.escolaridade) query = query.eq('grau_instrucao', f.escolaridade);
-  if (f.ocupacao) query = query.eq('ocupacao', f.ocupacao);
-  if (f.situacao) query = query.ilike('situacao_final', `%${f.situacao}%`);
-  if (f.searchText) query = query.or(`nome_urna.ilike.%${f.searchText}%,nome_completo.ilike.%${f.searchText}%`);
-  return query;
+function buildWhere(f: Filters, extra?: string): string {
+  const c: string[] = [];
+  if (f.ano) c.push(`${COL.ano} = ${f.ano}`);
+  if (f.turno) c.push(`${COL.turno} = ${f.turno}`);
+  if (f.cargo) c.push(`${COL.cargo} ILIKE '%${f.cargo}%'`);
+  if (f.municipio) c.push(`${COL.municipio} = '${f.municipio}'`);
+  if (f.partido) c.push(`${COL.partido} = '${f.partido}'`);
+  if (f.genero) c.push(`${COL.genero} = '${f.genero}'`);
+  if (f.escolaridade) c.push(`${COL.escolaridade} = '${f.escolaridade}'`);
+  if (f.ocupacao) c.push(`${COL.ocupacao} = '${f.ocupacao}'`);
+  if (f.situacao) c.push(`${COL.situacaoFinal} ILIKE '%${f.situacao}%'`);
+  if (f.searchText) c.push(`(${COL.nomeUrna} ILIKE '%${f.searchText}%' OR ${COL.nomeCompleto} ILIKE '%${f.searchText}%')`);
+  if (extra) c.push(extra);
+  return c.length ? `WHERE ${c.join(' AND ')}` : '';
 }
 
-// ═══ HELPERS ═══
-async function fetchAll(baseQuery: any, pageSize = 1000) {
-  const results: any[] = [];
-  let page = 0;
-  while (true) {
-    const { data, error } = await baseQuery.range(page * pageSize, (page + 1) * pageSize - 1);
-    if (error) throw error;
-    if (!data || data.length === 0) break;
-    results.push(...data);
-    if (data.length < pageSize) break;
-    page++;
-  }
-  return results;
-}
-
-async function tableHasData(table: string): Promise<boolean> {
-  const { count } = await (supabase.from(table as any) as any).select('id', { count: 'exact', head: true });
-  return (count || 0) > 0;
-}
-
-// ═══ DATA AVAILABILITY CHECK ═══
+// ═══ DATA AVAILABILITY ═══
 export function useDataAvailability() {
   return useQuery({
     queryKey: ['dataAvailability'],
     queryFn: async () => {
-      const [candidatos, bens, votacao, votacaoPartido, comparecimento, comparecimentoSecao, locais] = await Promise.all([
-        tableHasData('bd_eleicoes_candidatos'),
-        tableHasData('bd_eleicoes_bens_candidatos'),
-        tableHasData('bd_eleicoes_votacao'),
-        tableHasData('bd_eleicoes_votacao_partido'),
-        tableHasData('bd_eleicoes_comparecimento'),
-        tableHasData('bd_eleicoes_comparecimento_secao'),
-        tableHasData('bd_eleicoes_locais_votacao'),
-      ]);
-      return { candidatos, bens, votacao, votacaoPartido, comparecimento, comparecimentoSecao, locais };
+      const [cand] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} LIMIT 1`);
+      return {
+        candidatos: Number(cand?.total || 0) > 0,
+        bens: true, votacao: true, votacaoPartido: true,
+        comparecimento: true, comparecimentoSecao: true, locais: true,
+      };
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   });
 }
 
-// ═══ FILTER OPTIONS (for advanced filters) ═══
+// ═══ FILTER OPTIONS ═══
 export function useFilterOptions() {
   return useQuery({
     queryKey: ['filterOptions'],
     queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_CANDIDATOS) as any)
-        .select('genero, grau_instrucao, ocupacao, situacao_final')
-        .limit(1000);
-      const generos = [...new Set((data || []).map((r: any) => r.genero).filter(Boolean))].sort() as string[];
-      const escolaridades = [...new Set((data || []).map((r: any) => r.grau_instrucao).filter(Boolean))].sort() as string[];
-      const ocupacoes = [...new Set((data || []).map((r: any) => r.ocupacao).filter(Boolean))].sort() as string[];
-      const situacoes = [...new Set((data || []).map((r: any) => r.situacao_final).filter(Boolean))].sort() as string[];
-      return { generos, escolaridades, ocupacoes, situacoes };
+      const [generos, escolaridades, ocupacoes, situacoes] = await Promise.all([
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.genero} as v FROM ${MD.candidatos} WHERE ${COL.genero} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.escolaridade} as v FROM ${MD.candidatos} WHERE ${COL.escolaridade} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.ocupacao} as v FROM ${MD.candidatos} WHERE ${COL.ocupacao} IS NOT NULL ORDER BY v LIMIT 100`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.situacaoFinal} as v FROM ${MD.candidatos} WHERE ${COL.situacaoFinal} IS NOT NULL ORDER BY v`),
+      ]);
+      return {
+        generos: generos.map(r => r.v),
+        escolaridades: escolaridades.map(r => r.v),
+        ocupacoes: ocupacoes.map(r => r.v),
+        situacoes: situacoes.map(r => r.v),
+      };
     },
     staleTime: 10 * 60 * 1000,
   });
@@ -112,8 +78,8 @@ export function useCheckEmpty() {
   return useQuery({
     queryKey: ['checkEmpty'],
     queryFn: async () => {
-      const { count } = await (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact', head: true });
-      return (count || 0) === 0;
+      const [r] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos}`);
+      return Number(r?.total || 0) === 0;
     },
   });
 }
@@ -124,22 +90,27 @@ export function useKPIs() {
   return useQuery({
     queryKey: ['kpis', f],
     queryFn: async () => {
-      const q = applyFilters(
-        (supabase.from(TABELA_CANDIDATOS) as any).select('id, situacao_final, genero, sigla_partido, municipio, cargo'),
-        f
-      );
-      const data = await fetchAll(q);
-      const totalCandidatos = data.length;
-      const totalEleitos = data.filter((c: any) => {
-        const s = (c.situacao_final || '').toUpperCase();
-        return (s.includes('ELEITO') || s.includes('MÉDIA') || s.includes('QP')) && !s.includes('NÃO ELEITO');
-      }).length;
-      const totalMulheres = data.filter((c: any) => (c.genero || '').toUpperCase() === 'FEMININO').length;
-      const pctMulheres = totalCandidatos > 0 ? (totalMulheres / totalCandidatos) * 100 : 0;
-      const totalPartidos = new Set(data.map((c: any) => c.sigla_partido).filter(Boolean)).size;
-      const totalMunicipios = new Set(data.map((c: any) => c.municipio).filter(Boolean)).size;
-      const totalCargos = new Set(data.map((c: any) => c.cargo).filter(Boolean)).size;
-      return { totalCandidatos, totalEleitos, pctMulheres, totalPartidos, totalMulheres, totalMunicipios, totalCargos };
+      const w = buildWhere(f);
+      const sql = `SELECT
+        count(*) as total,
+        count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
+        count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres,
+        count(DISTINCT ${COL.partido}) as partidos,
+        count(DISTINCT ${COL.municipio}) as municipios,
+        count(DISTINCT ${COL.cargo}) as cargos
+        FROM ${MD.candidatos} ${w}`;
+      const [r] = await mdQuery(sql);
+      const totalCandidatos = Number(r?.total || 0);
+      const totalMulheres = Number(r?.mulheres || 0);
+      return {
+        totalCandidatos,
+        totalEleitos: Number(r?.eleitos || 0),
+        totalMulheres,
+        pctMulheres: totalCandidatos > 0 ? (totalMulheres / totalCandidatos) * 100 : 0,
+        totalPartidos: Number(r?.partidos || 0),
+        totalMunicipios: Number(r?.municipios || 0),
+        totalCargos: Number(r?.cargos || 0),
+      };
     },
   });
 }
@@ -150,11 +121,10 @@ export function useCandidatosPorPartido() {
   return useQuery({
     queryKey: ['candidatosPorPartido', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('sigla_partido'), f);
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => { const p = r.sigla_partido || 'OUTROS'; map.set(p, (map.get(p) || 0) + 1); });
-      return Array.from(map.entries()).map(([partido, total]) => ({ partido, total })).sort((a, b) => b.total - a.total);
+      const w = buildWhere(f);
+      return mdQuery<{partido: string; total: string}>(
+        `SELECT ${COL.partido} as partido, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY ${COL.partido} ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ partido: r.partido, total: Number(r.total) })));
     },
   });
 }
@@ -165,11 +135,10 @@ export function useDistribuicaoGenero() {
   return useQuery({
     queryKey: ['genero', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('genero'), f);
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => { const g = r.genero || 'NÃO INFORMADO'; map.set(g, (map.get(g) || 0) + 1); });
-      return Array.from(map.entries()).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
+      const w = buildWhere(f);
+      return mdQuery<{nome: string; total: string}>(
+        `SELECT COALESCE(${COL.genero}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
 }
@@ -180,11 +149,10 @@ export function useDistribuicaoEscolaridade() {
   return useQuery({
     queryKey: ['escolaridade', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('grau_instrucao'), f);
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => { const g = r.grau_instrucao || 'NÃO INFORMADO'; map.set(g, (map.get(g) || 0) + 1); });
-      return Array.from(map.entries()).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
+      const w = buildWhere(f);
+      return mdQuery<{nome: string; total: string}>(
+        `SELECT COALESCE(${COL.escolaridade}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
 }
@@ -195,11 +163,10 @@ export function useTopOcupacoes() {
   return useQuery({
     queryKey: ['ocupacoes', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('ocupacao'), f);
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => { const o = r.ocupacao || 'NÃO INFORMADO'; map.set(o, (map.get(o) || 0) + 1); });
-      return Array.from(map.entries()).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total).slice(0, 15);
+      const w = buildWhere(f);
+      return mdQuery<{nome: string; total: string}>(
+        `SELECT COALESCE(${COL.ocupacao}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC LIMIT 15`
+      ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
 }
@@ -210,15 +177,10 @@ export function useSituacaoFinal() {
   return useQuery({
     queryKey: ['situacao', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('situacao_final'), f);
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => {
-        let s = (r.situacao_final || 'NÃO DEFINIDO').toUpperCase().trim();
-        if (s === '#NULO' || s === 'NONE' || s === '') s = 'NÃO DEFINIDO';
-        map.set(s, (map.get(s) || 0) + 1);
-      });
-      return Array.from(map.entries()).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
+      const w = buildWhere(f);
+      return mdQuery<{nome: string; total: string}>(
+        `SELECT COALESCE(${COL.situacaoFinal}, 'NÃO DEFINIDO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
 }
@@ -229,18 +191,17 @@ export function useEvolucaoPorAno() {
   return useQuery({
     queryKey: ['evolucaoAno', { ...f, ano: null }],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('ano, genero, situacao_final'), { ...f, ano: null });
-      const data = await fetchAll(q);
-      const map = new Map<number, { total: number; mulheres: number; eleitos: number }>();
-      data.forEach((r: any) => {
-        const cur = map.get(r.ano) || { total: 0, mulheres: 0, eleitos: 0 };
-        cur.total++;
-        if ((r.genero || '').toUpperCase() === 'FEMININO') cur.mulheres++;
-        const s = (r.situacao_final || '').toUpperCase();
-        if ((s.includes('ELEITO') || s.includes('MÉDIA') || s.includes('QP')) && !s.includes('NÃO ELEITO')) cur.eleitos++;
-        map.set(r.ano, cur);
-      });
-      return Array.from(map.entries()).map(([ano, v]) => ({ ano, ...v, pctMulheres: v.total > 0 ? Math.round(v.mulheres / v.total * 100) : 0 })).sort((a, b) => a.ano - b.ano);
+      const w = buildWhere({ ...f, ano: null });
+      return mdQuery<{ano: string; total: string; mulheres: string; eleitos: string}>(
+        `SELECT ${COL.ano} as ano, count(*) as total,
+          count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres,
+          count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos
+        FROM ${MD.candidatos} ${w} GROUP BY ${COL.ano} ORDER BY ano`
+      ).then(rows => rows.map(r => {
+        const total = Number(r.total);
+        const mulheres = Number(r.mulheres);
+        return { ano: Number(r.ano), total, mulheres, eleitos: Number(r.eleitos), pctMulheres: total > 0 ? Math.round(mulheres / total * 100) : 0 };
+      }));
     },
   });
 }
@@ -251,21 +212,20 @@ export function useTopPatrimonio() {
   return useQuery({
     queryKey: ['topPatrimonio', f],
     queryFn: async () => {
-      let bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem, ano');
-      if (f.ano) bensQ = bensQ.eq('ano', f.ano);
-      const bens = await fetchAll(bensQ);
-      const patriMap = new Map<string, number>();
-      bens.forEach((b: any) => { const key = b.sequencial_candidato; if (!key) return; patriMap.set(key, (patriMap.get(key) || 0) + (b.valor_bem || 0)); });
-      const topSeqs = Array.from(patriMap.entries()).sort((a, b) => b[1] - a[1]).slice(0, 20);
-      if (topSeqs.length === 0) return [];
-      const seqIds = topSeqs.map(([s]) => s);
-      const { data: cands } = await (supabase.from(TABELA_CANDIDATOS) as any).select('sequencial_candidato, nome_urna, sigla_partido, cargo, foto_url').in('sequencial_candidato', seqIds);
-      const candMap = new Map<string, any>();
-      (cands || []).forEach((c: any) => { if (!candMap.has(c.sequencial_candidato)) candMap.set(c.sequencial_candidato, c); });
-      return topSeqs.map(([seq, total]) => {
-        const c = candMap.get(seq) || {};
-        return { sequencial: seq, nome: c.nome_urna || 'N/A', partido: c.sigla_partido || '', cargo: c.cargo || '', foto_url: c.foto_url || null, patrimonio: total };
-      });
+      const ano = f.ano || 2024;
+      // Join bens with candidatos on sq_candidato
+      return mdQuery<{nome: string; partido: string; cargo: string; patrimonio: string; qtd: string}>(
+        `SELECT c.${COL.nomeUrna} as nome, c.${COL.partido} as partido, c.${COL.cargo} as cargo,
+          sum(b.${COL.valorBem}) as patrimonio, count(*) as qtd
+        FROM ${MD.bens} b
+        JOIN ${MD.candidatos} c ON b.${COL.sequencial} = c.${COL.sequencial} AND c.${COL.ano} = ${ano}
+        WHERE b.${COL.ano} = ${ano}
+        GROUP BY c.${COL.nomeUrna}, c.${COL.partido}, c.${COL.cargo}
+        ORDER BY patrimonio DESC LIMIT 20`
+      ).then(rows => rows.map(r => ({
+        sequencial: '', nome: r.nome, partido: r.partido, cargo: r.cargo,
+        foto_url: null, patrimonio: Number(r.patrimonio),
+      })));
     },
   });
 }
@@ -276,25 +236,19 @@ export function useFaixaEtaria() {
   return useQuery({
     queryKey: ['faixaEtaria', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('data_nascimento, ano'), f);
-      const data = await fetchAll(q);
-      const faixas: Record<string, number> = { '18-25': 0, '26-35': 0, '36-45': 0, '46-55': 0, '56-65': 0, '66+': 0 };
-      data.forEach((r: any) => {
-        if (!r.data_nascimento) return;
-        const parts = r.data_nascimento.split('/');
-        if (parts.length < 3) return;
-        const birthYear = parseInt(parts[2]);
-        const refYear = r.ano || 2024;
-        const age = refYear - birthYear;
-        if (age < 18) return;
-        if (age <= 25) faixas['18-25']++;
-        else if (age <= 35) faixas['26-35']++;
-        else if (age <= 45) faixas['36-45']++;
-        else if (age <= 55) faixas['46-55']++;
-        else if (age <= 65) faixas['56-65']++;
-        else faixas['66+']++;
-      });
-      return Object.entries(faixas).map(([faixa, total]) => ({ faixa, total }));
+      const w = buildWhere(f, `${COL.nascimento} IS NOT NULL`);
+      return mdQuery<{faixa: string; total: string}>(
+        `SELECT CASE
+          WHEN nr_idade_data_posse <= 25 THEN '18-25'
+          WHEN nr_idade_data_posse <= 35 THEN '26-35'
+          WHEN nr_idade_data_posse <= 45 THEN '36-45'
+          WHEN nr_idade_data_posse <= 55 THEN '46-55'
+          WHEN nr_idade_data_posse <= 65 THEN '56-65'
+          ELSE '66+'
+        END as faixa, count(*) as total
+        FROM ${MD.candidatos} ${w} AND nr_idade_data_posse > 0
+        GROUP BY faixa ORDER BY faixa`
+      ).then(rows => rows.map(r => ({ faixa: r.faixa, total: Number(r.total) })));
     },
   });
 }
@@ -305,11 +259,10 @@ export function useCandidatosPorCargo() {
   return useQuery({
     queryKey: ['porCargo', { ...f, cargo: null }],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('cargo'), { ...f, cargo: null });
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => { const c = r.cargo || 'NÃO DEFINIDO'; map.set(c, (map.get(c) || 0) + 1); });
-      return Array.from(map.entries()).map(([cargo, total]) => ({ cargo, total })).sort((a, b) => b.total - a.total);
+      const w = buildWhere({ ...f, cargo: null });
+      return mdQuery<{cargo: string; total: string}>(
+        `SELECT COALESCE(${COL.cargo}, 'NÃO DEFINIDO') as cargo, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY cargo ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ cargo: r.cargo, total: Number(r.total) })));
     },
   });
 }
@@ -320,13 +273,13 @@ export function useEleitos() {
   return useQuery({
     queryKey: ['eleitos', f],
     queryFn: async () => {
-      let q = (supabase.from(TABELA_CANDIDATOS) as any).select('*')
-        .or('situacao_final.ilike.%ELEITO%,situacao_final.ilike.%MÉDIA%,situacao_final.ilike.%QP%')
-        .not('situacao_final', 'ilike', '%NÃO ELEITO%')
-        .order('nome_urna').limit(30);
-      q = applyFilters(q, f);
-      const { data } = await q;
-      return data || [];
+      const w = buildWhere(f, `${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%'`);
+      return mdQuery(
+        `SELECT ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo, ${COL.partido} as sigla_partido,
+          ${COL.cargo} as cargo, ${COL.municipio} as municipio, ${COL.situacaoFinal} as situacao_final,
+          ${COL.genero} as genero, ${COL.numero} as numero_urna, ${COL.ano} as ano
+        FROM ${MD.candidatos} ${w} ORDER BY ${COL.nomeUrna} LIMIT 30`
+      );
     },
   });
 }
@@ -336,10 +289,10 @@ export function usePatrimonioEvolucaoAno() {
   return useQuery({
     queryKey: ['patrimonioEvolucao'],
     queryFn: async () => {
-      const bens = await fetchAll((supabase.from(TABELA_BENS) as any).select('ano, valor_bem'));
-      const map = new Map<number, { total: number; count: number }>();
-      bens.forEach((b: any) => { const cur = map.get(b.ano) || { total: 0, count: 0 }; cur.total += b.valor_bem || 0; cur.count++; map.set(b.ano, cur); });
-      return Array.from(map.entries()).map(([ano, v]) => ({ ano, total: v.total, media: v.count > 0 ? v.total / v.count : 0, registros: v.count })).sort((a, b) => a.ano - b.ano);
+      return mdQuery<{ano: string; total: string; media: string; registros: string}>(
+        `SELECT ${COL.ano} as ano, sum(${COL.valorBem}) as total, avg(${COL.valorBem}) as media, count(*) as registros
+        FROM ${MD.bens} GROUP BY ${COL.ano} ORDER BY ano`
+      ).then(rows => rows.map(r => ({ ano: Number(r.ano), total: Number(r.total), media: Number(r.media), registros: Number(r.registros) })));
     },
   });
 }
@@ -350,22 +303,24 @@ export function usePatrimonioDistribuicao() {
   return useQuery({
     queryKey: ['patrimonioDistrib', f],
     queryFn: async () => {
-      let bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem, ano');
-      if (f.ano) bensQ = bensQ.eq('ano', f.ano);
-      const bens = await fetchAll(bensQ);
-      const candTotal = new Map<string, number>();
-      bens.forEach((b: any) => { const k = b.sequencial_candidato; if (!k) return; candTotal.set(k, (candTotal.get(k) || 0) + (b.valor_bem || 0)); });
-      const faixas: Record<string, number> = { 'Até R$10k': 0, 'R$10k-50k': 0, 'R$50k-100k': 0, 'R$100k-500k': 0, 'R$500k-1M': 0, 'R$1M-5M': 0, 'Acima R$5M': 0 };
-      candTotal.forEach((total) => {
-        if (total <= 10_000) faixas['Até R$10k']++;
-        else if (total <= 50_000) faixas['R$10k-50k']++;
-        else if (total <= 100_000) faixas['R$50k-100k']++;
-        else if (total <= 500_000) faixas['R$100k-500k']++;
-        else if (total <= 1_000_000) faixas['R$500k-1M']++;
-        else if (total <= 5_000_000) faixas['R$1M-5M']++;
-        else faixas['Acima R$5M']++;
-      });
-      return Object.entries(faixas).map(([faixa, total]) => ({ faixa, total }));
+      const ano = f.ano || 2024;
+      return mdQuery<{faixa: string; total: string}>(
+        `WITH patri AS (
+          SELECT ${COL.sequencial}, sum(${COL.valorBem}) as total
+          FROM ${MD.bens} WHERE ${COL.ano} = ${ano}
+          GROUP BY ${COL.sequencial}
+        )
+        SELECT CASE
+          WHEN total <= 10000 THEN 'Até R$10k'
+          WHEN total <= 50000 THEN 'R$10k-50k'
+          WHEN total <= 100000 THEN 'R$50k-100k'
+          WHEN total <= 500000 THEN 'R$100k-500k'
+          WHEN total <= 1000000 THEN 'R$500k-1M'
+          WHEN total <= 5000000 THEN 'R$1M-5M'
+          ELSE 'Acima R$5M'
+        END as faixa, count(*) as total
+        FROM patri GROUP BY faixa ORDER BY min(total)`
+      ).then(rows => rows.map(r => ({ faixa: r.faixa, total: Number(r.total) })));
     },
   });
 }
@@ -376,24 +331,35 @@ export function useRanking(search: string, page: number, sortBy: string, sortAsc
   return useQuery({
     queryKey: ['ranking', f, search, page, sortBy, sortAsc],
     queryFn: async () => {
-      let q = (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact' });
-      q = applyFilters(q, f);
-      if (search) q = q.or(`nome_urna.ilike.%${search}%,nome_completo.ilike.%${search}%`);
-      const validSorts = ['nome_urna', 'nome_completo', 'numero_urna', 'sigla_partido', 'cargo', 'municipio', 'ano'];
-      const actualSort = validSorts.includes(sortBy) ? sortBy : 'nome_urna';
-      q = q.order(actualSort, { ascending: sortAsc });
-      q = q.range(page * pageSize, (page + 1) * pageSize - 1);
-      const { data, count } = await q;
-      const candidateNames = (data || []).map((c: any) => c.nome_urna).filter(Boolean);
-      let votosMap = new Map<string, number>();
-      if (candidateNames.length > 0) {
-        try {
-          const { data: votos } = await (supabase.from(TABELA_VOTACAO) as any).select('nome_candidato, total_votos').in('nome_candidato', candidateNames).eq('ano', f.ano || 2024);
-          (votos || []).forEach((v: any) => { votosMap.set(v.nome_candidato, (votosMap.get(v.nome_candidato) || 0) + (v.total_votos || 0)); });
-        } catch {}
-      }
-      const enriched = (data || []).map((c: any) => ({ ...c, total_votos: votosMap.get(c.nome_urna) || 0 }));
-      return { data: enriched, count: count || 0, pageSize, hasVotos: votosMap.size > 0 };
+      const searchExtra = search ? `(${COL.nomeUrna} ILIKE '%${search}%' OR ${COL.nomeCompleto} ILIKE '%${search}%')` : undefined;
+      const w = buildWhere(f, searchExtra);
+      const sortMap: Record<string, string> = {
+        nome_urna: COL.nomeUrna, nome_completo: COL.nomeCompleto, numero_urna: COL.numero,
+        sigla_partido: COL.partido, cargo: COL.cargo, municipio: COL.municipio, ano: COL.ano,
+      };
+      const orderCol = sortMap[sortBy] || COL.nomeUrna;
+      const dir = sortAsc ? 'ASC' : 'DESC';
+      const offset = page * pageSize;
+
+      const [countResult, dataResult] = await Promise.all([
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${w}`),
+        mdQuery(
+          `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
+            ${COL.numero} as numero_urna, ${COL.partido} as sigla_partido, ${COL.cargo} as cargo,
+            ${COL.municipio} as municipio, ${COL.ano} as ano, ${COL.genero} as genero,
+            ${COL.escolaridade} as grau_instrucao, ${COL.situacaoFinal} as situacao_final,
+            ${COL.ocupacao} as ocupacao
+          FROM ${MD.candidatos} ${w}
+          ORDER BY ${orderCol} ${dir} LIMIT ${pageSize} OFFSET ${offset}`
+        ),
+      ]);
+
+      return {
+        data: dataResult.map((c: any) => ({ ...c, total_votos: 0 })),
+        count: Number(countResult[0]?.total || 0),
+        pageSize,
+        hasVotos: false,
+      };
     },
   });
 }
@@ -403,8 +369,21 @@ export function useCandidato(id: string) {
   return useQuery({
     queryKey: ['candidato', id],
     queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_CANDIDATOS) as any).select('*').eq('id', parseInt(id)).single();
-      return data;
+      // id here is sq_candidato
+      const rows = await mdQuery(
+        `SELECT ${COL.sequencial} as id, ${COL.sequencial} as sequencial_candidato,
+          ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
+          ${COL.numero} as numero_urna, ${COL.partido} as sigla_partido, nm_partido as nome_partido,
+          ${COL.cargo} as cargo, ${COL.municipio} as municipio, ${COL.ano} as ano,
+          ${COL.genero} as genero, ${COL.escolaridade} as grau_instrucao,
+          ${COL.ocupacao} as ocupacao, ${COL.situacaoFinal} as situacao_final,
+          ${COL.nascimento} as data_nascimento, ${COL.nacionalidade} as nacionalidade,
+          ${COL.turno} as turno
+        FROM ${MD.candidatos}
+        WHERE ${COL.sequencial} = '${id}' OR CAST(${COL.sequencial} AS VARCHAR) = '${id}'
+        LIMIT 1`
+      );
+      return rows[0] || null;
     },
     enabled: !!id,
   });
@@ -414,8 +393,13 @@ export function usePatrimonioCandidato(sequencialCandidato: string) {
   return useQuery({
     queryKey: ['patrimonio', sequencialCandidato],
     queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_BENS) as any).select('*').eq('sequencial_candidato', sequencialCandidato).order('ordem_bem');
-      return data || [];
+      return mdQuery(
+        `SELECT ${COL.ordemBem} as ordem_bem, ${COL.tipoBem} as tipo_bem,
+          ${COL.descBem} as descricao_bem, ${COL.valorBem} as valor_bem
+        FROM ${MD.bens}
+        WHERE ${COL.sequencial} = '${sequencialCandidato}'
+        ORDER BY ${COL.ordemBem}`
+      );
     },
     enabled: !!sequencialCandidato,
   });
@@ -426,14 +410,13 @@ export function useEvolucaoPatrimonio(nomeUrna: string) {
     queryKey: ['evolucaoPatrimonio', nomeUrna],
     queryFn: async () => {
       if (!nomeUrna) return [];
-      const { data: cands } = await (supabase.from(TABELA_CANDIDATOS) as any).select('ano, sequencial_candidato').eq('nome_urna', nomeUrna);
-      if (!cands || cands.length === 0) return [];
-      const seqs = cands.map((c: any) => c.sequencial_candidato).filter(Boolean);
-      if (seqs.length === 0) return [];
-      const { data: bens } = await (supabase.from(TABELA_BENS) as any).select('ano, sequencial_candidato, valor_bem').in('sequencial_candidato', seqs);
-      const map = new Map<number, number>();
-      (bens || []).forEach((b: any) => { map.set(b.ano, (map.get(b.ano) || 0) + (b.valor_bem || 0)); });
-      return Array.from(map.entries()).map(([ano, total]) => ({ ano, patrimonio: total })).sort((a, b) => a.ano - b.ano);
+      return mdQuery<{ano: string; patrimonio: string}>(
+        `SELECT b.${COL.ano} as ano, sum(b.${COL.valorBem}) as patrimonio
+        FROM ${MD.bens} b
+        JOIN ${MD.candidatos} c ON b.${COL.sequencial} = c.${COL.sequencial} AND b.${COL.ano} = c.${COL.ano}
+        WHERE c.${COL.nomeUrna} = '${nomeUrna}'
+        GROUP BY b.${COL.ano} ORDER BY ano`
+      ).then(rows => rows.map(r => ({ ano: Number(r.ano), patrimonio: Number(r.patrimonio) })));
     },
     enabled: !!nomeUrna,
   });
@@ -444,8 +427,14 @@ export function useCandidatoVotos(nomeUrna: string, ano: number) {
     queryKey: ['candidatoVotos', nomeUrna, ano],
     queryFn: async () => {
       if (!nomeUrna || !ano) return [];
-      const { data } = await (supabase.from(TABELA_VOTACAO) as any).select('municipio, zona, total_votos, cargo').eq('nome_candidato', nomeUrna).eq('ano', ano).order('total_votos', { ascending: false }).limit(500);
-      return data || [];
+      try {
+        return await mdQuery(
+          `SELECT nm_municipio as municipio, nr_zona as zona, qt_votos_nominais as total_votos, ds_cargo as cargo
+          FROM ${MD.votacao(ano)}
+          WHERE nm_urna_candidato = '${nomeUrna}'
+          ORDER BY total_votos DESC LIMIT 500`
+        );
+      } catch { return []; }
     },
     enabled: !!nomeUrna && !!ano,
   });
@@ -457,12 +446,19 @@ export function useMunicipioResumo(municipio: string | null) {
     queryKey: ['municipioResumo', municipio],
     queryFn: async () => {
       if (!municipio) return null;
-      const { data } = await (supabase.from(TABELA_COMPARECIMENTO) as any).select('ano, turno, eleitorado_apto, comparecimento, abstencoes').eq('municipio', municipio);
-      if (!data || data.length === 0) return null;
-      const totals = data.reduce((acc: any, r: any) => ({ apto: acc.apto + (r.eleitorado_apto || 0), comp: acc.comp + (r.comparecimento || 0), abst: acc.abst + (r.abstencoes || 0) }), { apto: 0, comp: 0, abst: 0 });
-      const map = new Map<number, any>();
-      data.forEach((r: any) => { const cur = map.get(r.ano) || { ano: r.ano, apto: 0, comp: 0, abst: 0 }; cur.apto += r.eleitorado_apto || 0; cur.comp += r.comparecimento || 0; cur.abst += r.abstencoes || 0; map.set(r.ano, cur); });
-      return { totals, historico: Array.from(map.values()).sort((a: any, b: any) => a.ano - b.ano) };
+      const anos = [2016, 2018, 2020, 2022, 2024];
+      const queries = anos.map(ano =>
+        mdQuery<{ano: string; apto: string; comp: string; abst: string}>(
+          `SELECT ${ano} as ano, sum(qt_aptos) as apto, sum(qt_comparecimento) as comp, sum(qt_abstencoes) as abst
+          FROM ${MD.comparecimento(ano)} WHERE nm_municipio = '${municipio}'`
+        ).catch(() => [])
+      );
+      const results = await Promise.all(queries);
+      const historico = results.flat().filter(r => r && Number(r.apto) > 0).map(r => ({
+        ano: Number(r.ano), apto: Number(r.apto), comp: Number(r.comp), abst: Number(r.abst),
+      }));
+      const totals = historico.reduce((acc, r) => ({ apto: acc.apto + r.apto, comp: acc.comp + r.comp, abst: acc.abst + r.abst }), { apto: 0, comp: 0, abst: 0 });
+      return { totals, historico };
     },
     enabled: !!municipio,
   });
@@ -474,10 +470,14 @@ export function useMunicipioCandidatos(municipio: string | null) {
     queryKey: ['municipioCandidatos', municipio, ano],
     queryFn: async () => {
       if (!municipio) return [];
-      let q = (supabase.from(TABELA_CANDIDATOS) as any).select('id, nome_urna, sigla_partido, cargo, situacao_final, foto_url, numero_urna, genero, grau_instrucao').eq('municipio', municipio).order('nome_urna').limit(500);
-      if (ano) q = q.eq('ano', ano);
-      const { data } = await q;
-      return data || [];
+      const anoFilter = ano ? `AND ${COL.ano} = ${ano}` : '';
+      return mdQuery(
+        `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.partido} as sigla_partido,
+          ${COL.cargo} as cargo, ${COL.situacaoFinal} as situacao_final, ${COL.numero} as numero_urna,
+          ${COL.genero} as genero, ${COL.escolaridade} as grau_instrucao
+        FROM ${MD.candidatos} WHERE ${COL.municipio} = '${municipio}' ${anoFilter}
+        ORDER BY ${COL.nomeUrna} LIMIT 500`
+      );
     },
     enabled: !!municipio,
   });
@@ -489,10 +489,16 @@ export function useMunicipioVotos(municipio: string | null) {
     queryKey: ['municipioVotos', municipio, ano],
     queryFn: async () => {
       if (!municipio) return [];
-      let q = (supabase.from(TABELA_VOTACAO) as any).select('nome_candidato, partido, cargo, total_votos, numero_urna').eq('municipio', municipio).order('total_votos', { ascending: false }).limit(200);
-      if (ano) q = q.eq('ano', ano);
-      const { data } = await q;
-      return data || [];
+      const anoVal = ano || 2024;
+      try {
+        return await mdQuery(
+          `SELECT nm_urna_candidato as nome_candidato, sg_partido as partido, ds_cargo as cargo,
+            sum(qt_votos_nominais) as total_votos, nr_candidato as numero_urna
+          FROM ${MD.votacao(anoVal)} WHERE nm_municipio = '${municipio}'
+          GROUP BY nm_urna_candidato, sg_partido, ds_cargo, nr_candidato
+          ORDER BY total_votos DESC LIMIT 200`
+        );
+      } catch { return []; }
     },
     enabled: !!municipio,
   });
@@ -504,12 +510,14 @@ export function useVotosPorBairro(municipio: string, ano?: number) {
     queryKey: ['votosBairro', municipio, ano],
     queryFn: async () => {
       if (!municipio) return [];
-      let q = (supabase.from(TABELA_COMPARECIMENTO_SECAO) as any).select('bairro, eleitorado_apto, comparecimento, abstencoes').eq('municipio', municipio);
-      if (ano) q = q.eq('ano', ano);
-      const data = await fetchAll(q);
-      const map = new Map<string, { bairro: string; apto: number; comp: number; abst: number }>();
-      data.forEach((r: any) => { const b = r.bairro || 'NÃO INFORMADO'; const cur = map.get(b) || { bairro: b, apto: 0, comp: 0, abst: 0 }; cur.apto += r.eleitorado_apto || 0; cur.comp += r.comparecimento || 0; cur.abst += r.abstencoes || 0; map.set(b, cur); });
-      return Array.from(map.values()).sort((a, b) => b.apto - a.apto);
+      const anoVal = ano || 2024;
+      try {
+        return await mdQuery<{bairro: string; apto: string; comp: string; abst: string}>(
+          `SELECT nm_bairro as bairro, sum(qt_aptos) as apto, sum(qt_comparecimento) as comp, sum(qt_abstencoes) as abst
+          FROM ${MD.comparecimentoSecao(anoVal)} WHERE nm_municipio = '${municipio}'
+          GROUP BY nm_bairro ORDER BY apto DESC`
+        ).then(rows => rows.map(r => ({ bairro: r.bairro || 'NÃO INFORMADO', apto: Number(r.apto), comp: Number(r.comp), abst: Number(r.abst) })));
+      } catch { return []; }
     },
     enabled: !!municipio,
   });
@@ -520,13 +528,15 @@ export function useVotosPorLocal(municipio: string, ano?: number, bairro?: strin
     queryKey: ['votosLocal', municipio, ano, bairro],
     queryFn: async () => {
       if (!municipio) return [];
-      let q = (supabase.from(TABELA_COMPARECIMENTO_SECAO) as any).select('local_votacao, bairro, eleitorado_apto, comparecimento').eq('municipio', municipio);
-      if (ano) q = q.eq('ano', ano);
-      if (bairro) q = q.eq('bairro', bairro);
-      const data = await fetchAll(q);
-      const map = new Map<string, { local: string; bairro: string; apto: number; comp: number }>();
-      data.forEach((r: any) => { const key = `${r.local_votacao}|${r.bairro}`; const cur = map.get(key) || { local: r.local_votacao || '', bairro: r.bairro || '', apto: 0, comp: 0 }; cur.apto += r.eleitorado_apto || 0; cur.comp += r.comparecimento || 0; map.set(key, cur); });
-      return Array.from(map.values()).sort((a, b) => b.apto - a.apto);
+      const anoVal = ano || 2024;
+      const bairroFilter = bairro ? `AND nm_bairro = '${bairro}'` : '';
+      try {
+        return await mdQuery(
+          `SELECT nm_local_votacao as local, nm_bairro as bairro, sum(qt_aptos) as apto, sum(qt_comparecimento) as comp
+          FROM ${MD.comparecimentoSecao(anoVal)} WHERE nm_municipio = '${municipio}' ${bairroFilter}
+          GROUP BY nm_local_votacao, nm_bairro ORDER BY apto DESC`
+        ).then(rows => rows.map((r: any) => ({ local: r.local, bairro: r.bairro, apto: Number(r.apto), comp: Number(r.comp) })));
+      } catch { return []; }
     },
     enabled: !!municipio,
   });
@@ -538,41 +548,16 @@ export function usePartidoResumo() {
   return useQuery({
     queryKey: ['partidosResumo', f],
     queryFn: async () => {
-      let cq = (supabase.from(TABELA_CANDIDATOS) as any).select('sigla_partido, situacao_final, genero');
-      if (f.ano) cq = cq.eq('ano', f.ano);
-      if (f.turno) cq = cq.eq('turno', f.turno);
-      if (f.cargo) cq = cq.ilike('cargo', f.cargo);
-      if (f.municipio) cq = cq.eq('municipio', f.municipio);
-      const candidatos = await fetchAll(cq);
-
-      let vq = (supabase.from(TABELA_VOTACAO_PARTIDO) as any).select('sigla_partido, total_votos');
-      if (f.ano) vq = vq.eq('ano', f.ano);
-      if (f.turno) vq = vq.eq('turno', f.turno);
-      if (f.cargo) vq = vq.ilike('cargo', f.cargo);
-      if (f.municipio) vq = vq.eq('municipio', f.municipio);
-      let votos: any[] = [];
-      try { votos = await fetchAll(vq); } catch {}
-
-      const map = new Map<string, { candidatos: number; votos: number; eleitos: number; mulheres: number }>();
-      candidatos.forEach((c: any) => {
-        const p = c.sigla_partido || 'OUTROS';
-        const cur = map.get(p) || { candidatos: 0, votos: 0, eleitos: 0, mulheres: 0 };
-        cur.candidatos++;
-        const sit = (c.situacao_final || '').toUpperCase();
-        if (sit.includes('ELEITO') && !sit.includes('NÃO')) cur.eleitos++;
-        if ((c.genero || '').toUpperCase() === 'FEMININO') cur.mulheres++;
-        map.set(p, cur);
-      });
-      votos.forEach((v: any) => {
-        const p = v.sigla_partido || 'OUTROS';
-        const cur = map.get(p) || { candidatos: 0, votos: 0, eleitos: 0, mulheres: 0 };
-        cur.votos += v.total_votos || 0;
-        map.set(p, cur);
-      });
-
+      const w = buildWhere(f);
+      const candidatos = await mdQuery<{partido: string; candidatos: string; eleitos: string; mulheres: string}>(
+        `SELECT ${COL.partido} as partido, count(*) as candidatos,
+          count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
+          count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres
+        FROM ${MD.candidatos} ${w} GROUP BY ${COL.partido} ORDER BY candidatos DESC`
+      );
       return {
-        partidos: Array.from(map.entries()).map(([partido, stats]) => ({ partido, ...stats })).sort((a, b) => votos.length > 0 ? b.votos - a.votos : b.candidatos - a.candidatos),
-        hasVotos: votos.length > 0,
+        partidos: candidatos.map(r => ({ partido: r.partido, candidatos: Number(r.candidatos), votos: 0, eleitos: Number(r.eleitos), mulheres: Number(r.mulheres) })),
+        hasVotos: false,
       };
     },
   });
@@ -584,13 +569,14 @@ export function usePartidoDetalhe(partido: string | null) {
     queryKey: ['partidoDetalhe', partido, f],
     queryFn: async () => {
       if (!partido) return [];
-      let q = (supabase.from(TABELA_CANDIDATOS) as any).select('id, nome_urna, cargo, municipio, sigla_partido, situacao_final, foto_url').eq('sigla_partido', partido).order('nome_urna').limit(50);
-      if (f.ano) q = q.eq('ano', f.ano);
-      if (f.turno) q = q.eq('turno', f.turno);
-      if (f.cargo) q = q.ilike('cargo', f.cargo);
-      if (f.municipio) q = q.eq('municipio', f.municipio);
-      const { data } = await q;
-      return data || [];
+      const anoFilter = f.ano ? `AND ${COL.ano} = ${f.ano}` : '';
+      return mdQuery(
+        `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.cargo} as cargo,
+          ${COL.municipio} as municipio, ${COL.partido} as sigla_partido,
+          ${COL.situacaoFinal} as situacao_final
+        FROM ${MD.candidatos} WHERE ${COL.partido} = '${partido}' ${anoFilter}
+        ORDER BY ${COL.nomeUrna} LIMIT 50`
+      );
     },
     enabled: !!partido,
   });
@@ -601,8 +587,8 @@ export function useMunicipios() {
   return useQuery({
     queryKey: ['municipiosLista'],
     queryFn: async () => {
-      const data = await fetchAll((supabase.from(TABELA_CANDIDATOS) as any).select('municipio').not('municipio', 'is', null));
-      return [...new Set(data.map((r: any) => r.municipio).filter(Boolean))].sort() as string[];
+      const rows = await mdQuery<{m: string}>(`SELECT DISTINCT ${COL.municipio} as m FROM ${MD.candidatos} WHERE ${COL.municipio} IS NOT NULL ORDER BY m`);
+      return rows.map(r => r.m);
     },
   });
 }
@@ -611,8 +597,8 @@ export function usePartidos() {
   return useQuery({
     queryKey: ['partidosLista'],
     queryFn: async () => {
-      const { data } = await (supabase.from(TABELA_CANDIDATOS) as any).select('sigla_partido').not('sigla_partido', 'is', null).limit(1000);
-      return [...new Set((data || []).map((r: any) => r.sigla_partido).filter(Boolean))].sort() as string[];
+      const rows = await mdQuery<{p: string}>(`SELECT DISTINCT ${COL.partido} as p FROM ${MD.candidatos} WHERE ${COL.partido} IS NOT NULL ORDER BY p`);
+      return rows.map(r => r.p);
     },
   });
 }
@@ -633,21 +619,18 @@ export function usePerfilCandidatos() {
   return useQuery({
     queryKey: ['perfilCandidatos', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('genero, grau_instrucao, ocupacao, data_nascimento, situacao_final'), f);
-      const data = await fetchAll(q);
-      const generos = new Map<string, number>();
-      const instrucoes = new Map<string, number>();
-      const ocupacoes = new Map<string, number>();
-      data.forEach((r: any) => {
-        generos.set(r.genero || 'NÃO INFORMADO', (generos.get(r.genero || 'NÃO INFORMADO') || 0) + 1);
-        instrucoes.set(r.grau_instrucao || 'NÃO INFORMADO', (instrucoes.get(r.grau_instrucao || 'NÃO INFORMADO') || 0) + 1);
-        ocupacoes.set(r.ocupacao || 'NÃO INFORMADO', (ocupacoes.get(r.ocupacao || 'NÃO INFORMADO') || 0) + 1);
-      });
+      const w = buildWhere(f);
+      const [total, generos, instrucoes, ocupacoes] = await Promise.all([
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${w}`),
+        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.genero}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`),
+        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.escolaridade}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`),
+        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.ocupacao}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC LIMIT 15`),
+      ]);
       return {
-        total: data.length,
-        generos: Array.from(generos.entries()).map(([k, v]) => ({ nome: k, total: v })).sort((a, b) => b.total - a.total),
-        instrucoes: Array.from(instrucoes.entries()).map(([k, v]) => ({ nome: k, total: v })).sort((a, b) => b.total - a.total),
-        ocupacoes: Array.from(ocupacoes.entries()).map(([k, v]) => ({ nome: k, total: v })).sort((a, b) => b.total - a.total).slice(0, 15),
+        total: Number(total[0]?.total || 0),
+        generos: generos.map(r => ({ nome: r.nome, total: Number(r.total) })),
+        instrucoes: instrucoes.map(r => ({ nome: r.nome, total: Number(r.total) })),
+        ocupacoes: ocupacoes.map(r => ({ nome: r.nome, total: Number(r.total) })),
       };
     },
   });
@@ -659,66 +642,65 @@ export function usePatrimonioPorPartido() {
   return useQuery({
     queryKey: ['patrimonioPorPartido', f],
     queryFn: async () => {
-      let bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem, ano');
-      if (f.ano) bensQ = bensQ.eq('ano', f.ano);
-      const bens = await fetchAll(bensQ);
-      const seqs = [...new Set(bens.map((b: any) => b.sequencial_candidato).filter(Boolean))];
-      if (seqs.length === 0) return [];
-      const candMap = new Map<string, string>();
-      for (let i = 0; i < seqs.length; i += 500) {
-        const batch = seqs.slice(i, i + 500);
-        const { data } = await (supabase.from(TABELA_CANDIDATOS) as any).select('sequencial_candidato, sigla_partido').in('sequencial_candidato', batch);
-        (data || []).forEach((c: any) => { if (!candMap.has(c.sequencial_candidato)) candMap.set(c.sequencial_candidato, c.sigla_partido); });
-      }
-      const partyMap = new Map<string, { total: number; count: number }>();
-      bens.forEach((b: any) => {
-        const partido = candMap.get(b.sequencial_candidato) || 'OUTROS';
-        const cur = partyMap.get(partido) || { total: 0, count: 0 };
-        cur.total += b.valor_bem || 0; cur.count++;
-        partyMap.set(partido, cur);
-      });
-      return Array.from(partyMap.entries()).map(([partido, v]) => ({ partido, total: v.total, media: v.count > 0 ? v.total / v.count : 0 })).sort((a, b) => b.total - a.total).slice(0, 15);
+      const ano = f.ano || 2024;
+      return mdQuery<{partido: string; total: string; media: string}>(
+        `SELECT c.${COL.partido} as partido, sum(b.${COL.valorBem}) as total, avg(b.${COL.valorBem}) as media
+        FROM ${MD.bens} b
+        JOIN ${MD.candidatos} c ON b.${COL.sequencial} = c.${COL.sequencial} AND b.${COL.ano} = c.${COL.ano}
+        WHERE b.${COL.ano} = ${ano}
+        GROUP BY c.${COL.partido} ORDER BY total DESC LIMIT 15`
+      ).then(rows => rows.map(r => ({ partido: r.partido, total: Number(r.total), media: Number(r.media) })));
     },
   });
 }
 
-// ═══ EXPLORADOR — ALL CANDIDATES WITH ALL FIELDS ═══
+// ═══ EXPLORADOR ═══
 export function useExplorador(page: number, pageSize: number, sortBy: string, sortAsc: boolean) {
   const f = useFilters();
   return useQuery({
     queryKey: ['explorador', f, page, pageSize, sortBy, sortAsc],
     queryFn: async () => {
-      let q = (supabase.from(TABELA_CANDIDATOS) as any).select('*', { count: 'exact' });
-      q = applyFilters(q, f);
-      const validSorts = ['nome_urna', 'nome_completo', 'numero_urna', 'sigla_partido', 'cargo', 'municipio', 'ano', 'genero', 'grau_instrucao', 'ocupacao', 'situacao_final'];
-      const actualSort = validSorts.includes(sortBy) ? sortBy : 'nome_urna';
-      q = q.order(actualSort, { ascending: sortAsc });
-      q = q.range(page * pageSize, (page + 1) * pageSize - 1);
-      const { data, count } = await q;
-      return { data: data || [], count: count || 0, pageSize };
+      const w = buildWhere(f);
+      const sortMap: Record<string, string> = {
+        nome_urna: COL.nomeUrna, nome_completo: COL.nomeCompleto, numero_urna: COL.numero,
+        sigla_partido: COL.partido, cargo: COL.cargo, municipio: COL.municipio, ano: COL.ano,
+        genero: COL.genero, grau_instrucao: COL.escolaridade, ocupacao: COL.ocupacao,
+        situacao_final: COL.situacaoFinal,
+      };
+      const orderCol = sortMap[sortBy] || COL.nomeUrna;
+      const dir = sortAsc ? 'ASC' : 'DESC';
+      const offset = page * pageSize;
+
+      const [countRes, dataRes] = await Promise.all([
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${w}`),
+        mdQuery(
+          `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
+            ${COL.numero} as numero_urna, ${COL.partido} as sigla_partido, ${COL.cargo} as cargo,
+            ${COL.municipio} as municipio, ${COL.ano} as ano, ${COL.genero} as genero,
+            ${COL.escolaridade} as grau_instrucao, ${COL.ocupacao} as ocupacao,
+            ${COL.situacaoFinal} as situacao_final
+          FROM ${MD.candidatos} ${w}
+          ORDER BY ${orderCol} ${dir} LIMIT ${pageSize} OFFSET ${offset}`
+        ),
+      ]);
+      return { data: dataRes, count: Number(countRes[0]?.total || 0), pageSize };
     },
   });
 }
 
-// ═══ CROSS-ANALYSIS: CANDIDATOS POR MUNICÍPIO RANKING ═══
+// ═══ MUNICÍPIOS RANKING ═══
 export function useMunicipiosRanking() {
   const f = useFilters();
   return useQuery({
     queryKey: ['municipiosRanking', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('municipio, situacao_final, genero'), f, true);
-      const data = await fetchAll(q);
-      const map = new Map<string, { total: number; eleitos: number; mulheres: number }>();
-      data.forEach((r: any) => {
-        const m = r.municipio || 'NÃO DEFINIDO';
-        const cur = map.get(m) || { total: 0, eleitos: 0, mulheres: 0 };
-        cur.total++;
-        const s = (r.situacao_final || '').toUpperCase();
-        if (s.includes('ELEITO') && !s.includes('NÃO')) cur.eleitos++;
-        if ((r.genero || '').toUpperCase() === 'FEMININO') cur.mulheres++;
-        map.set(m, cur);
-      });
-      return Array.from(map.entries()).map(([municipio, stats]) => ({ municipio, ...stats })).sort((a, b) => b.total - a.total);
+      const w = buildWhere({ ...f, municipio: null });
+      return mdQuery<{municipio: string; total: string; eleitos: string; mulheres: string}>(
+        `SELECT ${COL.municipio} as municipio, count(*) as total,
+          count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
+          count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres
+        FROM ${MD.candidatos} ${w} GROUP BY ${COL.municipio} ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ municipio: r.municipio, total: Number(r.total), eleitos: Number(r.eleitos), mulheres: Number(r.mulheres) })));
     },
   });
 }
@@ -729,23 +711,23 @@ export function useVotosBrancosNulos() {
   return useQuery({
     queryKey: ['votosBrancosNulos', f],
     queryFn: async () => {
-      let q = (supabase.from(TABELA_COMPARECIMENTO) as any).select('ano, votos_brancos, votos_nulos, comparecimento');
-      if (f.ano) q = q.eq('ano', f.ano);
-      if (f.municipio) q = q.eq('municipio', f.municipio);
-      const data = await fetchAll(q);
-      const map = new Map<number, { brancos: number; nulos: number; comp: number }>();
-      data.forEach((r: any) => {
-        const cur = map.get(r.ano) || { brancos: 0, nulos: 0, comp: 0 };
-        cur.brancos += r.votos_brancos || 0;
-        cur.nulos += r.votos_nulos || 0;
-        cur.comp += r.comparecimento || 0;
-        map.set(r.ano, cur);
-      });
-      return Array.from(map.entries()).map(([ano, v]) => ({
-        ano, brancos: v.brancos, nulos: v.nulos, comp: v.comp,
-        pctBrancos: v.comp > 0 ? (v.brancos / v.comp) * 100 : 0,
-        pctNulos: v.comp > 0 ? (v.nulos / v.comp) * 100 : 0,
-      })).sort((a, b) => a.ano - b.ano);
+      const anos = [2016, 2018, 2020, 2022, 2024];
+      const targetAnos = f.ano ? [f.ano] : anos;
+      const results = await Promise.all(targetAnos.map(async ano => {
+        const munFilter = f.municipio ? `AND nm_municipio = '${f.municipio}'` : '';
+        try {
+          const [r] = await mdQuery<{brancos: string; nulos: string; comp: string}>(
+            `SELECT sum(qt_votos_brancos) as brancos, sum(qt_votos_nulos) as nulos, sum(qt_comparecimento) as comp
+            FROM ${MD.comparecimento(ano)} WHERE 1=1 ${munFilter}`
+          );
+          const comp = Number(r?.comp || 0);
+          const brancos = Number(r?.brancos || 0);
+          const nulos = Number(r?.nulos || 0);
+          if (comp === 0) return null;
+          return { ano, brancos, nulos, comp, pctBrancos: (brancos / comp) * 100, pctNulos: (nulos / comp) * 100 };
+        } catch { return null; }
+      }));
+      return results.filter(Boolean).sort((a: any, b: any) => a.ano - b.ano);
     },
   });
 }
@@ -756,70 +738,50 @@ export function useTaxaReeleicao() {
   return useQuery({
     queryKey: ['taxaReeleicao', f],
     queryFn: async () => {
-      const q = (supabase.from(TABELA_CANDIDATOS) as any).select('nome_urna, ano, situacao_final, cargo');
-      const data = await fetchAll(q);
-      // Group by name
-      const byName = new Map<string, any[]>();
-      data.forEach((r: any) => {
-        const n = r.nome_urna;
-        if (!n) return;
-        if (!byName.has(n)) byName.set(n, []);
-        byName.get(n)!.push(r);
-      });
-      let recandidatos = 0;
-      let reeleitos = 0;
-      byName.forEach((entries) => {
-        if (entries.length < 2) return;
-        const sorted = entries.sort((a: any, b: any) => a.ano - b.ano);
-        for (let i = 1; i < sorted.length; i++) {
-          const prev = (sorted[i-1].situacao_final || '').toUpperCase();
-          const curr = (sorted[i].situacao_final || '').toUpperCase();
-          if (prev.includes('ELEITO') && !prev.includes('NÃO')) {
-            recandidatos++;
-            if (curr.includes('ELEITO') && !curr.includes('NÃO')) reeleitos++;
-          }
-        }
-      });
+      // Count candidates who appear in multiple years with ELEITO status
+      const rows = await mdQuery<{recandidatos: string; reeleitos: string}>(
+        `WITH eleitos AS (
+          SELECT ${COL.nomeUrna} as nome, ${COL.ano} as ano
+          FROM ${MD.candidatos}
+          WHERE ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%'
+        ),
+        recand AS (
+          SELECT c.${COL.nomeUrna} as nome, c.${COL.ano} as ano, c.${COL.situacaoFinal} as sit
+          FROM ${MD.candidatos} c
+          JOIN eleitos e ON c.${COL.nomeUrna} = e.nome AND c.${COL.ano} > e.ano
+        )
+        SELECT count(*) as recandidatos,
+          count(CASE WHEN sit ILIKE '%ELEITO%' AND sit NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as reeleitos
+        FROM recand`
+      );
+      const r = rows[0] || { recandidatos: '0', reeleitos: '0' };
+      const recandidatos = Number(r.recandidatos);
+      const reeleitos = Number(r.reeleitos);
       return { recandidatos, reeleitos, taxa: recandidatos > 0 ? (reeleitos / recandidatos) * 100 : 0 };
     },
   });
 }
 
-// ═══ PATRIMÔNIO VS VOTOS (SCATTER) ═══
+// ═══ PATRIMÔNIO VS VOTOS ═══
 export function usePatrimonioVsVotos() {
   const f = useFilters();
   return useQuery({
     queryKey: ['patrimonioVsVotos', f],
     queryFn: async () => {
       const ano = f.ano || 2024;
-      const bensQ = (supabase.from(TABELA_BENS) as any).select('sequencial_candidato, valor_bem').eq('ano', ano);
-      const bens = await fetchAll(bensQ);
-      const patriMap = new Map<string, number>();
-      bens.forEach((b: any) => { const k = b.sequencial_candidato; if (!k) return; patriMap.set(k, (patriMap.get(k) || 0) + (b.valor_bem || 0)); });
-      if (patriMap.size === 0) return [];
-      const seqs = Array.from(patriMap.keys()).slice(0, 200);
-      const { data: cands } = await (supabase.from(TABELA_CANDIDATOS) as any).select('sequencial_candidato, nome_urna, sigla_partido').eq('ano', ano).in('sequencial_candidato', seqs);
-      const candMap = new Map<string, any>();
-      (cands || []).forEach((c: any) => candMap.set(c.sequencial_candidato, c));
-      const names = (cands || []).map((c: any) => c.nome_urna).filter(Boolean);
-      let votosMap = new Map<string, number>();
-      if (names.length > 0) {
-        try {
-          for (let i = 0; i < names.length; i += 100) {
-            const batch = names.slice(i, i + 100);
-            const { data: votos } = await (supabase.from(TABELA_VOTACAO) as any).select('nome_candidato, total_votos').eq('ano', ano).in('nome_candidato', batch);
-            (votos || []).forEach((v: any) => votosMap.set(v.nome_candidato, (votosMap.get(v.nome_candidato) || 0) + (v.total_votos || 0)));
-          }
-        } catch {}
-      }
-      return seqs.map(seq => {
-        const c = candMap.get(seq);
-        if (!c) return null;
-        const patrimonio = patriMap.get(seq) || 0;
-        const votos = votosMap.get(c.nome_urna) || 0;
-        if (patrimonio === 0 && votos === 0) return null;
-        return { nome: c.nome_urna, partido: c.sigla_partido, patrimonio, votos };
-      }).filter(Boolean);
+      try {
+        return await mdQuery(
+          `SELECT c.${COL.nomeUrna} as nome, c.${COL.partido} as partido,
+            sum(b.${COL.valorBem}) as patrimonio, COALESCE(sum(v.qt_votos_nominais), 0) as votos
+          FROM ${MD.candidatos} c
+          JOIN ${MD.bens} b ON c.${COL.sequencial} = b.${COL.sequencial} AND c.${COL.ano} = b.${COL.ano}
+          LEFT JOIN ${MD.votacao(ano)} v ON c.nm_urna_candidato = v.nm_urna_candidato AND c.nm_ue = v.nm_municipio
+          WHERE c.${COL.ano} = ${ano}
+          GROUP BY c.${COL.nomeUrna}, c.${COL.partido}
+          HAVING sum(b.${COL.valorBem}) > 0
+          ORDER BY patrimonio DESC LIMIT 100`
+        );
+      } catch { return []; }
     },
   });
 }
@@ -829,26 +791,23 @@ export function useComparativoAnos() {
   return useQuery({
     queryKey: ['comparativoAnos'],
     queryFn: async () => {
-      const data = await fetchAll((supabase.from(TABELA_CANDIDATOS) as any).select('ano, genero, situacao_final, cargo'));
-      const map = new Map<number, { total: number; eleitos: number; mulheres: number; cargos: Set<string> }>();
-      data.forEach((r: any) => {
-        const cur = map.get(r.ano) || { total: 0, eleitos: 0, mulheres: 0, cargos: new Set<string>() };
-        cur.total++;
-        const s = (r.situacao_final || '').toUpperCase();
-        if (s.includes('ELEITO') && !s.includes('NÃO')) cur.eleitos++;
-        if ((r.genero || '').toUpperCase() === 'FEMININO') cur.mulheres++;
-        if (r.cargo) cur.cargos.add(r.cargo);
-        map.set(r.ano, cur);
-      });
-      return Array.from(map.entries()).map(([ano, v]) => ({
-        ano,
-        total: v.total,
-        eleitos: v.eleitos,
-        mulheres: v.mulheres,
-        pctMulheres: v.total > 0 ? Math.round((v.mulheres / v.total) * 100) : 0,
-        pctEleitos: v.total > 0 ? Math.round((v.eleitos / v.total) * 100) : 0,
-        cargos: v.cargos.size,
-      })).sort((a, b) => a.ano - b.ano);
+      return mdQuery<{ano: string; total: string; eleitos: string; mulheres: string; cargos: string}>(
+        `SELECT ${COL.ano} as ano, count(*) as total,
+          count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
+          count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres,
+          count(DISTINCT ${COL.cargo}) as cargos
+        FROM ${MD.candidatos} GROUP BY ${COL.ano} ORDER BY ano`
+      ).then(rows => rows.map(r => {
+        const total = Number(r.total);
+        const mulheres = Number(r.mulheres);
+        const eleitos = Number(r.eleitos);
+        return {
+          ano: Number(r.ano), total, eleitos, mulheres,
+          pctMulheres: total > 0 ? Math.round((mulheres / total) * 100) : 0,
+          pctEleitos: total > 0 ? Math.round((eleitos / total) * 100) : 0,
+          cargos: Number(r.cargos),
+        };
+      }));
     },
   });
 }
@@ -861,21 +820,18 @@ export function useVotacaoPorZona(municipio?: string) {
     queryFn: async () => {
       const mun = municipio || f.municipio;
       if (!mun) return [];
-      let q = (supabase.from(TABELA_COMPARECIMENTO) as any).select('zona, eleitorado_apto, comparecimento, abstencoes, votos_brancos, votos_nulos').eq('municipio', mun);
-      if (f.ano) q = q.eq('ano', f.ano);
-      const data = await fetchAll(q);
-      const map = new Map<number, { zona: number; apto: number; comp: number; abst: number; brancos: number; nulos: number }>();
-      data.forEach((r: any) => {
-        const z = r.zona || 0;
-        const cur = map.get(z) || { zona: z, apto: 0, comp: 0, abst: 0, brancos: 0, nulos: 0 };
-        cur.apto += r.eleitorado_apto || 0;
-        cur.comp += r.comparecimento || 0;
-        cur.abst += r.abstencoes || 0;
-        cur.brancos += r.votos_brancos || 0;
-        cur.nulos += r.votos_nulos || 0;
-        map.set(z, cur);
-      });
-      return Array.from(map.values()).sort((a, b) => a.zona - b.zona);
+      const ano = f.ano || 2024;
+      try {
+        return await mdQuery<{zona: string; apto: string; comp: string; abst: string; brancos: string; nulos: string}>(
+          `SELECT nr_zona as zona, sum(qt_aptos) as apto, sum(qt_comparecimento) as comp,
+            sum(qt_abstencoes) as abst, sum(qt_votos_brancos) as brancos, sum(qt_votos_nulos) as nulos
+          FROM ${MD.comparecimento(ano)} WHERE nm_municipio = '${mun}'
+          GROUP BY nr_zona ORDER BY zona`
+        ).then(rows => rows.map(r => ({
+          zona: Number(r.zona), apto: Number(r.apto), comp: Number(r.comp),
+          abst: Number(r.abst), brancos: Number(r.brancos), nulos: Number(r.nulos),
+        })));
+      } catch { return []; }
     },
     enabled: !!(municipio || f.municipio),
   });
@@ -887,11 +843,11 @@ export function useNacionalidade() {
   return useQuery({
     queryKey: ['nacionalidade', f],
     queryFn: async () => {
-      const q = applyFilters((supabase.from(TABELA_CANDIDATOS) as any).select('nacionalidade'), f);
-      const data = await fetchAll(q);
-      const map = new Map<string, number>();
-      data.forEach((r: any) => { const n = r.nacionalidade || 'NÃO INFORMADO'; map.set(n, (map.get(n) || 0) + 1); });
-      return Array.from(map.entries()).map(([nome, total]) => ({ nome, total })).sort((a, b) => b.total - a.total);
+      const w = buildWhere(f);
+      return mdQuery<{nome: string; total: string}>(
+        `SELECT COALESCE(${COL.nacionalidade}, 'NÃO INFORMADO') as nome, count(*) as total
+        FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+      ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
 }
