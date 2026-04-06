@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck,
+  BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users,
   HelpCircle, TrendingUp, Sparkles, MessageSquare, Settings, Crosshair,
 } from 'lucide-react';
 import {
@@ -19,11 +19,12 @@ const analysisItems = [
 ];
 
 const dimensionItems = [
+  { title: 'Diretório Candidatos', url: '/diretorio', icon: Users },
   { title: 'Municípios', url: '/municipio', icon: Building2 },
   { title: 'Partidos', url: '/partido', icon: Target },
   { title: 'Bairros', url: '/bairro', icon: MapPin },
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
-  { title: 'Perfil', url: '/perfil-candidatos', icon: UserCheck },
+  { title: 'Perfil Geral', url: '/perfil-candidatos', icon: UserCheck },
 ];
 
 const systemItems = [

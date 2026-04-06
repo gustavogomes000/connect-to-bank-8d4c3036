@@ -21,6 +21,7 @@ import ImportarDados from "./pages/ImportarDados";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
 import InteligenciaTerritorial from "./pages/InteligenciaTerritorial";
+import DiretorioCandidatos from "./pages/DiretorioCandidatos";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -50,6 +51,7 @@ function Layout() {
               <Route path="/consulta" element={<ConsultaIA />} />
               <Route path="/chat" element={<ChatEleicoes />} />
               <Route path="/candidatos" element={<Ranking />} />
+              <Route path="/diretorio" element={<DiretorioCandidatos />} />
               <Route path="/candidato/:id" element={<CandidatoPerfil />} />
               <Route path="/municipio" element={<PorMunicipio />} />
               <Route path="/partido" element={<PorPartido />} />
