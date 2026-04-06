@@ -1,19 +1,18 @@
+import { useTabelas } from '@/hooks/useBigQuery';
 import {
-  useKPIs, useCheckEmpty, useEleitos, useDataAvailability,
-  useCandidatosPorPartido, useDistribuicaoGenero, useDistribuicaoEscolaridade,
-  useTopOcupacoes, useSituacaoFinal, useEvolucaoPorAno,
-  useTopPatrimonio, useFaixaEtaria, useCandidatosPorCargo,
-  usePatrimonioEvolucaoAno, usePatrimonioDistribuicao, useMunicipiosRanking,
+  useKPIs, useCheckEmpty,
+  useCandidatosPorPartido, useDistribuicaoGenero,
+  useSituacaoFinal, useEvolucaoPorAno,
+  useTopPatrimonio, useCandidatosPorCargo, useMunicipiosRanking,
 } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent, getPartidoCor } from '@/lib/eleicoes';
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
-import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { EmptyState } from '@/components/eleicoes/EmptyState';
-import { Users, CheckCircle, UserCheck, Building, TrendingUp, MapPin, DollarSign, BarChart3 } from 'lucide-react';
+import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Database, Loader2 } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
-  PieChart, Pie, Cell, Legend, AreaChart, Area, RadialBarChart, RadialBar,
+  PieChart, Pie, Cell, Legend, AreaChart, Area,
 } from 'recharts';
 import { Link } from 'react-router-dom';
 
@@ -21,14 +20,13 @@ const CHART_COLORS = [
   'hsl(190, 80%, 45%)', 'hsl(338, 72%, 60%)', 'hsl(156, 72%, 40%)',
   'hsl(45, 93%, 50%)', 'hsl(280, 60%, 55%)', 'hsl(25, 85%, 55%)',
   'hsl(160, 60%, 45%)', 'hsl(320, 65%, 50%)', 'hsl(200, 80%, 55%)',
-  'hsl(100, 50%, 45%)', 'hsl(0, 65%, 55%)', 'hsl(60, 70%, 45%)',
 ];
 
 const SITUACAO_CORES: Record<string, string> = {
   'ELEITO': 'hsl(156, 72%, 40%)', 'ELEITO POR QP': 'hsl(156, 60%, 50%)',
   'ELEITO POR MÉDIA': 'hsl(156, 50%, 55%)', 'SUPLENTE': 'hsl(45, 93%, 50%)',
   'NÃO ELEITO': 'hsl(0, 50%, 55%)', '2º TURNO': 'hsl(200, 80%, 55%)',
-  'NÃO DEFINIDO': 'hsl(210, 15%, 45%)', '#NULO': 'hsl(210, 10%, 40%)',
+  'NÃO DEFINIDO': 'hsl(210, 15%, 45%)',
 };
 
 function formatBRL(val: number): string {
@@ -62,21 +60,49 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+function BigQueryStatus() {
+  const { data: tabelas, isLoading } = useTabelas();
+
+  if (isLoading) return (
+    <Card className="col-span-full">
+      <div className="flex items-center gap-2 text-muted-foreground text-xs">
+        <Loader2 className="w-3 h-3 animate-spin" />Conectando ao BigQuery...
+      </div>
+    </Card>
+  );
+
+  if (!tabelas) return null;
+
+  const totalLinhas = tabelas.reduce((s, t) => s + Number(t.linhas), 0);
+  const totalMB = tabelas.reduce((s, t) => s + Number(t.tamanho_mb), 0);
+
+  return (
+    <Card>
+      <div className="flex items-center gap-3">
+        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+          <Database className="w-4 h-4 text-primary" />
+        </div>
+        <div>
+          <p className="text-xs font-semibold text-foreground">BigQuery Conectado</p>
+          <p className="text-[10px] text-muted-foreground">
+            {tabelas.length} tabelas • {totalLinhas.toLocaleString('pt-BR')} registros • {totalMB.toFixed(0)} MB
+          </p>
+        </div>
+        <Link to="/explorador" className="ml-auto text-xs text-primary hover:underline">Explorar →</Link>
+      </div>
+    </Card>
+  );
+}
+
 export default function Dashboard() {
   const { data: isEmpty, isLoading: loadingEmpty } = useCheckEmpty();
   const { data: kpis, isLoading: loadingKPIs } = useKPIs();
   const { data: porPartido, isLoading: loadingPartido } = useCandidatosPorPartido();
   const { data: genero, isLoading: loadingGenero } = useDistribuicaoGenero();
-  const { data: escolaridade, isLoading: loadingEscol } = useDistribuicaoEscolaridade();
-  const { data: ocupacoes, isLoading: loadingOcup } = useTopOcupacoes();
   const { data: situacao, isLoading: loadingSit } = useSituacaoFinal();
   const { data: evolucao, isLoading: loadingEvol } = useEvolucaoPorAno();
   const { data: topPatri, isLoading: loadingPatri } = useTopPatrimonio();
-  const { data: faixaEtaria, isLoading: loadingFaixa } = useFaixaEtaria();
   const { data: porCargo, isLoading: loadingCargo } = useCandidatosPorCargo();
-  const { data: eleitos, isLoading: loadingEleitos } = useEleitos();
-  const { data: patriEvolucao, isLoading: loadingPatriEvol } = usePatrimonioEvolucaoAno();
-  const { data: patriDistrib, isLoading: loadingPatriDist } = usePatrimonioDistribuicao();
   const { data: muniRanking, isLoading: loadingMuni } = useMunicipiosRanking();
 
   if (loadingEmpty) return <KPISkeleton />;
@@ -93,6 +119,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
+      {/* BigQuery Status */}
+      <BigQueryStatus />
+
       {/* KPIs */}
       {loadingKPIs ? <KPISkeleton /> : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -163,8 +192,8 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ROW 2: Evolução + Faixa Etária + Cargo */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      {/* ROW 2: Evolução + Cargo */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {loadingEvol ? <ChartSkeleton /> : (
           <Card title="Evolução por Ano">
             <ResponsiveContainer width="100%" height={260}>
@@ -176,19 +205,6 @@ export default function Dashboard() {
                 <Bar dataKey="mulheres" name="Mulheres" fill="hsl(338, 72%, 60%)" radius={[3, 3, 0, 0]} />
                 <Bar dataKey="eleitos" name="Eleitos" fill="hsl(156, 72%, 40%)" radius={[3, 3, 0, 0]} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-
-        {loadingFaixa ? <ChartSkeleton /> : (
-          <Card title="Faixa Etária">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={faixaEtaria || []}>
-                <XAxis dataKey="faixa" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="total" name="Candidatos" fill="hsl(280, 60%, 55%)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -209,66 +225,7 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ROW 3: Escolaridade + Ocupações */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {loadingEscol ? <ChartSkeleton /> : (
-          <Card title="Grau de Instrução">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={escolaridade || []} layout="vertical" margin={{ left: 150 }}>
-                <XAxis type="number" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <YAxis type="category" dataKey="nome" tick={{ fontSize: 9, fill: 'hsl(210, 15%, 55%)' }} width={145} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="total" name="Candidatos" fill="hsl(45, 93%, 50%)" radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-
-        {loadingOcup ? <ChartSkeleton /> : (
-          <Card title="Top 15 Ocupações">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={ocupacoes || []} layout="vertical" margin={{ left: 150 }}>
-                <XAxis type="number" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <YAxis type="category" dataKey="nome" tick={{ fontSize: 9, fill: 'hsl(210, 15%, 55%)' }} width={145} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="total" name="Candidatos" fill="hsl(190, 80%, 45%)" radius={[0, 3, 3, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-      </div>
-
-      {/* ROW 4: Patrimônio */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-        {loadingPatriEvol ? <ChartSkeleton /> : (
-          <Card title="Patrimônio Total por Ano">
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={patriEvolucao || []}>
-                <XAxis dataKey="ano" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <YAxis tickFormatter={(v: number) => formatBRL(v)} tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="total" name="Total" stroke="hsl(190, 80%, 45%)" fill="hsl(190, 80%, 45%)" fillOpacity={0.15} strokeWidth={2} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
-              </AreaChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-
-        {loadingPatriDist ? <ChartSkeleton /> : (
-          <Card title="Distribuição Patrimonial">
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={patriDistrib || []}>
-                <XAxis dataKey="faixa" tick={{ fontSize: 8, fill: 'hsl(210, 15%, 55%)' }} angle={-15} textAnchor="end" height={45} />
-                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="total" name="Candidatos" fill="hsl(156, 72%, 40%)" radius={[3, 3, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </Card>
-        )}
-      </div>
-
-      {/* ROW 5: Top Municípios + Top Patrimônio */}
+      {/* ROW 3: Municípios + Top Patrimônio */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {loadingMuni ? <TableSkeleton /> : (
           <Card title="Top Municípios por Candidatos">
@@ -280,7 +237,6 @@ export default function Dashboard() {
                     <th className="pb-2 font-medium text-muted-foreground">Município</th>
                     <th className="pb-2 font-medium text-muted-foreground text-right">Total</th>
                     <th className="pb-2 font-medium text-muted-foreground text-right">Eleitos</th>
-                    <th className="pb-2 font-medium text-muted-foreground text-right">Mulheres</th>
                     <th className="pb-2 font-medium text-muted-foreground text-right">% Mulh.</th>
                   </tr>
                 </thead>
@@ -293,7 +249,6 @@ export default function Dashboard() {
                       </td>
                       <td className="py-1.5 text-right metric-value">{formatNumber(m.total)}</td>
                       <td className="py-1.5 text-right text-success metric-value">{formatNumber(m.eleitos)}</td>
-                      <td className="py-1.5 text-right metric-value">{formatNumber(m.mulheres)}</td>
                       <td className="py-1.5 text-right">{m.total > 0 ? formatPercent((m.mulheres / m.total) * 100) : '—'}</td>
                     </tr>
                   ))}
@@ -333,48 +288,11 @@ export default function Dashboard() {
               </table>
             </div>
             <div className="mt-2 text-right">
-              <Link to="/patrimonio" className="text-xs text-primary hover:underline">Ver ranking completo →</Link>
+              <Link to="/patrimonio" className="text-xs text-primary hover:underline">Ver todos →</Link>
             </div>
           </Card>
         )}
       </div>
-
-      {/* ROW 6: Eleitos */}
-      {loadingEleitos ? <TableSkeleton /> : (eleitos && eleitos.length > 0) && (
-        <Card title="Eleitos no Filtro Atual">
-          <div className="overflow-auto max-h-[280px]">
-            <table className="w-full text-xs table-striped">
-              <thead>
-                <tr className="border-b border-border/30 text-left">
-                  <th className="pb-2 font-medium text-muted-foreground"></th>
-                  <th className="pb-2 font-medium text-muted-foreground">Nome</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Partido</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Cargo</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Município</th>
-                  <th className="pb-2 font-medium text-muted-foreground">Situação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(eleitos || []).map((c: any) => (
-                  <tr key={c.id} className="border-b border-border/20 last:border-0">
-                    <td className="py-1.5"><CandidatoAvatar nome={c.nome_urna} fotoUrl={c.foto_url} size={24} /></td>
-                    <td className="py-1.5 font-medium">
-                      <Link to={`/candidato/${c.id}`} className="text-primary hover:underline">{c.nome_urna}</Link>
-                    </td>
-                    <td className="py-1.5" style={{ color: getPartidoCor(c.sigla_partido) }}>{c.sigla_partido}</td>
-                    <td className="py-1.5">{c.cargo}</td>
-                    <td className="py-1.5">{c.municipio}</td>
-                    <td className="py-1.5"><SituacaoBadge situacao={c.situacao_final} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-2 text-right">
-            <Link to="/ranking" className="text-xs text-primary hover:underline">Ver todos →</Link>
-          </div>
-        </Card>
-      )}
     </div>
   );
 }
