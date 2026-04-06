@@ -3,11 +3,11 @@
 # Cole no PowerShell e rode
 # =============================================================
 
-$PROJECT = "eleicoes-go"
+$PROJECT = "eleicoesgo20182024"
 $DATASET = "bd_eleicoes"
 $PASTA   = "C:\Users\Gustavo\Desktop\dados_organizados\banco_de_dados"
 
-# Apagar dataset antigo e recriar limpo
+# Recriar dataset limpo
 Write-Host "Recriando dataset $DATASET..." -ForegroundColor Yellow
 bq rm -r -f "${PROJECT}:${DATASET}" 2>$null
 bq mk --dataset "${PROJECT}:${DATASET}"
@@ -52,30 +52,15 @@ foreach ($t in $tabelas) {
     $tamanho = [math]::Round((Get-Item $arquivo).Length / 1MB, 1)
     Write-Host "`nSubindo $t ($tamanho MB)..." -ForegroundColor Cyan
 
-    # boletim_urna nao tem header
+    $destino = "${PROJECT}:${DATASET}.$t"
+
     if ($t -eq "boletim_urna") {
-        bq load `
-            --source_format=CSV `
-            --field_delimiter=";" `
-            --quote='"' `
-            --allow_quoted_newlines `
-            --skip_leading_rows=0 `
-            --autodetect `
-            --replace `
-            "${PROJECT}:${DATASET}.$t" `
-            "$arquivo"
+        $skip = 0
     } else {
-        bq load `
-            --source_format=CSV `
-            --field_delimiter=";" `
-            --quote='"' `
-            --allow_quoted_newlines `
-            --skip_leading_rows=1 `
-            --autodetect `
-            --replace `
-            "${PROJECT}:${DATASET}.$t" `
-            "$arquivo"
+        $skip = 1
     }
+
+    bq load --source_format=CSV --field_delimiter=";" --quote="`"" --allow_quoted_newlines --skip_leading_rows=$skip --autodetect --replace $destino $arquivo
 
     if ($LASTEXITCODE -eq 0) {
         Write-Host "OK  $t" -ForegroundColor Green
@@ -94,7 +79,7 @@ Write-Host "========================================" -ForegroundColor Yellow
 # Validar contagens
 Write-Host "`nValidando contagens..." -ForegroundColor Cyan
 foreach ($t in $tabelas) {
-    $query = "SELECT COUNT(*) as total FROM ``${PROJECT}.${DATASET}.$t``"
-    $result = bq query --nouse_legacy_sql --format=csv "$query" 2>$null | Select-Object -Last 1
+    $q = "SELECT COUNT(*) as total FROM $DATASET.$t"
+    $result = bq query --nouse_legacy_sql --format=csv $q 2>$null | Select-Object -Last 1
     Write-Host "$t -> $result registros" -ForegroundColor Gray
 }
