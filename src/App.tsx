@@ -17,7 +17,7 @@ import PorPartido from "./pages/PorPartido";
 import AnaliseBairro from "./pages/AnaliseBairro";
 import Patrimonio from "./pages/Patrimonio";
 import PerfilCandidatos from "./pages/PerfilCandidatos";
-import ImportarDados from "./pages/ImportarDados";
+
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
 import InteligenciaTerritorial from "./pages/InteligenciaTerritorial";
@@ -59,7 +59,7 @@ function Layout() {
               <Route path="/territorial" element={<InteligenciaTerritorial />} />
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
-              <Route path="/importar" element={<ImportarDados />} />
+              
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               <Route path="*" element={<NotFound />} />
