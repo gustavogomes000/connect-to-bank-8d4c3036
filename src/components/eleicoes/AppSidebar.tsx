@@ -12,7 +12,8 @@ import { cn } from '@/lib/utils';
 const analysisItems = [
   { title: 'Consulta IA', url: '/consulta', icon: Sparkles },
   { title: 'Chat Eleições', url: '/chat', icon: MessageSquare },
-  { title: 'Goiânia & Aparecida', url: '/territorial', icon: Crosshair },
+  { title: 'Micro-Targeting', url: '/micro-targeting', icon: Crosshair },
+  { title: 'Goiânia & Aparecida', url: '/territorial', icon: Target },
   { title: 'Explorador', url: '/explorador', icon: TrendingUp },
   { title: 'Dashboard', url: '/', icon: BarChart3 },
   { title: 'Ranking', url: '/ranking', icon: Trophy },
