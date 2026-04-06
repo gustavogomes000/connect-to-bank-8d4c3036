@@ -7,7 +7,9 @@ export const PARTIDO_CORES: Record<string, string> = {
   CIDADANIA: '#8b5cf6', PCdoB: '#b91c1c', 'PC do B': '#b91c1c',
   REDE: '#059669', PSB: '#ea580c', NOVO: '#f59e0b', PMN: '#14b8a6',
   DC: '#6b21a8', PRTB: '#047857', PMB: '#2563eb', PROS: '#d97706',
-  PATRIOTA: '#15803d', PSC: '#7c2d12',
+  PATRIOTA: '#15803d', PSC: '#7c2d12', PRB: '#0369a1', DEM: '#3b82f6',
+  PHS: '#a855f7', PTC: '#14532d', PPL: '#d946ef', PRP: '#ca8a04',
+  PTB: '#16a34a', PV: '#22c55e', PSDC: '#7e22ce',
 };
 
 function hashColor(str: string): string {
@@ -70,12 +72,26 @@ export function getSituacaoBadge(situacao: string | null): { bg: string; text: s
   return { bg: 'bg-muted/50', text: 'text-muted-foreground', label: situacao || 'NÃO ELEITO' };
 }
 
-export const ANOS_DISPONIVEIS = [2018, 2020, 2022, 2024];
+export const ANOS_DISPONIVEIS = [2012, 2014, 2016, 2018, 2020, 2022, 2024];
 
 export const CARGOS_DISPONIVEIS = [
   'Presidente', 'Governador', 'Senador', 'Deputado Federal',
-  'Deputado Estadual', 'Prefeito', 'Vereador',
+  'Deputado Estadual', 'Deputado Distrital', 'Prefeito', 'Vice-Prefeito', 'Vereador',
 ];
 
 export function getAvatarColor(name: string): string { return hashColor(name || 'X'); }
 export function getInitial(name: string): string { return (name || '?').charAt(0).toUpperCase(); }
+
+export const CHART_COLORS = [
+  'hsl(190, 80%, 45%)', 'hsl(338, 72%, 60%)', 'hsl(156, 72%, 40%)',
+  'hsl(45, 93%, 50%)', 'hsl(280, 60%, 55%)', 'hsl(25, 85%, 55%)',
+  'hsl(160, 60%, 45%)', 'hsl(320, 65%, 50%)', 'hsl(200, 80%, 55%)',
+  'hsl(10, 75%, 50%)', 'hsl(240, 50%, 55%)', 'hsl(80, 60%, 45%)',
+];
+
+export const SITUACAO_CORES: Record<string, string> = {
+  'ELEITO': 'hsl(156, 72%, 40%)', 'ELEITO POR QP': 'hsl(156, 60%, 50%)',
+  'ELEITO POR MÉDIA': 'hsl(156, 50%, 55%)', 'SUPLENTE': 'hsl(45, 93%, 50%)',
+  'NÃO ELEITO': 'hsl(0, 50%, 55%)', '2º TURNO': 'hsl(200, 80%, 55%)',
+  'NÃO DEFINIDO': 'hsl(210, 15%, 45%)',
+};

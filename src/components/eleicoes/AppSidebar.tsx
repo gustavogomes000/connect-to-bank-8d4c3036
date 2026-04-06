@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck,
-  Database, HelpCircle, TrendingUp, Users
+  Database, HelpCircle, TrendingUp, Sparkles,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -13,6 +13,7 @@ const analysisItems = [
   { title: 'Dashboard', url: '/', icon: BarChart3 },
   { title: 'Ranking', url: '/ranking', icon: Trophy },
   { title: 'Explorador', url: '/explorador', icon: TrendingUp },
+  { title: 'Consulta IA', url: '/consulta', icon: Sparkles },
 ];
 
 const dimensionItems = [
@@ -64,12 +65,8 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div className="flex flex-col">
-              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">
-                EleiçõesGO
-              </span>
-              <span className="text-[10px] text-sidebar-foreground/40 uppercase tracking-widest">
-                Inteligência de Dados
-              </span>
+              <span className="text-sm font-bold text-sidebar-foreground tracking-tight">EleiçõesGO</span>
+              <span className="text-[10px] text-sidebar-foreground/40 uppercase tracking-widest">Inteligência de Dados</span>
             </div>
           )}
         </Link>
@@ -81,14 +78,12 @@ export function AppSidebar() {
             <SidebarMenu>{analysisItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
         <SidebarGroup>
           {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Dimensões</SidebarGroupLabel>}
           <SidebarGroupContent>
             <SidebarMenu>{dimensionItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-
         <SidebarGroup>
           {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Sistema</SidebarGroupLabel>}
           <SidebarGroupContent>

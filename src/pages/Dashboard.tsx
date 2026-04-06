@@ -4,37 +4,21 @@ import {
   useCandidatosPorPartido, useDistribuicaoGenero,
   useSituacaoFinal, useEvolucaoPorAno,
   useTopPatrimonio, useCandidatosPorCargo, useMunicipiosRanking,
+  useFaixaEtaria, useDataAvailability,
 } from '@/hooks/useEleicoes';
-import { formatNumber, formatPercent, getPartidoCor } from '@/lib/eleicoes';
+import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, SITUACAO_CORES, formatBRLCompact } from '@/lib/eleicoes';
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { EmptyState } from '@/components/eleicoes/EmptyState';
-import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Database, Loader2 } from 'lucide-react';
+import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Database, Loader2, Vote, TrendingUp } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area,
 } from 'recharts';
 import { Link } from 'react-router-dom';
-
-const CHART_COLORS = [
-  'hsl(190, 80%, 45%)', 'hsl(338, 72%, 60%)', 'hsl(156, 72%, 40%)',
-  'hsl(45, 93%, 50%)', 'hsl(280, 60%, 55%)', 'hsl(25, 85%, 55%)',
-  'hsl(160, 60%, 45%)', 'hsl(320, 65%, 50%)', 'hsl(200, 80%, 55%)',
-];
-
-const SITUACAO_CORES: Record<string, string> = {
-  'ELEITO': 'hsl(156, 72%, 40%)', 'ELEITO POR QP': 'hsl(156, 60%, 50%)',
-  'ELEITO POR MÉDIA': 'hsl(156, 50%, 55%)', 'SUPLENTE': 'hsl(45, 93%, 50%)',
-  'NÃO ELEITO': 'hsl(0, 50%, 55%)', '2º TURNO': 'hsl(200, 80%, 55%)',
-  'NÃO DEFINIDO': 'hsl(210, 15%, 45%)',
-};
-
-function formatBRL(val: number): string {
-  if (val >= 1_000_000_000) return `R$ ${(val / 1_000_000_000).toFixed(1)}B`;
-  if (val >= 1_000_000) return `R$ ${(val / 1_000_000).toFixed(1)}M`;
-  if (val >= 1_000) return `R$ ${(val / 1_000).toFixed(0)}k`;
-  return `R$ ${val.toFixed(0)}`;
-}
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
+import { useFilterStore } from '@/stores/filterStore';
 
 function Card({ children, className = '', title }: { children: React.ReactNode; className?: string; title?: string }) {
   return (
@@ -60,9 +44,30 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   );
 };
 
+function useComparecimentoGeral() {
+  const { ano } = useFilterStore();
+  return useQuery({
+    queryKey: ['comparecimentoGeral', ano],
+    queryFn: async () => {
+      let q = (supabase.from('bd_eleicoes_comparecimento' as any) as any)
+        .select('ano, eleitorado_apto, comparecimento, abstencoes, votos_brancos, votos_nulos');
+      if (ano) q = q.eq('ano', ano);
+      const { data } = await q.limit(1000);
+      if (!data || data.length === 0) return null;
+      const totals = (data as any[]).reduce((acc: any, r: any) => ({
+        apto: acc.apto + (r.eleitorado_apto || 0),
+        comp: acc.comp + (r.comparecimento || 0),
+        abst: acc.abst + (r.abstencoes || 0),
+        brancos: acc.brancos + (r.votos_brancos || 0),
+        nulos: acc.nulos + (r.votos_nulos || 0),
+      }), { apto: 0, comp: 0, abst: 0, brancos: 0, nulos: 0 });
+      return totals;
+    },
+  });
+}
+
 function BigQueryStatus() {
   const { data: tabelas, isLoading } = useTabelas();
-
   if (isLoading) return (
     <Card className="col-span-full">
       <div className="flex items-center gap-2 text-muted-foreground text-xs">
@@ -70,12 +75,9 @@ function BigQueryStatus() {
       </div>
     </Card>
   );
-
   if (!tabelas) return null;
-
   const totalLinhas = tabelas.reduce((s, t) => s + Number(t.linhas), 0);
   const totalMB = tabelas.reduce((s, t) => s + Number(t.tamanho_mb), 0);
-
   return (
     <Card>
       <div className="flex items-center gap-3">
@@ -104,6 +106,9 @@ export default function Dashboard() {
   const { data: topPatri, isLoading: loadingPatri } = useTopPatrimonio();
   const { data: porCargo, isLoading: loadingCargo } = useCandidatosPorCargo();
   const { data: muniRanking, isLoading: loadingMuni } = useMunicipiosRanking();
+  const { data: faixaEtaria, isLoading: loadingIdade } = useFaixaEtaria();
+  const { data: comparecimento } = useComparecimentoGeral();
+  const { data: availability } = useDataAvailability();
 
   if (loadingEmpty) return <KPISkeleton />;
   if (isEmpty) return <EmptyState />;
@@ -117,24 +122,31 @@ export default function Dashboard() {
     { icon: BarChart3, label: 'Cargos', value: formatNumber(kpis?.totalCargos), sub: 'disputados', color: 'text-[hsl(var(--chart-6))]', bgColor: 'bg-[hsl(var(--chart-6))]/10' },
   ];
 
+  // Add comparecimento KPIs if available
+  if (comparecimento) {
+    kpiCards.push(
+      { icon: Vote, label: 'Eleitorado', value: formatNumber(comparecimento.apto), sub: 'aptos a votar', color: 'text-[hsl(var(--info))]', bgColor: 'bg-[hsl(var(--info))]/10' },
+      { icon: TrendingUp, label: 'Comparecimento', value: comparecimento.apto > 0 ? formatPercent((comparecimento.comp / comparecimento.apto) * 100) : '—', sub: `${formatNumber(comparecimento.comp)} votos`, color: 'text-success', bgColor: 'bg-success/10' },
+    );
+  }
+
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
-      {/* BigQuery Status */}
       <BigQueryStatus />
 
       {/* KPIs */}
       {loadingKPIs ? <KPISkeleton /> : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
           {kpiCards.map((kpi, i) => (
-            <div key={i} className="bg-card rounded-lg border border-border/50 p-4 kpi-glow hover:border-primary/30 transition-all">
-              <div className="flex items-center gap-2 mb-2">
-                <div className={`w-7 h-7 rounded-md ${kpi.bgColor} flex items-center justify-center`}>
-                  <kpi.icon className={`w-3.5 h-3.5 ${kpi.color}`} />
+            <div key={i} className="bg-card rounded-lg border border-border/50 p-3 kpi-glow hover:border-primary/30 transition-all">
+              <div className="flex items-center gap-2 mb-1.5">
+                <div className={`w-6 h-6 rounded-md ${kpi.bgColor} flex items-center justify-center`}>
+                  <kpi.icon className={`w-3 h-3 ${kpi.color}`} />
                 </div>
-                <span className="text-[10px] text-muted-foreground font-medium uppercase tracking-wider">{kpi.label}</span>
+                <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">{kpi.label}</span>
               </div>
-              <p className="text-2xl font-bold text-foreground metric-value">{kpi.value}</p>
-              <p className="text-[10px] text-muted-foreground mt-0.5">{kpi.sub}</p>
+              <p className="text-xl font-bold text-foreground metric-value">{kpi.value}</p>
+              <p className="text-[9px] text-muted-foreground mt-0.5">{kpi.sub}</p>
             </div>
           ))}
         </div>
@@ -143,14 +155,14 @@ export default function Dashboard() {
       {/* ROW 1: Partido + Gênero + Situação */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3">
         {loadingPartido ? <ChartSkeleton className="lg:col-span-5" /> : (
-          <Card className="lg:col-span-5" title="Candidatos por Partido">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={(porPartido || []).slice(0, 12)} layout="vertical" margin={{ left: 55 }}>
+          <Card className="lg:col-span-5" title="Candidatos por Partido (Top 15)">
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={(porPartido || []).slice(0, 15)} layout="vertical" margin={{ left: 55 }}>
                 <XAxis type="number" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
                 <YAxis type="category" dataKey="partido" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} width={50} />
                 <Tooltip content={<CustomTooltip />} />
                 <Bar dataKey="total" name="Candidatos" radius={[0, 3, 3, 0]}>
-                  {(porPartido || []).slice(0, 12).map((e: any, i: number) => (
+                  {(porPartido || []).slice(0, 15).map((e: any, i: number) => (
                     <Cell key={i} fill={getPartidoCor(e.partido)} />
                   ))}
                 </Bar>
@@ -161,7 +173,7 @@ export default function Dashboard() {
 
         {loadingGenero ? <ChartSkeleton className="lg:col-span-3" /> : (
           <Card className="lg:col-span-3" title="Gênero">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={genero || []} dataKey="total" nameKey="nome" cx="50%" cy="50%" innerRadius={50} outerRadius={85} paddingAngle={3} strokeWidth={0}>
                   {(genero || []).map((_, i) => (
@@ -172,12 +184,21 @@ export default function Dashboard() {
                 <Legend wrapperStyle={{ fontSize: 11 }} />
               </PieChart>
             </ResponsiveContainer>
+            {/* Summary below chart */}
+            <div className="grid grid-cols-2 gap-2 mt-2 text-center">
+              {(genero || []).slice(0, 2).map((g: any, i) => (
+                <div key={i} className="bg-muted/30 rounded p-2">
+                  <p className="text-lg font-bold metric-value">{formatNumber(g.total)}</p>
+                  <p className="text-[9px] text-muted-foreground">{g.nome}</p>
+                </div>
+              ))}
+            </div>
           </Card>
         )}
 
         {loadingSit ? <ChartSkeleton className="lg:col-span-4" /> : (
           <Card className="lg:col-span-4" title="Resultado Eleitoral">
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={260}>
               <PieChart>
                 <Pie data={situacao || []} dataKey="total" nameKey="nome" cx="50%" cy="50%" innerRadius={45} outerRadius={80} paddingAngle={2} strokeWidth={0}>
                   {(situacao || []).map((e: any, i: number) => (
@@ -188,23 +209,48 @@ export default function Dashboard() {
                 <Legend wrapperStyle={{ fontSize: 10 }} />
               </PieChart>
             </ResponsiveContainer>
+            {/* Top situations table */}
+            <div className="mt-2 space-y-1">
+              {(situacao || []).slice(0, 4).map((s: any, i) => (
+                <div key={i} className="flex items-center justify-between text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: SITUACAO_CORES[s.nome] || CHART_COLORS[i] }} />
+                    {s.nome}
+                  </span>
+                  <span className="font-semibold metric-value">{formatNumber(s.total)}</span>
+                </div>
+              ))}
+            </div>
           </Card>
         )}
       </div>
 
-      {/* ROW 2: Evolução + Cargo */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      {/* ROW 2: Evolução + Faixa Etária + Cargo */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
         {loadingEvol ? <ChartSkeleton /> : (
           <Card title="Evolução por Ano">
             <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={evolucao || []}>
+              <AreaChart data={evolucao || []}>
                 <XAxis dataKey="ano" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
                 <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
                 <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="total" name="Total" fill="hsl(190, 80%, 45%)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="mulheres" name="Mulheres" fill="hsl(338, 72%, 60%)" radius={[3, 3, 0, 0]} />
-                <Bar dataKey="eleitos" name="Eleitos" fill="hsl(156, 72%, 40%)" radius={[3, 3, 0, 0]} />
+                <Area type="monotone" dataKey="total" name="Total" fill="hsl(190, 80%, 45%)" stroke="hsl(190, 80%, 45%)" fillOpacity={0.15} />
+                <Area type="monotone" dataKey="mulheres" name="Mulheres" fill="hsl(338, 72%, 60%)" stroke="hsl(338, 72%, 60%)" fillOpacity={0.15} />
+                <Area type="monotone" dataKey="eleitos" name="Eleitos" fill="hsl(156, 72%, 40%)" stroke="hsl(156, 72%, 40%)" fillOpacity={0.15} />
                 <Legend wrapperStyle={{ fontSize: 10 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </Card>
+        )}
+
+        {loadingIdade ? <ChartSkeleton /> : (
+          <Card title="Faixa Etária">
+            <ResponsiveContainer width="100%" height={260}>
+              <BarChart data={faixaEtaria || []}>
+                <XAxis dataKey="faixa" tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
+                <YAxis tick={{ fontSize: 10, fill: 'hsl(210, 15%, 55%)' }} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="total" name="Candidatos" fill="hsl(280, 60%, 55%)" radius={[3, 3, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
@@ -229,9 +275,9 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {loadingMuni ? <TableSkeleton /> : (
           <Card title="Top Municípios por Candidatos">
-            <div className="overflow-auto max-h-[280px]">
+            <div className="overflow-auto max-h-[320px]">
               <table className="w-full text-xs table-striped">
-                <thead>
+                <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-border/30 text-left">
                     <th className="pb-2 font-medium text-muted-foreground">#</th>
                     <th className="pb-2 font-medium text-muted-foreground">Município</th>
@@ -241,7 +287,7 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(muniRanking || []).slice(0, 15).map((m, i) => (
+                  {(muniRanking || []).slice(0, 20).map((m, i) => (
                     <tr key={m.municipio} className="border-b border-border/20 last:border-0">
                       <td className="py-1.5 text-muted-foreground">{i + 1}</td>
                       <td className="py-1.5 font-medium">
@@ -262,26 +308,28 @@ export default function Dashboard() {
         )}
 
         {loadingPatri ? <TableSkeleton /> : (
-          <Card title="Top 10 Maior Patrimônio">
-            <div className="overflow-auto max-h-[280px]">
+          <Card title="Top 15 Maior Patrimônio">
+            <div className="overflow-auto max-h-[320px]">
               <table className="w-full text-xs table-striped">
-                <thead>
+                <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-border/30 text-left">
                     <th className="pb-2 font-medium text-muted-foreground">#</th>
                     <th className="pb-2 font-medium text-muted-foreground"></th>
                     <th className="pb-2 font-medium text-muted-foreground">Nome</th>
                     <th className="pb-2 font-medium text-muted-foreground">Partido</th>
+                    <th className="pb-2 font-medium text-muted-foreground">Cargo</th>
                     <th className="pb-2 font-medium text-muted-foreground text-right">Patrimônio</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(topPatri || []).slice(0, 10).map((c, i) => (
+                  {(topPatri || []).slice(0, 15).map((c, i) => (
                     <tr key={c.sequencial || i} className="border-b border-border/20 last:border-0">
                       <td className="py-1.5 text-muted-foreground">{i + 1}</td>
                       <td className="py-1.5"><CandidatoAvatar nome={c.nome} fotoUrl={c.foto_url} size={24} /></td>
                       <td className="py-1.5 font-medium">{c.nome}</td>
                       <td className="py-1.5" style={{ color: getPartidoCor(c.partido) }}>{c.partido}</td>
-                      <td className="py-1.5 text-right font-semibold text-primary metric-value">{formatBRL(c.patrimonio)}</td>
+                      <td className="py-1.5 text-muted-foreground">{c.cargo}</td>
+                      <td className="py-1.5 text-right font-semibold text-primary metric-value">{formatBRLCompact(c.patrimonio)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -293,6 +341,20 @@ export default function Dashboard() {
           </Card>
         )}
       </div>
+
+      {/* Quick access to AI */}
+      <Card className="border-primary/20 bg-primary/5">
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-lg bg-primary/20 flex items-center justify-center shrink-0">
+            <BarChart3 className="w-5 h-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-foreground">Consulta Inteligente</p>
+            <p className="text-xs text-muted-foreground">Descreva os dados que precisa e a IA gera a visualização automaticamente</p>
+          </div>
+          <Link to="/consulta" className="text-xs text-primary hover:underline font-medium">Experimentar →</Link>
+        </div>
+      </Card>
     </div>
   );
 }
