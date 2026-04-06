@@ -5,7 +5,6 @@ import { useQuery } from '@tanstack/react-query';
 import { formatNumber } from '@/lib/eleicoes';
 import { Database, CheckCircle, XCircle, Loader2, Settings, Server, HardDrive } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import ImportarDados from './ImportarDados';
 
 function BigQueryStatus() {
   const { data: tabelas, isLoading, error } = useTabelas();
@@ -136,7 +135,6 @@ export default function Configuracoes() {
         <TabsList>
           <TabsTrigger value="status"><Server className="w-3.5 h-3.5 mr-1" /> Status</TabsTrigger>
           <TabsTrigger value="bigquery"><HardDrive className="w-3.5 h-3.5 mr-1" /> BigQuery</TabsTrigger>
-          <TabsTrigger value="importar"><Database className="w-3.5 h-3.5 mr-1" /> Importar Dados</TabsTrigger>
         </TabsList>
 
         <TabsContent value="status" className="space-y-4">
@@ -145,10 +143,6 @@ export default function Configuracoes() {
 
         <TabsContent value="bigquery" className="space-y-4">
           <BigQueryStatus />
-        </TabsContent>
-
-        <TabsContent value="importar">
-          <ImportarDados />
         </TabsContent>
       </Tabs>
     </div>
