@@ -17,6 +17,9 @@ import PorPartido from "./pages/PorPartido";
 import AnaliseBairro from "./pages/AnaliseBairro";
 import Patrimonio from "./pages/Patrimonio";
 import PerfilCandidatos from "./pages/PerfilCandidatos";
+import Comparecimento from "./pages/Comparecimento";
+import Votacao from "./pages/Votacao";
+import Eleitos from "./pages/Eleitos";
 import ImportarDados from "./pages/ImportarDados";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
@@ -55,6 +58,9 @@ function Layout() {
               <Route path="/bairro" element={<AnaliseBairro />} />
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
+              <Route path="/comparecimento" element={<Comparecimento />} />
+              <Route path="/votacao" element={<Votacao />} />
+              <Route path="/eleitos" element={<Eleitos />} />
               <Route path="/importar" element={<ImportarDados />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />

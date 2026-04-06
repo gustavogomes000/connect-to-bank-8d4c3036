@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck,
   HelpCircle, TrendingUp, Sparkles, MessageSquare, Settings,
+  Vote, CheckCircle, Users, School,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -9,23 +10,26 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
-const analysisItems = [
-  { title: 'Dashboard', url: '/', icon: BarChart3 },
-  { title: 'Ranking', url: '/ranking', icon: Trophy },
-  { title: 'Explorador', url: '/explorador', icon: TrendingUp },
+const consultaItems = [
   { title: 'Consulta IA', url: '/consulta', icon: Sparkles },
   { title: 'Chat Eleições', url: '/chat', icon: MessageSquare },
+  { title: 'Explorador', url: '/explorador', icon: TrendingUp },
 ];
 
-const dimensionItems = [
-  { title: 'Municípios', url: '/municipio', icon: Building2 },
+const dataItems = [
+  { title: 'Candidatos', url: '/ranking', icon: Users },
+  { title: 'Eleitos', url: '/eleitos', icon: CheckCircle },
+  { title: 'Votação', url: '/votacao', icon: Trophy },
+  { title: 'Comparecimento', url: '/comparecimento', icon: Vote },
   { title: 'Partidos', url: '/partido', icon: Target },
+  { title: 'Municípios', url: '/municipio', icon: Building2 },
   { title: 'Bairros', url: '/bairro', icon: MapPin },
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
   { title: 'Perfil', url: '/perfil-candidatos', icon: UserCheck },
 ];
 
 const systemItems = [
+  { title: 'Dashboard', url: '/', icon: BarChart3 },
   { title: 'Configurações', url: '/config', icon: Settings },
   { title: 'Ajuda', url: '/ajuda', icon: HelpCircle },
 ];
@@ -35,7 +39,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
 
-  const MenuItem = ({ item }: { item: typeof analysisItems[0] }) => {
+  const MenuItem = ({ item }: { item: typeof consultaItems[0] }) => {
     const isActive = location.pathname === item.url;
     return (
       <SidebarMenuItem>
@@ -74,15 +78,15 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="px-2 py-3">
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Análise</SidebarGroupLabel>}
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Inteligência</SidebarGroupLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>{analysisItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
+            <SidebarMenu>{consultaItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Dimensões</SidebarGroupLabel>}
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Dados</SidebarGroupLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>{dimensionItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
+            <SidebarMenu>{dataItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
