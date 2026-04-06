@@ -28,7 +28,7 @@ export default function Ranking() {
     setTimer(setTimeout(() => { setDebouncedSearch(v); setPage(0); }, 300));
   };
 
-  const { data, isLoading } = useRanking(debouncedSearch, page, sortBy, sortAsc);
+  const { data, isLoading } = useRanking(debouncedSearch, page, sortBy, sortAsc, pageSize);
   const totalPages = Math.ceil((data?.count || 0) / pageSize);
   const hasVotos = data?.hasVotos || false;
 

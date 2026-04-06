@@ -371,9 +371,8 @@ export function usePatrimonioDistribuicao() {
 }
 
 // ═══ RANKING ═══
-export function useRanking(search: string, page: number, sortBy: string, sortAsc: boolean) {
+export function useRanking(search: string, page: number, sortBy: string, sortAsc: boolean, pageSize = 30) {
   const f = useFilters();
-  const pageSize = 20;
   return useQuery({
     queryKey: ['ranking', f, search, page, sortBy, sortAsc],
     queryFn: async () => {
