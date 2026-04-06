@@ -11,6 +11,7 @@ import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, SITUACAO_CORE
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { EmptyState } from '@/components/eleicoes/EmptyState';
+import { KPIDrillDownPanel, type DrillDownType } from '@/components/eleicoes/KPIDrillDown';
 import {
   Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Vote, TrendingUp,
   PieChart as PieIcon, DollarSign, Calendar, Target,
