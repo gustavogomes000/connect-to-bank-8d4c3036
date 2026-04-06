@@ -1375,6 +1375,51 @@ def cmd_importar(args):
             save_manifest(key, {"tabela": tabela, "linhas": loaded, "fonte": fonte, "tipo": tipo, "ano": ano})
 
     # ═══════════════════════════════════════════════════════
+    #  SEGUNDA PASSADA: retry automático dos que falharam
+    # ═══════════════════════════════════════════════════════
+    failed_items = [r for r in results if r["status"] == "erro"]
+    if failed_items and not getattr(args, '_is_retry_pass', False):
+        banner(f"RETRY AUTOMÁTICO — {len(failed_items)} itens com erro")
+        failed_tabelas = {r["tabela"] for r in failed_items}
+        retry_sources = [s for s in sources if s["tabela_bq"] in failed_tabelas]
+
+        n_retry_ok = 0
+        for ridx, item in enumerate(retry_sources, 1):
+            tabela = item["tabela_bq"]
+            tipo = item.get("tipo", "")
+            ano = item.get("ano", "")
+            fonte = item.get("fonte", "")
+            key = f"{fonte}|{tipo}|{ano}|{tabela}"
+
+            print(f"\n  {C.B}{'─'*60}{C.RST}")
+            log_info(f"  ↻ RETRY [{ridx}/{len(retry_sources)}] {tabela}")
+
+            # Limpa cache para forçar re-download ou re-busca local
+            for name in clear_item_cache_files(item):
+                log_info(f"  Cache limpo: {name}")
+
+            loaded, err = process_and_load(sess, bq, item)
+            if not err and loaded > 0:
+                log_ok(f"✓ RETRY {tabela} | {loaded:,} linhas")
+                n_retry_ok += 1
+                total_rows += loaded
+                n_ok += 1
+                n_err -= 1
+                # Atualiza resultado
+                for r in results:
+                    if r["tabela"] == tabela and r["status"] == "erro":
+                        r["status"] = "ok"
+                        r["linhas"] = loaded
+                        r.pop("erro", None)
+                        break
+                save_manifest(key, {"tabela": tabela, "linhas": loaded, "fonte": fonte, "tipo": tipo, "ano": ano})
+            else:
+                log_err(f"  RETRY falhou: {tabela} — {(err or 'sem detalhe')[:100]}")
+
+        if n_retry_ok:
+            log_info(f"  Retry recuperou {n_retry_ok}/{len(failed_items)} itens")
+
+    # ═══════════════════════════════════════════════════════
     #  RELATÓRIO FINAL
     # ═══════════════════════════════════════════════════════
     dur_total = time.time() - t_start
@@ -1402,6 +1447,16 @@ def cmd_importar(args):
             print(f"  {color}{icon} {s:<8}{C.RST} {r['tabela']:<50} {r['linhas']:>10,}")
         print(f"  {'─'*75}")
 
+    # Lista pendentes para o usuário copiar
+    still_failed = [r for r in results if r["status"] == "erro"]
+    if still_failed:
+        print(f"\n  {C.R}{C.B}⚠ {len(still_failed)} tabelas ainda com erro:{C.RST}")
+        for r in still_failed:
+            print(f"    {C.R}✗ {r['tabela']}{C.RST}  →  {r.get('erro','')[:80]}")
+        print(f"\n  {C.Y}Para retentar apenas estas:{C.RST}")
+        for r in still_failed:
+            print(f"    python importar_unificado.py importar --tabela {r['tabela']} --local-dir \"C:\\Users\\Gustavo\\Desktop\\dados\"")
+
     report = {
         "versao": VERSION, "run_id": run_id, "ok": n_ok, "erros": n_err,
         "skip": n_skip, "linhas": total_rows, "duracao_s": round(dur_total),
@@ -1412,7 +1467,7 @@ def cmd_importar(args):
 
     save_error_log(run_id)
 
-    status = '🎉 Concluído!' if n_err == 0 else '⚠️  Concluído com erros — veja .logs/'
+    status = '🎉 Concluído!' if n_err == 0 else f'⚠️  {n_err} erros restantes — veja comandos acima'
     print(f"\n  {C.B}{status}{C.RST}\n")
 
 # ═══════════════════════════════════════════════════════════
