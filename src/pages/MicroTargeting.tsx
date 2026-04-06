@@ -2,21 +2,14 @@ import { useState, useEffect } from 'react';
 import { useMotherDuckQuery } from '@/hooks/useMotherDuckQuery';
 import { Skeleton } from '@/components/ui/skeleton';
 import { toast } from 'sonner';
-import { Users, UserX, UserCheck, Target, GraduationCap } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
+import { Users, UserX, UserCheck, Target } from 'lucide-react';
 
 const MUNICIPIOS = ['GOIÂNIA', 'APARECIDA DE GOIÂNIA'] as const;
 type Municipio = typeof MUNICIPIOS[number];
 
 const SARELLI_RED = 'hsl(0, 72%, 50%)';
-const CHART_PALETTE = [
-  'hsl(190, 80%, 45%)',
-  'hsl(338, 72%, 60%)',
-  'hsl(45, 93%, 50%)',
-  'hsl(156, 72%, 40%)',
-  'hsl(280, 60%, 55%)',
-  'hsl(200, 80%, 55%)',
-];
+const BAR_FG = 'hsl(0, 0%, 40%)';
+const BAR_BG = 'hsl(0, 0%, 16%)';
 
 function fmt(n: number | string | null | undefined): string {
   if (n == null) return '—';
@@ -27,17 +20,6 @@ function fmtPct(n: number | null | undefined): string {
   if (n == null) return '—';
   return `${n.toFixed(1).replace('.', ',')}%`;
 }
-
-const CustomTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.[0]) return null;
-  const d = payload[0];
-  return (
-    <div className="bg-popover border border-border rounded-md px-3 py-2 shadow-lg text-xs">
-      <p className="font-semibold text-foreground">{d.name}</p>
-      <p style={{ color: d.payload.fill }}>{fmt(d.value)}</p>
-    </div>
-  );
-};
 
 // ── KPIs Section ──
 function KPIAbstencao({ cidade }: { cidade: Municipio }) {
@@ -100,86 +82,72 @@ function KPIAbstencao({ cidade }: { cidade: Municipio }) {
   );
 }
 
-// ── Donut Chart Card ──
-function DonutCard({
+// ── High-density BarList block ──
+function DenseBlock({
   title,
-  icon: Icon,
   sql,
   queryKey,
 }: {
   title: string;
-  icon: React.ElementType;
   sql: string;
   queryKey: string[];
 }) {
   const { data, isLoading, error } = useMotherDuckQuery(sql, queryKey);
 
   useEffect(() => {
-    if (error) toast.error(`Erro: ${error.message}`);
-  }, [error]);
+    if (error) toast.error(`Erro em ${title}: ${error.message}`);
+  }, [error, title]);
 
-  const chartData = (data?.rows || []).map((r: any, i: number) => ({
-    name: r.categoria,
+  const rows = (data?.rows || []).map((r: any) => ({
+    label: r.categoria as string,
     value: Number(r.total),
-    fill: CHART_PALETTE[i % CHART_PALETTE.length],
   }));
+
+  const maxVal = rows.reduce((m, r) => Math.max(m, r.value), 0);
+  const totalVal = rows.reduce((s, r) => s + r.value, 0);
 
   return (
     <div className="bg-card rounded-lg border border-border/50 p-4">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="w-7 h-7 rounded-md bg-primary/10 flex items-center justify-center">
-          <Icon className="w-3.5 h-3.5 text-primary" />
-        </div>
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">{title}</h3>
-      </div>
+      <h3 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest mb-3">{title}</h3>
 
       {isLoading ? (
-        <div className="flex flex-col items-center gap-3 py-8">
-          <Skeleton className="w-44 h-44 rounded-full" />
-          <div className="space-y-1 w-full">
-            {[1, 2, 3].map((i) => (
-              <Skeleton key={i} className="h-4 w-full" />
-            ))}
-          </div>
-        </div>
-      ) : chartData.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-12">Sem dados disponíveis</p>
-      ) : (
-        <>
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie
-                data={chartData}
-                dataKey="value"
-                nameKey="name"
-                cx="50%"
-                cy="50%"
-                innerRadius={55}
-                outerRadius={95}
-                paddingAngle={3}
-                strokeWidth={0}
-              >
-                {chartData.map((entry: any, i: number) => (
-                  <Cell key={i} fill={entry.fill} />
-                ))}
-              </Pie>
-              <Tooltip content={<CustomTooltip />} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-            </PieChart>
-          </ResponsiveContainer>
-
-          <div className="mt-3 space-y-1.5">
-            {chartData.map((d: any, i: number) => (
-              <div key={i} className="flex items-center justify-between text-xs">
-                <span className="flex items-center gap-1.5 truncate">
-                  <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: d.fill }} />
-                  <span className="truncate">{d.name}</span>
-                </span>
-                <span className="font-semibold metric-value ml-2 shrink-0">{fmt(d.value)}</span>
+        <div className="space-y-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="space-y-1">
+              <div className="flex justify-between">
+                <Skeleton className="h-3 w-24" />
+                <Skeleton className="h-3 w-16" />
               </div>
-            ))}
-          </div>
-        </>
+              <Skeleton className="h-1.5 w-full" />
+            </div>
+          ))}
+        </div>
+      ) : rows.length === 0 ? (
+        <p className="text-xs text-muted-foreground">Sem dados</p>
+      ) : (
+        <div className="space-y-2.5">
+          {rows.map((r) => {
+            const pct = totalVal > 0 ? (r.value / totalVal) * 100 : 0;
+            const barWidth = maxVal > 0 ? (r.value / maxVal) * 100 : 0;
+            return (
+              <div key={r.label}>
+                <div className="flex items-baseline justify-between mb-0.5">
+                  <span className="text-[11px] text-foreground/80 truncate mr-2 font-medium">{r.label}</span>
+                  <div className="flex items-baseline gap-2 shrink-0">
+                    <span className="text-[10px] text-muted-foreground tabular-nums">{fmtPct(pct)}</span>
+                    <span className="text-xs font-bold text-foreground tabular-nums metric-value">{fmt(r.value)}</span>
+                  </div>
+                </div>
+                <div className="h-1.5 rounded-full w-full" style={{ backgroundColor: BAR_BG }}>
+                  <div
+                    className="h-1.5 rounded-full transition-all duration-500"
+                    style={{ width: `${barWidth}%`, backgroundColor: BAR_FG }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
     </div>
   );
@@ -189,11 +157,12 @@ function DonutCard({
 export default function MicroTargeting() {
   const [cidade, setCidade] = useState<Municipio>('GOIÂNIA');
 
-  const generoSql = `SELECT ds_genero as categoria, sum(qt_eleitores_perfil) as total FROM my_db.perfil_eleitorado_2024_GO WHERE nm_municipio = '${cidade}' GROUP BY ds_genero`;
-  const escolaridadeSql = `SELECT ds_grau_escolaridade as categoria, sum(qt_eleitores_perfil) as total FROM my_db.perfil_eleitorado_2024_GO WHERE nm_municipio = '${cidade}' GROUP BY ds_grau_escolaridade ORDER BY total DESC LIMIT 5`;
+  const generoSql = `SELECT ds_genero as categoria, sum(qt_eleitores_perfil) as total FROM my_db.perfil_eleitorado_2024_GO WHERE nm_municipio = '${cidade}' GROUP BY ds_genero ORDER BY total DESC`;
+  const faixaEtariaSql = `SELECT ds_faixa_etaria as categoria, sum(qt_eleitores_perfil) as total FROM my_db.perfil_eleitorado_2024_GO WHERE nm_municipio = '${cidade}' GROUP BY ds_faixa_etaria ORDER BY total DESC LIMIT 4`;
+  const escolaridadeSql = `SELECT ds_grau_escolaridade as categoria, sum(qt_eleitores_perfil) as total FROM my_db.perfil_eleitorado_2024_GO WHERE nm_municipio = '${cidade}' GROUP BY ds_grau_escolaridade ORDER BY total DESC LIMIT 4`;
 
   return (
-    <div className="space-y-5 max-w-[1600px] mx-auto">
+    <div className="space-y-4 max-w-[1600px] mx-auto">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
@@ -228,20 +197,11 @@ export default function MicroTargeting() {
       {/* KPIs */}
       <KPIAbstencao cidade={cidade} />
 
-      {/* Demographics */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <DonutCard
-          title="Gênero do Eleitorado"
-          icon={Users}
-          sql={generoSql}
-          queryKey={['donut-genero', cidade]}
-        />
-        <DonutCard
-          title="Escolaridade (Top 5)"
-          icon={GraduationCap}
-          sql={escolaridadeSql}
-          queryKey={['donut-escolaridade', cidade]}
-        />
+      {/* Demographic Density Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <DenseBlock title="Gênero" sql={generoSql} queryKey={['dense-genero', cidade]} />
+        <DenseBlock title="Faixa Etária · Top 4" sql={faixaEtariaSql} queryKey={['dense-faixa', cidade]} />
+        <DenseBlock title="Escolaridade · Top 4" sql={escolaridadeSql} queryKey={['dense-escolaridade', cidade]} />
       </div>
     </div>
   );
