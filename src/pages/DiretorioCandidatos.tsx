@@ -106,7 +106,7 @@ export default function DiretorioCandidatos() {
     setTimer(setTimeout(() => { setDebouncedSearch(v); setPage(0); }, 300));
   };
 
-  const { data, isLoading } = useDiretorio(cidade, debouncedSearch, cargo, partido, genero, situacao, page, pageSize, sortBy, sortAsc);
+  const { data, isLoading, error } = useDiretorio(cidade, debouncedSearch, cargo, partido, genero, situacao, page, pageSize, sortBy, sortAsc);
   const { data: filterOpts } = useFilterOptionsDiretorio();
 
   const clearFilters = () => {
