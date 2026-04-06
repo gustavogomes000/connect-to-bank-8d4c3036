@@ -22,9 +22,9 @@ import {
   PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import { Link } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { useFilterStore } from '@/stores/filterStore';
+import { mdQuery, MD } from '@/lib/motherduck';
 import { cn } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -126,19 +126,24 @@ function useComparecimentoGeral() {
   return useQuery({
     queryKey: ['comparecimentoGeral', ano],
     queryFn: async () => {
-      let q = (supabase.from('bd_eleicoes_comparecimento' as any) as any)
-        .select('ano, eleitorado_apto, comparecimento, abstencoes, votos_brancos, votos_nulos');
-      if (ano) q = q.eq('ano', ano);
-      const { data } = await q.limit(1000);
-      if (!data || data.length === 0) return null;
-      const totals = (data as any[]).reduce((acc: any, r: any) => ({
-        apto: acc.apto + (r.eleitorado_apto || 0),
-        comp: acc.comp + (r.comparecimento || 0),
-        abst: acc.abst + (r.abstencoes || 0),
-        brancos: acc.brancos + (r.votos_brancos || 0),
-        nulos: acc.nulos + (r.votos_nulos || 0),
-      }), { apto: 0, comp: 0, abst: 0, brancos: 0, nulos: 0 });
-      return totals;
+      const anos = ano ? [ano] : [2016, 2018, 2020, 2022, 2024];
+      let totalApto = 0, totalComp = 0, totalAbst = 0, totalBrancos = 0, totalNulos = 0;
+      for (const a of anos) {
+        try {
+          const [r] = await mdQuery<any>(
+            `SELECT sum(qt_aptos) as apto, sum(qt_comparecimento) as comp, sum(qt_abstencoes) as abst,
+              sum(qt_votos_brancos) as brancos, sum(qt_votos_nulos) as nulos
+            FROM ${MD.comparecimento(a)}`
+          );
+          totalApto += Number(r?.apto || 0);
+          totalComp += Number(r?.comp || 0);
+          totalAbst += Number(r?.abst || 0);
+          totalBrancos += Number(r?.brancos || 0);
+          totalNulos += Number(r?.nulos || 0);
+        } catch {}
+      }
+      if (totalApto === 0) return null;
+      return { apto: totalApto, comp: totalComp, abst: totalAbst, brancos: totalBrancos, nulos: totalNulos };
     },
   });
 }
