@@ -177,7 +177,12 @@ export default function DiretorioCandidatos() {
         {hasFilters && <button onClick={clearFilters} className="text-xs text-destructive hover:underline ml-1">Limpar filtros</button>}
       </div>
 
-      {isLoading ? <TableSkeleton /> : viewMode === 'grid' ? (
+      {error ? (
+        <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-6 text-center">
+          <p className="text-sm text-destructive font-medium mb-1">Erro ao carregar dados</p>
+          <p className="text-xs text-muted-foreground">{(error as Error).message}</p>
+        </div>
+      ) : isLoading ? <TableSkeleton /> : viewMode === 'grid' ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
           {(data?.data || []).map((c: any) => (
             <button key={c.id} onClick={() => navigate(`/candidato/${c.id}`)}
