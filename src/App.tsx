@@ -18,6 +18,7 @@ import AnaliseBairro from "./pages/AnaliseBairro";
 import Patrimonio from "./pages/Patrimonio";
 import PerfilCandidatos from "./pages/PerfilCandidatos";
 import ImportarDados from "./pages/ImportarDados";
+import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
 import NotFound from "./pages/NotFound";
 
@@ -25,7 +26,7 @@ const queryClient = new QueryClient();
 
 function Layout() {
   const location = useLocation();
-  const hideFilters = ['/importar', '/ajuda', '/consulta', '/explorador', '/chat'].includes(location.pathname);
+  const hideFilters = ['/importar', '/ajuda', '/consulta', '/explorador', '/chat', '/config'].includes(location.pathname);
 
   return (
     <SidebarProvider>
@@ -55,6 +56,7 @@ function Layout() {
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
               <Route path="/importar" element={<ImportarDados />} />
+              <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
