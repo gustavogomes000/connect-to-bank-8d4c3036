@@ -30,6 +30,11 @@ from typing import Any, Dict, Generator, List, Optional, Tuple
 import requests
 
 try:
+    from local_source_resolver import find_local_source_file
+except ImportError:
+    from scripts.local_source_resolver import find_local_source_file
+
+try:
     from google.cloud import bigquery
     from google.api_core.exceptions import NotFound
     HAS_BQ = True
@@ -56,6 +61,7 @@ if not CONFIG.exists():
 CACHE_DIR  = WORK_DIR / ".cache_tse"
 STATE_DIR  = WORK_DIR / ".state"
 LOG_DIR    = WORK_DIR / ".logs"
+LOCAL_SOURCE_DIRS: List[Path] = []
 
 # Filtro municipal: SOMENTE Goiânia e Aparecida
 MUNICIPIOS_FOCO = {
@@ -197,6 +203,89 @@ def save_error_log(run_id):
     p.write_text(json.dumps(_error_log, ensure_ascii=False, indent=2), encoding="utf-8")
     log_info(f"Log de erros salvo: {p}")
 
+def configure_local_source_dirs(local_dir_arg: Optional[str] = None):
+    global LOCAL_SOURCE_DIRS
+
+    env_dir = os.getenv("ELEICOES_LOCAL_DIR") or os.getenv("IMPORTADOR_LOCAL_DIR")
+    candidates = []
+    if local_dir_arg:
+        candidates.append(Path(local_dir_arg).expanduser())
+    if env_dir:
+        candidates.append(Path(env_dir).expanduser())
+    candidates.extend([WORK_DIR, BASE_DIR])
+
+    out = []
+    seen = set()
+    for directory in candidates:
+        try:
+            resolved = directory.resolve()
+        except Exception:
+            resolved = directory
+        key = str(resolved).lower()
+        if key in seen or not resolved.exists():
+            continue
+        seen.add(key)
+        out.append(resolved)
+
+    LOCAL_SOURCE_DIRS = out
+
+def resolve_local_source(item: dict, allowed_suffixes: Optional[set] = None) -> Optional[Path]:
+    allowed = {s.lower() for s in allowed_suffixes} if allowed_suffixes else None
+
+    for directory in LOCAL_SOURCE_DIRS:
+        path = find_local_source_file(directory, item)
+        if not path:
+            continue
+        if allowed and path.suffix.lower() not in allowed:
+            continue
+        return path
+    return None
+
+def clear_item_cache_files(item: dict) -> List[str]:
+    removed = []
+    seen = set()
+
+    for url in build_url_candidates(item):
+        name = Path(url.split("?")[0]).name
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        path = CACHE_DIR / name
+        if path.exists():
+            path.unlink(missing_ok=True)
+            removed.append(path.name)
+
+    if removed or not CACHE_DIR.exists():
+        return removed
+
+    year = str(item.get("ano") or "").strip()
+    tipo_tokens = [tok for tok in re.split(r"[_\W]+", str(item.get("tipo") or "").lower()) if tok]
+
+    for path in CACHE_DIR.iterdir():
+        if not path.is_file():
+            continue
+        name_lower = path.name.lower()
+        if year and year not in name_lower:
+            continue
+        if tipo_tokens and not any(tok in name_lower for tok in tipo_tokens):
+            continue
+        path.unlink(missing_ok=True)
+        removed.append(path.name)
+
+    return removed
+
+def is_permanent_error(msg: str) -> bool:
+    text = (msg or "").lower()
+    permanent_tokens = [
+        "404 client error",
+        "http 404",
+        "400 client error",
+        "http 400",
+        "invalid pattern",
+        "formato desconhecido",
+    ]
+    return any(token in text for token in permanent_tokens)
+
 # ═══════════════════════════════════════════════════════════
 #  SOURCES
 # ═══════════════════════════════════════════════════════════
@@ -246,16 +335,22 @@ def http_get(sess: requests.Session, url: str, max_retries: int = 5,
 # ═══════════════════════════════════════════════════════════
 #  DOWNLOAD ZIP com fallback + validação
 # ═══════════════════════════════════════════════════════════
-def ensure_valid_zip(path: Path) -> bool:
+def ensure_valid_zip(path: Path, delete_invalid: bool = True) -> bool:
     if not path.exists(): return False
     try:
         if path.stat().st_size < 1024:
-            path.unlink(missing_ok=True); return False
+            if delete_invalid:
+                path.unlink(missing_ok=True)
+            return False
         if not zipfile.is_zipfile(path):
-            path.unlink(missing_ok=True); return False
+            if delete_invalid:
+                path.unlink(missing_ok=True)
+            return False
         return True
     except:
-        path.unlink(missing_ok=True); return False
+        if delete_invalid:
+            path.unlink(missing_ok=True)
+        return False
 
 def download_zip(sess: requests.Session, url: str, dest: Path,
                  retries: int = 5, timeout: int = 900) -> Tuple[bool, Optional[str]]:
@@ -264,6 +359,9 @@ def download_zip(sess: requests.Session, url: str, dest: Path,
     for attempt in range(1, retries + 1):
         try:
             resp = sess.get(url, stream=True, timeout=timeout, allow_redirects=True)
+            if resp.status_code in (404, 410):
+                dest.unlink(missing_ok=True)
+                return False, f"HTTP {resp.status_code}: {resp.reason}"
             resp.raise_for_status()
             total = int(resp.headers.get("content-length") or 0)
             dl = 0
@@ -313,6 +411,11 @@ def build_url_candidates(item: dict) -> List[str]:
     return [u for u in candidates if u and u not in seen and not seen.add(u)]
 
 def download_with_fallback(sess, item):
+    local_path = resolve_local_source(item, allowed_suffixes={".zip"})
+    if local_path and ensure_valid_zip(local_path, delete_invalid=False):
+        log_skip(f"Local: {local_path.name} ({fmt_bytes(local_path.stat().st_size)})")
+        return local_path, local_path.name, str(local_path), []
+
     candidates = build_url_candidates(item)
     timeout = item.get("timeout", 600)
     errors = []
@@ -877,15 +980,20 @@ def process_download_csv(sess, item):
     url = item.get("url", "")
     CACHE_DIR.mkdir(parents=True, exist_ok=True)
     fname = re.sub(r'[^a-zA-Z0-9._-]', '_', Path(url.split("?")[0]).name) or "download.csv"
-    dest = CACHE_DIR / fname
+    local_path = resolve_local_source(item, allowed_suffixes={".csv", ".txt"})
+    if local_path:
+        dest = local_path
+        log_skip(f"Local: {dest.name} ({fmt_bytes(dest.stat().st_size)})")
+    else:
+        dest = CACHE_DIR / fname
 
-    if not dest.exists():
+    if not local_path and not dest.exists():
         log_dl(f"Baixando {fname}")
         resp = http_get(sess, url, max_retries=3, timeout=300, stream=True)
         with dest.open("wb") as f:
             for chunk in resp.iter_content(1 << 18):
                 if chunk: f.write(chunk)
-    else:
+    elif not local_path:
         log_skip(f"Cache: {fname}")
 
     raw = dest.read_bytes()
@@ -929,28 +1037,10 @@ def process_download_csv(sess, item):
 #  PROCESSADOR: DOWNLOAD ZIP (INEP, IBGE censo setor)
 # ═══════════════════════════════════════════════════════════
 def process_download_zip(sess, item):
-    url = item.get("url", "")
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    fname = Path(url.split("?")[0]).name or "download.zip"
-    dest = CACHE_DIR / fname
-
-    if not dest.exists():
-        log_dl(f"Baixando {fname}")
-        for attempt in range(1, 4):
-            try:
-                resp = sess.get(url, timeout=600, stream=True)
-                resp.raise_for_status()
-                with dest.open("wb") as f:
-                    for chunk in resp.iter_content(1 << 18):
-                        if chunk: f.write(chunk)
-                break
-            except Exception as e:
-                if attempt < 3:
-                    time.sleep(2 ** attempt * 10)
-                else:
-                    raise
-    else:
-        log_skip(f"Cache: {fname}")
+    zip_path, fname, _, dl_errors = download_with_fallback(sess, item)
+    if not zip_path:
+        detail = "; ".join(dl_errors) if dl_errors else "sem detalhe"
+        raise Exception(f"Download falhou | {detail}")
 
     csv_pattern = item.get("csv_pattern", "")
     filtro_col = item.get("filtro_coluna", "")
@@ -961,7 +1051,7 @@ def process_download_zip(sess, item):
     final_headers = None
     n_rows = 0
 
-    with zipfile.ZipFile(dest, "r") as zf:
+    with zipfile.ZipFile(zip_path, "r") as zf:
         members = [m for m in zf.infolist()
                    if m.filename.lower().endswith((".csv", ".txt"))
                    and not m.filename.startswith("__MACOSX")]
@@ -1007,10 +1097,15 @@ def process_download_zip(sess, item):
 #  PROCESSADOR: GEOJSON
 # ═══════════════════════════════════════════════════════════
 def process_geojson(sess, item):
-    url = item.get("url", "")
-    log_api(f"GeoJSON: {item.get('tipo')}")
-    resp = http_get(sess, url, max_retries=3, timeout=120)
-    data = resp.json()
+    local_path = resolve_local_source(item, allowed_suffixes={".json", ".geojson"})
+    if local_path:
+        log_skip(f"Local: {local_path.name} ({fmt_bytes(local_path.stat().st_size)})")
+        data = json.loads(decode_bytes(local_path.read_bytes()))
+    else:
+        url = item.get("url", "")
+        log_api(f"GeoJSON: {item.get('tipo')}")
+        resp = http_get(sess, url, max_retries=3, timeout=120)
+        data = resp.json()
 
     tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".jsonl", delete=False, encoding="utf-8")
     n = 0
@@ -1184,6 +1279,7 @@ def cmd_status(args):
 def cmd_importar(args):
     t_start = time.time()
     banner(f"IMPORTADOR UNIFICADO → BigQuery  {VERSION}")
+    configure_local_source_dirs(args.local_dir)
 
     sources = load_sources(args.fonte)
 
@@ -1216,6 +1312,8 @@ def cmd_importar(args):
              (f" | Tabela: {args.tabela}" if args.tabela else ""))
     log_info(f"Dataset: {FULL_DS} | Resume: {'SIM' if args.resume else 'NÃO'} | Retries/item: {item_retries}")
     log_info(f"FILTRO: Goiânia + Aparecida de Goiânia")
+    if LOCAL_SOURCE_DIRS:
+        log_info("Fontes locais: " + " | ".join(str(p) for p in LOCAL_SOURCE_DIRS))
 
     n_ok = n_err = n_skip = total_rows = 0
     results = []
@@ -1251,15 +1349,17 @@ def cmd_importar(args):
             if not err:
                 break  # sucesso!
 
-            if attempt < item_retries:
+            if attempt < item_retries and not is_permanent_error(err):
                 wait = min(2 ** attempt * 15, 300)
                 log_info(f"  ⟳ Retry item {attempt}/{item_retries} em {wait}s — erro: {err[:100]}")
                 # Limpa cache do ZIP para forçar re-download
-                if "Download" in err or "Timeout" in err or "Connection" in err:
-                    for f in CACHE_DIR.glob(f"*{tipo}*{ano}*"):
-                        f.unlink(missing_ok=True)
-                        log_info(f"  Cache limpo: {f.name}")
+                if any(token in err for token in ("Download", "Timeout", "Connection", "HTTPError", "HTTP ")):
+                    for name in clear_item_cache_files(item):
+                        log_info(f"  Cache limpo: {name}")
                 time.sleep(wait)
+            elif attempt < item_retries:
+                log_info(f"  Erro permanente — sem retry: {err[:120]}")
+                break
             else:
                 log_info(f"  ✗ Esgotou {item_retries} tentativas para {tabela}")
 
@@ -1329,6 +1429,7 @@ def main():
     p_imp.add_argument("--fonte", type=str, default=None, help="Filtrar por fonte: tse, ibge, datasus, siconfi, camara...")
     p_imp.add_argument("--tabela", type=str, default=None, help="Importar tabela específica pelo nome (ex: raw_filiados_2024)")
     p_imp.add_argument("--retries", type=int, default=3, help="Retry no nível do item inteiro (default: 3)")
+    p_imp.add_argument("--local-dir", type=str, default=None, help="Pasta com arquivos já baixados para usar como fallback local")
 
     p_dry = sub.add_parser("dry-run", help="Ver plano sem executar")
     p_dry.add_argument("--prioridade", type=int, default=99)
@@ -1351,6 +1452,7 @@ def main():
         print(f"    python importar_unificado.py importar --prioridade 1")
         print(f"    python importar_unificado.py importar --resume")
         print(f"    python importar_unificado.py importar --fonte ibge")
+        print(f"    python importar_unificado.py importar --resume --local-dir C:\\Users\\Gustavo\\Desktop\\dados")
         print(f"    python importar_unificado.py importar --tabela raw_filiados_2024")
         print(f"    python importar_unificado.py importar --tabela raw_boletim_urna_2024 --retries 5")
         print(f"    python importar_unificado.py importar --fonte datasus --resume")
