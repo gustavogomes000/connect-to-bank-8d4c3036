@@ -1,6 +1,6 @@
 import { useFilterStore } from '@/stores/filterStore';
 import { useQuery } from '@tanstack/react-query';
-import { mdQuery, MD, COL } from '@/lib/motherduck';
+import { mdQuery, MD, COL, CAND_ANOS, BENS_ANOS, COMP_ANOS } from '@/lib/motherduck';
 import { supabase } from '@/integrations/supabase/client';
 
 type Filters = {
@@ -19,9 +19,10 @@ function useFilters(): Filters {
   };
 }
 
-function buildWhere(f: Filters, extra?: string): string {
+// buildWhere now does NOT include ano (table selection handles it)
+function buildWhere(f: Filters, extra?: string, includeAno = false): string {
   const c: string[] = [];
-  if (f.ano) c.push(`${COL.ano} = ${f.ano}`);
+  if (includeAno && f.ano) c.push(`${COL.ano} = ${f.ano}`);
   if (f.turno) c.push(`${COL.turno} = ${f.turno}`);
   if (f.cargo) c.push(`${COL.cargo} ILIKE '%${f.cargo}%'`);
   if (f.municipio) c.push(`${COL.municipio} = '${f.municipio}'`);
@@ -35,12 +36,16 @@ function buildWhere(f: Filters, extra?: string): string {
   return c.length ? `WHERE ${c.join(' AND ')}` : '';
 }
 
+// Helper: get candidatos table for current filter
+function candTable(f: Filters) { return MD.candidatos(f.ano); }
+function bensTable(f: Filters) { return MD.bens(f.ano); }
+
 // ═══ DATA AVAILABILITY ═══
 export function useDataAvailability() {
   return useQuery({
     queryKey: ['dataAvailability'],
     queryFn: async () => {
-      const [cand] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} LIMIT 1`);
+      const [cand] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos(2024)} LIMIT 1`);
       return {
         candidatos: Number(cand?.total || 0) > 0,
         bens: true, votacao: true, votacaoPartido: true,
@@ -56,11 +61,12 @@ export function useFilterOptions() {
   return useQuery({
     queryKey: ['filterOptions'],
     queryFn: async () => {
+      const t = MD.candidatos(2024);
       const [generos, escolaridades, ocupacoes, situacoes] = await Promise.all([
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.genero} as v FROM ${MD.candidatos} WHERE ${COL.genero} IS NOT NULL ORDER BY v`),
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.escolaridade} as v FROM ${MD.candidatos} WHERE ${COL.escolaridade} IS NOT NULL ORDER BY v`),
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.ocupacao} as v FROM ${MD.candidatos} WHERE ${COL.ocupacao} IS NOT NULL ORDER BY v LIMIT 100`),
-        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.situacaoFinal} as v FROM ${MD.candidatos} WHERE ${COL.situacaoFinal} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.genero} as v FROM ${t} WHERE ${COL.genero} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.escolaridade} as v FROM ${t} WHERE ${COL.escolaridade} IS NOT NULL ORDER BY v`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.ocupacao} as v FROM ${t} WHERE ${COL.ocupacao} IS NOT NULL ORDER BY v LIMIT 100`),
+        mdQuery<{v:string}>(`SELECT DISTINCT ${COL.situacaoFinal} as v FROM ${t} WHERE ${COL.situacaoFinal} IS NOT NULL ORDER BY v`),
       ]);
       return {
         generos: generos.map(r => r.v),
@@ -78,7 +84,7 @@ export function useCheckEmpty() {
   return useQuery({
     queryKey: ['checkEmpty'],
     queryFn: async () => {
-      const [r] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos}`);
+      const [r] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos(2024)}`);
       return Number(r?.total || 0) === 0;
     },
   });
@@ -90,6 +96,7 @@ export function useKPIs() {
   return useQuery({
     queryKey: ['kpis', f],
     queryFn: async () => {
+      const t = candTable(f);
       const w = buildWhere(f);
       const sql = `SELECT
         count(*) as total,
@@ -98,7 +105,7 @@ export function useKPIs() {
         count(DISTINCT ${COL.partido}) as partidos,
         count(DISTINCT ${COL.municipio}) as municipios,
         count(DISTINCT ${COL.cargo}) as cargos
-        FROM ${MD.candidatos} ${w}`;
+        FROM ${t} ${w}`;
       const [r] = await mdQuery(sql);
       const totalCandidatos = Number(r?.total || 0);
       const totalMulheres = Number(r?.mulheres || 0);
@@ -123,7 +130,7 @@ export function useCandidatosPorPartido() {
     queryFn: async () => {
       const w = buildWhere(f);
       return mdQuery<{partido: string; total: string}>(
-        `SELECT ${COL.partido} as partido, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY ${COL.partido} ORDER BY total DESC`
+        `SELECT ${COL.partido} as partido, count(*) as total FROM ${candTable(f)} ${w} GROUP BY ${COL.partido} ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ partido: r.partido, total: Number(r.total) })));
     },
   });
@@ -137,7 +144,7 @@ export function useDistribuicaoGenero() {
     queryFn: async () => {
       const w = buildWhere(f);
       return mdQuery<{nome: string; total: string}>(
-        `SELECT COALESCE(${COL.genero}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+        `SELECT COALESCE(${COL.genero}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${candTable(f)} ${w} GROUP BY nome ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
@@ -151,7 +158,7 @@ export function useDistribuicaoEscolaridade() {
     queryFn: async () => {
       const w = buildWhere(f);
       return mdQuery<{nome: string; total: string}>(
-        `SELECT COALESCE(${COL.escolaridade}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+        `SELECT COALESCE(${COL.escolaridade}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${candTable(f)} ${w} GROUP BY nome ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
@@ -165,7 +172,7 @@ export function useTopOcupacoes() {
     queryFn: async () => {
       const w = buildWhere(f);
       return mdQuery<{nome: string; total: string}>(
-        `SELECT COALESCE(${COL.ocupacao}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC LIMIT 15`
+        `SELECT COALESCE(${COL.ocupacao}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${candTable(f)} ${w} GROUP BY nome ORDER BY total DESC LIMIT 15`
       ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
@@ -179,7 +186,7 @@ export function useSituacaoFinal() {
     queryFn: async () => {
       const w = buildWhere(f);
       return mdQuery<{nome: string; total: string}>(
-        `SELECT COALESCE(${COL.situacaoFinal}, 'NÃO DEFINIDO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+        `SELECT COALESCE(${COL.situacaoFinal}, 'NÃO DEFINIDO') as nome, count(*) as total FROM ${candTable(f)} ${w} GROUP BY nome ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
@@ -196,7 +203,7 @@ export function useEvolucaoPorAno() {
         `SELECT ${COL.ano} as ano, count(*) as total,
           count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres,
           count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos
-        FROM ${MD.candidatos} ${w} GROUP BY ${COL.ano} ORDER BY ano`
+        FROM ${MD.candidatos(null)} ${w} GROUP BY ${COL.ano} ORDER BY ano`
       ).then(rows => rows.map(r => {
         const total = Number(r.total);
         const mulheres = Number(r.mulheres);
@@ -213,13 +220,12 @@ export function useTopPatrimonio() {
     queryKey: ['topPatrimonio', f],
     queryFn: async () => {
       const ano = f.ano || 2024;
-      // Join bens with candidatos on sq_candidato
       return mdQuery<{nome: string; partido: string; cargo: string; patrimonio: string; qtd: string}>(
         `SELECT c.${COL.nomeUrna} as nome, c.${COL.partido} as partido, c.${COL.cargo} as cargo,
-          sum(b.${COL.valorBem}) as patrimonio, count(*) as qtd
-        FROM ${MD.bens} b
-        JOIN ${MD.candidatos} c ON b.${COL.sequencial} = c.${COL.sequencial} AND c.${COL.ano} = ${ano}
-        WHERE b.${COL.ano} = ${ano}
+          sum(${COL.valorBemNum}) as patrimonio, count(*) as qtd
+        FROM ${MD.bens(ano)} b
+        JOIN ${MD.candidatos(ano)} c ON b.${COL.sequencial} = c.${COL.sequencial}
+        ${buildWhere(f)}
         GROUP BY c.${COL.nomeUrna}, c.${COL.partido}, c.${COL.cargo}
         ORDER BY patrimonio DESC LIMIT 20`
       ).then(rows => rows.map(r => ({
@@ -236,7 +242,7 @@ export function useFaixaEtaria() {
   return useQuery({
     queryKey: ['faixaEtaria', f],
     queryFn: async () => {
-      const w = buildWhere(f, `${COL.nascimento} IS NOT NULL`);
+      const w = buildWhere(f, 'nr_idade_data_posse > 0');
       return mdQuery<{faixa: string; total: string}>(
         `SELECT CASE
           WHEN nr_idade_data_posse <= 25 THEN '18-25'
@@ -246,7 +252,7 @@ export function useFaixaEtaria() {
           WHEN nr_idade_data_posse <= 65 THEN '56-65'
           ELSE '66+'
         END as faixa, count(*) as total
-        FROM ${MD.candidatos} ${w} AND nr_idade_data_posse > 0
+        FROM ${candTable(f)} ${w}
         GROUP BY faixa ORDER BY faixa`
       ).then(rows => rows.map(r => ({ faixa: r.faixa, total: Number(r.total) })));
     },
@@ -261,7 +267,7 @@ export function useCandidatosPorCargo() {
     queryFn: async () => {
       const w = buildWhere({ ...f, cargo: null });
       return mdQuery<{cargo: string; total: string}>(
-        `SELECT COALESCE(${COL.cargo}, 'NÃO DEFINIDO') as cargo, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY cargo ORDER BY total DESC`
+        `SELECT COALESCE(${COL.cargo}, 'NÃO DEFINIDO') as cargo, count(*) as total FROM ${candTable(f)} ${w} GROUP BY cargo ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ cargo: r.cargo, total: Number(r.total) })));
     },
   });
@@ -278,7 +284,7 @@ export function useEleitos() {
         `SELECT ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo, ${COL.partido} as sigla_partido,
           ${COL.cargo} as cargo, ${COL.municipio} as municipio, ${COL.situacaoFinal} as situacao_final,
           ${COL.genero} as genero, ${COL.numero} as numero_urna, ${COL.ano} as ano
-        FROM ${MD.candidatos} ${w} ORDER BY ${COL.nomeUrna} LIMIT 30`
+        FROM ${candTable(f)} ${w} ORDER BY ${COL.nomeUrna} LIMIT 30`
       );
     },
   });
@@ -289,10 +295,16 @@ export function usePatrimonioEvolucaoAno() {
   return useQuery({
     queryKey: ['patrimonioEvolucao'],
     queryFn: async () => {
-      return mdQuery<{ano: string; total: string; media: string; registros: string}>(
-        `SELECT ${COL.ano} as ano, sum(${COL.valorBem}) as total, avg(${COL.valorBem}) as media, count(*) as registros
-        FROM ${MD.bens} GROUP BY ${COL.ano} ORDER BY ano`
-      ).then(rows => rows.map(r => ({ ano: Number(r.ano), total: Number(r.total), media: Number(r.media), registros: Number(r.registros) })));
+      const results = await Promise.all(BENS_ANOS.map(async ano => {
+        try {
+          const [r] = await mdQuery<{total: string; media: string; registros: string}>(
+            `SELECT sum(${COL.valorBemNum}) as total, avg(${COL.valorBemNum}) as media, count(*) as registros
+            FROM ${MD.bens(ano)}`
+          );
+          return { ano, total: Number(r?.total || 0), media: Number(r?.media || 0), registros: Number(r?.registros || 0) };
+        } catch { return { ano, total: 0, media: 0, registros: 0 }; }
+      }));
+      return results.filter(r => r.registros > 0);
     },
   });
 }
@@ -306,8 +318,8 @@ export function usePatrimonioDistribuicao() {
       const ano = f.ano || 2024;
       return mdQuery<{faixa: string; total: string}>(
         `WITH patri AS (
-          SELECT ${COL.sequencial}, sum(${COL.valorBem}) as total
-          FROM ${MD.bens} WHERE ${COL.ano} = ${ano}
+          SELECT ${COL.sequencial}, sum(${COL.valorBemNum}) as total
+          FROM ${MD.bens(ano)}
           GROUP BY ${COL.sequencial}
         )
         SELECT CASE
@@ -342,14 +354,14 @@ export function useRanking(search: string, page: number, sortBy: string, sortAsc
       const offset = page * pageSize;
 
       const [countResult, dataResult] = await Promise.all([
-        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${w}`),
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${candTable(f)} ${w}`),
         mdQuery(
           `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
             ${COL.numero} as numero_urna, ${COL.partido} as sigla_partido, ${COL.cargo} as cargo,
             ${COL.municipio} as municipio, ${COL.ano} as ano, ${COL.genero} as genero,
             ${COL.escolaridade} as grau_instrucao, ${COL.situacaoFinal} as situacao_final,
             ${COL.ocupacao} as ocupacao
-          FROM ${MD.candidatos} ${w}
+          FROM ${candTable(f)} ${w}
           ORDER BY ${orderCol} ${dir} LIMIT ${pageSize} OFFSET ${offset}`
         ),
       ]);
@@ -369,7 +381,7 @@ export function useCandidato(id: string) {
   return useQuery({
     queryKey: ['candidato', id],
     queryFn: async () => {
-      // id here is sq_candidato
+      // Search across all years
       const rows = await mdQuery(
         `SELECT ${COL.sequencial} as id, ${COL.sequencial} as sequencial_candidato,
           ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
@@ -379,8 +391,8 @@ export function useCandidato(id: string) {
           ${COL.ocupacao} as ocupacao, ${COL.situacaoFinal} as situacao_final,
           ${COL.nascimento} as data_nascimento, ${COL.nacionalidade} as nacionalidade,
           ${COL.turno} as turno
-        FROM ${MD.candidatos}
-        WHERE ${COL.sequencial} = '${id}' OR CAST(${COL.sequencial} AS VARCHAR) = '${id}'
+        FROM ${MD.candidatos(null)}
+        WHERE CAST(${COL.sequencial} AS VARCHAR) = '${id}'
         LIMIT 1`
       );
       return rows[0] || null;
@@ -395,9 +407,9 @@ export function usePatrimonioCandidato(sequencialCandidato: string) {
     queryFn: async () => {
       return mdQuery(
         `SELECT ${COL.ordemBem} as ordem_bem, ${COL.tipoBem} as tipo_bem,
-          ${COL.descBem} as descricao_bem, ${COL.valorBem} as valor_bem
-        FROM ${MD.bens}
-        WHERE ${COL.sequencial} = '${sequencialCandidato}'
+          ${COL.descBem} as descricao_bem, ${COL.valorBemNum} as valor_bem
+        FROM ${MD.bens(null)}
+        WHERE CAST(${COL.sequencial} AS VARCHAR) = '${sequencialCandidato}'
         ORDER BY ${COL.ordemBem}`
       );
     },
@@ -410,13 +422,19 @@ export function useEvolucaoPatrimonio(nomeUrna: string) {
     queryKey: ['evolucaoPatrimonio', nomeUrna],
     queryFn: async () => {
       if (!nomeUrna) return [];
-      return mdQuery<{ano: string; patrimonio: string}>(
-        `SELECT b.${COL.ano} as ano, sum(b.${COL.valorBem}) as patrimonio
-        FROM ${MD.bens} b
-        JOIN ${MD.candidatos} c ON b.${COL.sequencial} = c.${COL.sequencial} AND b.${COL.ano} = c.${COL.ano}
-        WHERE c.${COL.nomeUrna} = '${nomeUrna}'
-        GROUP BY b.${COL.ano} ORDER BY ano`
-      ).then(rows => rows.map(r => ({ ano: Number(r.ano), patrimonio: Number(r.patrimonio) })));
+      const results = await Promise.all(BENS_ANOS.map(async ano => {
+        try {
+          const [r] = await mdQuery<{patrimonio: string}>(
+            `SELECT sum(${COL.valorBemNum}) as patrimonio
+            FROM ${MD.bens(ano)} b
+            JOIN ${MD.candidatos(ano)} c ON CAST(b.${COL.sequencial} AS VARCHAR) = CAST(c.${COL.sequencial} AS VARCHAR)
+            WHERE c.${COL.nomeUrna} = '${nomeUrna.replace(/'/g, "''")}'`
+          );
+          const p = Number(r?.patrimonio || 0);
+          return p > 0 ? { ano, patrimonio: p } : null;
+        } catch { return null; }
+      }));
+      return results.filter(Boolean).sort((a: any, b: any) => a.ano - b.ano);
     },
     enabled: !!nomeUrna,
   });
@@ -431,7 +449,7 @@ export function useCandidatoVotos(nomeUrna: string, ano: number) {
         return await mdQuery(
           `SELECT nm_municipio as municipio, nr_zona as zona, qt_votos_nominais as total_votos, ds_cargo as cargo
           FROM ${MD.votacao(ano)}
-          WHERE nm_urna_candidato = '${nomeUrna}'
+          WHERE nm_urna_candidato = '${nomeUrna.replace(/'/g, "''")}'
           ORDER BY total_votos DESC LIMIT 500`
         );
       } catch { return []; }
@@ -446,7 +464,7 @@ export function useMunicipioResumo(municipio: string | null) {
     queryKey: ['municipioResumo', municipio],
     queryFn: async () => {
       if (!municipio) return null;
-      const anos = [2016, 2018, 2020, 2022, 2024];
+      const anos = COMP_ANOS;
       const queries = anos.map(ano =>
         mdQuery<{ano: string; apto: string; comp: string; abst: string}>(
           `SELECT ${ano} as ano, sum(qt_aptos) as apto, sum(qt_comparecimento) as comp, sum(qt_abstencoes) as abst
@@ -470,12 +488,11 @@ export function useMunicipioCandidatos(municipio: string | null) {
     queryKey: ['municipioCandidatos', municipio, ano],
     queryFn: async () => {
       if (!municipio) return [];
-      const anoFilter = ano ? `AND ${COL.ano} = ${ano}` : '';
       return mdQuery(
         `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.partido} as sigla_partido,
           ${COL.cargo} as cargo, ${COL.situacaoFinal} as situacao_final, ${COL.numero} as numero_urna,
           ${COL.genero} as genero, ${COL.escolaridade} as grau_instrucao
-        FROM ${MD.candidatos} WHERE ${COL.municipio} = '${municipio}' ${anoFilter}
+        FROM ${MD.candidatos(ano || 2024)} WHERE ${COL.municipio} = '${municipio}'
         ORDER BY ${COL.nomeUrna} LIMIT 500`
       );
     },
@@ -553,7 +570,7 @@ export function usePartidoResumo() {
         `SELECT ${COL.partido} as partido, count(*) as candidatos,
           count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
           count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres
-        FROM ${MD.candidatos} ${w} GROUP BY ${COL.partido} ORDER BY candidatos DESC`
+        FROM ${candTable(f)} ${w} GROUP BY ${COL.partido} ORDER BY candidatos DESC`
       );
       return {
         partidos: candidatos.map(r => ({ partido: r.partido, candidatos: Number(r.candidatos), votos: 0, eleitos: Number(r.eleitos), mulheres: Number(r.mulheres) })),
@@ -569,12 +586,11 @@ export function usePartidoDetalhe(partido: string | null) {
     queryKey: ['partidoDetalhe', partido, f],
     queryFn: async () => {
       if (!partido) return [];
-      const anoFilter = f.ano ? `AND ${COL.ano} = ${f.ano}` : '';
       return mdQuery(
         `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.cargo} as cargo,
           ${COL.municipio} as municipio, ${COL.partido} as sigla_partido,
           ${COL.situacaoFinal} as situacao_final
-        FROM ${MD.candidatos} WHERE ${COL.partido} = '${partido}' ${anoFilter}
+        FROM ${candTable(f)} WHERE ${COL.partido} = '${partido}'
         ORDER BY ${COL.nomeUrna} LIMIT 50`
       );
     },
@@ -587,7 +603,7 @@ export function useMunicipios() {
   return useQuery({
     queryKey: ['municipiosLista'],
     queryFn: async () => {
-      const rows = await mdQuery<{m: string}>(`SELECT DISTINCT ${COL.municipio} as m FROM ${MD.candidatos} WHERE ${COL.municipio} IS NOT NULL ORDER BY m`);
+      const rows = await mdQuery<{m: string}>(`SELECT DISTINCT ${COL.municipio} as m FROM ${MD.candidatos(2024)} WHERE ${COL.municipio} IS NOT NULL ORDER BY m`);
       return rows.map(r => r.m);
     },
   });
@@ -597,7 +613,7 @@ export function usePartidos() {
   return useQuery({
     queryKey: ['partidosLista'],
     queryFn: async () => {
-      const rows = await mdQuery<{p: string}>(`SELECT DISTINCT ${COL.partido} as p FROM ${MD.candidatos} WHERE ${COL.partido} IS NOT NULL ORDER BY p`);
+      const rows = await mdQuery<{p: string}>(`SELECT DISTINCT ${COL.partido} as p FROM ${MD.candidatos(2024)} WHERE ${COL.partido} IS NOT NULL ORDER BY p`);
       return rows.map(r => r.p);
     },
   });
@@ -619,12 +635,13 @@ export function usePerfilCandidatos() {
   return useQuery({
     queryKey: ['perfilCandidatos', f],
     queryFn: async () => {
+      const t = candTable(f);
       const w = buildWhere(f);
       const [total, generos, instrucoes, ocupacoes] = await Promise.all([
-        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${w}`),
-        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.genero}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`),
-        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.escolaridade}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`),
-        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.ocupacao}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC LIMIT 15`),
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${t} ${w}`),
+        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.genero}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${t} ${w} GROUP BY nome ORDER BY total DESC`),
+        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.escolaridade}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${t} ${w} GROUP BY nome ORDER BY total DESC`),
+        mdQuery<{nome: string; total: string}>(`SELECT COALESCE(${COL.ocupacao}, 'NÃO INFORMADO') as nome, count(*) as total FROM ${t} ${w} GROUP BY nome ORDER BY total DESC LIMIT 15`),
       ]);
       return {
         total: Number(total[0]?.total || 0),
@@ -644,10 +661,10 @@ export function usePatrimonioPorPartido() {
     queryFn: async () => {
       const ano = f.ano || 2024;
       return mdQuery<{partido: string; total: string; media: string}>(
-        `SELECT c.${COL.partido} as partido, sum(b.${COL.valorBem}) as total, avg(b.${COL.valorBem}) as media
-        FROM ${MD.bens} b
-        JOIN ${MD.candidatos} c ON b.${COL.sequencial} = c.${COL.sequencial} AND b.${COL.ano} = c.${COL.ano}
-        WHERE b.${COL.ano} = ${ano}
+        `SELECT c.${COL.partido} as partido, sum(${COL.valorBemNum}) as total, avg(${COL.valorBemNum}) as media
+        FROM ${MD.bens(ano)} b
+        JOIN ${MD.candidatos(ano)} c ON CAST(b.${COL.sequencial} AS VARCHAR) = CAST(c.${COL.sequencial} AS VARCHAR)
+        ${buildWhere(f)}
         GROUP BY c.${COL.partido} ORDER BY total DESC LIMIT 15`
       ).then(rows => rows.map(r => ({ partido: r.partido, total: Number(r.total), media: Number(r.media) })));
     },
@@ -660,6 +677,7 @@ export function useExplorador(page: number, pageSize: number, sortBy: string, so
   return useQuery({
     queryKey: ['explorador', f, page, pageSize, sortBy, sortAsc],
     queryFn: async () => {
+      const t = candTable(f);
       const w = buildWhere(f);
       const sortMap: Record<string, string> = {
         nome_urna: COL.nomeUrna, nome_completo: COL.nomeCompleto, numero_urna: COL.numero,
@@ -672,14 +690,14 @@ export function useExplorador(page: number, pageSize: number, sortBy: string, so
       const offset = page * pageSize;
 
       const [countRes, dataRes] = await Promise.all([
-        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${MD.candidatos} ${w}`),
+        mdQuery<{total: string}>(`SELECT count(*) as total FROM ${t} ${w}`),
         mdQuery(
           `SELECT ${COL.sequencial} as id, ${COL.nomeUrna} as nome_urna, ${COL.nomeCompleto} as nome_completo,
             ${COL.numero} as numero_urna, ${COL.partido} as sigla_partido, ${COL.cargo} as cargo,
             ${COL.municipio} as municipio, ${COL.ano} as ano, ${COL.genero} as genero,
             ${COL.escolaridade} as grau_instrucao, ${COL.ocupacao} as ocupacao,
             ${COL.situacaoFinal} as situacao_final
-          FROM ${MD.candidatos} ${w}
+          FROM ${t} ${w}
           ORDER BY ${orderCol} ${dir} LIMIT ${pageSize} OFFSET ${offset}`
         ),
       ]);
@@ -699,7 +717,7 @@ export function useMunicipiosRanking() {
         `SELECT ${COL.municipio} as municipio, count(*) as total,
           count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
           count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres
-        FROM ${MD.candidatos} ${w} GROUP BY ${COL.municipio} ORDER BY total DESC`
+        FROM ${candTable(f)} ${w} GROUP BY ${COL.municipio} ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ municipio: r.municipio, total: Number(r.total), eleitos: Number(r.eleitos), mulheres: Number(r.mulheres) })));
     },
   });
@@ -711,8 +729,7 @@ export function useVotosBrancosNulos() {
   return useQuery({
     queryKey: ['votosBrancosNulos', f],
     queryFn: async () => {
-      const anos = [2016, 2018, 2020, 2022, 2024];
-      const targetAnos = f.ano ? [f.ano] : anos;
+      const targetAnos = f.ano ? [f.ano] : COMP_ANOS;
       const results = await Promise.all(targetAnos.map(async ano => {
         const munFilter = f.municipio ? `AND nm_municipio = '${f.municipio}'` : '';
         try {
@@ -734,20 +751,19 @@ export function useVotosBrancosNulos() {
 
 // ═══ TAXA DE REELEIÇÃO ═══
 export function useTaxaReeleicao() {
-  const f = useFilters();
   return useQuery({
-    queryKey: ['taxaReeleicao', f],
+    queryKey: ['taxaReeleicao'],
     queryFn: async () => {
-      // Count candidates who appear in multiple years with ELEITO status
+      const t = MD.candidatos(null);
       const rows = await mdQuery<{recandidatos: string; reeleitos: string}>(
         `WITH eleitos AS (
           SELECT ${COL.nomeUrna} as nome, ${COL.ano} as ano
-          FROM ${MD.candidatos}
+          FROM ${t}
           WHERE ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%'
         ),
         recand AS (
           SELECT c.${COL.nomeUrna} as nome, c.${COL.ano} as ano, c.${COL.situacaoFinal} as sit
-          FROM ${MD.candidatos} c
+          FROM ${t} c
           JOIN eleitos e ON c.${COL.nomeUrna} = e.nome AND c.${COL.ano} > e.ano
         )
         SELECT count(*) as recandidatos,
@@ -772,13 +788,12 @@ export function usePatrimonioVsVotos() {
       try {
         return await mdQuery(
           `SELECT c.${COL.nomeUrna} as nome, c.${COL.partido} as partido,
-            sum(b.${COL.valorBem}) as patrimonio, COALESCE(sum(v.qt_votos_nominais), 0) as votos
-          FROM ${MD.candidatos} c
-          JOIN ${MD.bens} b ON c.${COL.sequencial} = b.${COL.sequencial} AND c.${COL.ano} = b.${COL.ano}
+            sum(${COL.valorBemNum}) as patrimonio, COALESCE(sum(v.qt_votos_nominais), 0) as votos
+          FROM ${MD.candidatos(ano)} c
+          JOIN ${MD.bens(ano)} b ON CAST(c.${COL.sequencial} AS VARCHAR) = CAST(b.${COL.sequencial} AS VARCHAR)
           LEFT JOIN ${MD.votacao(ano)} v ON c.nm_urna_candidato = v.nm_urna_candidato AND c.nm_ue = v.nm_municipio
-          WHERE c.${COL.ano} = ${ano}
           GROUP BY c.${COL.nomeUrna}, c.${COL.partido}
-          HAVING sum(b.${COL.valorBem}) > 0
+          HAVING sum(${COL.valorBemNum}) > 0
           ORDER BY patrimonio DESC LIMIT 100`
         );
       } catch { return []; }
@@ -791,23 +806,27 @@ export function useComparativoAnos() {
   return useQuery({
     queryKey: ['comparativoAnos'],
     queryFn: async () => {
-      return mdQuery<{ano: string; total: string; eleitos: string; mulheres: string; cargos: string}>(
-        `SELECT ${COL.ano} as ano, count(*) as total,
-          count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
-          count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres,
-          count(DISTINCT ${COL.cargo}) as cargos
-        FROM ${MD.candidatos} GROUP BY ${COL.ano} ORDER BY ano`
-      ).then(rows => rows.map(r => {
-        const total = Number(r.total);
-        const mulheres = Number(r.mulheres);
-        const eleitos = Number(r.eleitos);
-        return {
-          ano: Number(r.ano), total, eleitos, mulheres,
-          pctMulheres: total > 0 ? Math.round((mulheres / total) * 100) : 0,
-          pctEleitos: total > 0 ? Math.round((eleitos / total) * 100) : 0,
-          cargos: Number(r.cargos),
-        };
+      const results = await Promise.all(CAND_ANOS.map(async ano => {
+        try {
+          const [r] = await mdQuery<{total: string; eleitos: string; mulheres: string; cargos: string}>(
+            `SELECT count(*) as total,
+              count(CASE WHEN ${COL.situacaoFinal} ILIKE '%ELEITO%' AND ${COL.situacaoFinal} NOT ILIKE '%NÃO ELEITO%' THEN 1 END) as eleitos,
+              count(CASE WHEN ${COL.genero} = 'FEMININO' THEN 1 END) as mulheres,
+              count(DISTINCT ${COL.cargo}) as cargos
+            FROM ${MD.candidatos(ano)}`
+          );
+          const total = Number(r?.total || 0);
+          const mulheres = Number(r?.mulheres || 0);
+          const eleitos = Number(r?.eleitos || 0);
+          return {
+            ano, total, eleitos, mulheres,
+            pctMulheres: total > 0 ? Math.round((mulheres / total) * 100) : 0,
+            pctEleitos: total > 0 ? Math.round((eleitos / total) * 100) : 0,
+            cargos: Number(r?.cargos || 0),
+          };
+        } catch { return null; }
       }));
+      return results.filter(Boolean).sort((a: any, b: any) => a.ano - b.ano);
     },
   });
 }
@@ -846,7 +865,7 @@ export function useNacionalidade() {
       const w = buildWhere(f);
       return mdQuery<{nome: string; total: string}>(
         `SELECT COALESCE(${COL.nacionalidade}, 'NÃO INFORMADO') as nome, count(*) as total
-        FROM ${MD.candidatos} ${w} GROUP BY nome ORDER BY total DESC`
+        FROM ${candTable(f)} ${w} GROUP BY nome ORDER BY total DESC`
       ).then(rows => rows.map(r => ({ nome: r.nome, total: Number(r.total) })));
     },
   });
