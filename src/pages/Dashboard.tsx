@@ -35,7 +35,7 @@ function MotherDuckStatusCard() {
     ['motherduck-status']
   );
 
-  const total = data?.result_sets?.[0]?.rows?.[0]?.[0] ?? data?.rows?.[0]?.total ?? null;
+  const total = data?.rows?.[0]?.total ?? null;
 
   return (
     <div className="bg-card rounded-lg border border-border/50 p-3 flex items-center gap-3">
