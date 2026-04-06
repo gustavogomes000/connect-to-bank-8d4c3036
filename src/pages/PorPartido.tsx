@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { Pagination } from '@/components/eleicoes/Pagination';
 import { usePartidoResumo, usePartidoDetalhe, useDataAvailability, usePatrimonioPorPartido } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent, getPartidoCor, formatBRLCompact, CHART_COLORS } from '@/lib/eleicoes';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
@@ -28,6 +29,8 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export default function PorPartido() {
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [partidoPage, setPartidoPage] = useState(0);
+  const [partidoPageSize, setPartidoPageSize] = useState(20);
   const navigate = useNavigate();
 
   const { data: resumoData, isLoading } = usePartidoResumo();
@@ -104,38 +107,43 @@ export default function PorPartido() {
             </div>
           </div>
 
-          {/* Summary table */}
-          <div className="bg-card rounded-lg border border-border/50 p-4 overflow-x-auto">
-            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Resumo Completo</h3>
-            <table className="w-full text-xs table-striped">
-              <thead>
-                <tr className="border-b border-border/30 text-left">
-                  <th className="pb-2 px-2 font-medium text-muted-foreground">#</th>
-                  <th className="pb-2 px-2 font-medium text-muted-foreground">Partido</th>
-                  <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Candidatos</th>
-                  <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Eleitos</th>
-                  <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Mulheres</th>
-                  <th className="pb-2 px-2 font-medium text-muted-foreground text-right">% Aprov.</th>
-                  {hasVotos && <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Votos</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {partidos.map((p, i) => {
-                  const aprov = p.candidatos > 0 ? (p.eleitos / p.candidatos) * 100 : 0;
-                  return (
-                    <tr key={p.partido} className="border-b border-border/20 last:border-0">
-                      <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
-                      <td className="py-1.5 px-2 font-semibold" style={{ color: getPartidoCor(p.partido) }}>{p.partido}</td>
-                      <td className="py-1.5 px-2 text-right metric-value">{formatNumber(p.candidatos)}</td>
-                      <td className="py-1.5 px-2 text-right text-success metric-value">{formatNumber(p.eleitos)}</td>
-                      <td className="py-1.5 px-2 text-right text-secondary metric-value">{formatNumber(p.mulheres)}</td>
-                      <td className="py-1.5 px-2 text-right">{formatPercent(aprov)}</td>
-                      {hasVotos && <td className="py-1.5 px-2 text-right font-semibold metric-value">{formatNumber(p.votos)}</td>}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          {/* Summary table with pagination */}
+          <div className="bg-card rounded-lg border border-border/50 overflow-hidden">
+            <div className="p-4 pb-0">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Resumo Completo</h3>
+            </div>
+            <div className="overflow-x-auto px-4">
+              <table className="w-full text-xs table-striped">
+                <thead>
+                  <tr className="border-b border-border/30 text-left">
+                    <th className="pb-2 px-2 font-medium text-muted-foreground">#</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground">Partido</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Candidatos</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Eleitos</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Mulheres</th>
+                    <th className="pb-2 px-2 font-medium text-muted-foreground text-right">% Aprov.</th>
+                    {hasVotos && <th className="pb-2 px-2 font-medium text-muted-foreground text-right">Votos</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {partidos.slice(partidoPage * partidoPageSize, (partidoPage + 1) * partidoPageSize).map((p, i) => {
+                    const aprov = p.candidatos > 0 ? (p.eleitos / p.candidatos) * 100 : 0;
+                    return (
+                      <tr key={p.partido} className="border-b border-border/20 last:border-0">
+                        <td className="py-1.5 px-2 text-muted-foreground">{partidoPage * partidoPageSize + i + 1}</td>
+                        <td className="py-1.5 px-2 font-semibold" style={{ color: getPartidoCor(p.partido) }}>{p.partido}</td>
+                        <td className="py-1.5 px-2 text-right metric-value">{formatNumber(p.candidatos)}</td>
+                        <td className="py-1.5 px-2 text-right text-success metric-value">{formatNumber(p.eleitos)}</td>
+                        <td className="py-1.5 px-2 text-right text-secondary metric-value">{formatNumber(p.mulheres)}</td>
+                        <td className="py-1.5 px-2 text-right">{formatPercent(aprov)}</td>
+                        {hasVotos && <td className="py-1.5 px-2 text-right font-semibold metric-value">{formatNumber(p.votos)}</td>}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination page={partidoPage} totalItems={partidos.length} pageSize={partidoPageSize} onPageChange={setPartidoPage} onPageSizeChange={setPartidoPageSize} />
           </div>
         </TabsContent>
 
