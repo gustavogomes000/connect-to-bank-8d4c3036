@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck,
-  Database, HelpCircle, TrendingUp, Sparkles, MessageSquare,
+  HelpCircle, TrendingUp, Sparkles, MessageSquare, Settings,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -26,7 +26,7 @@ const dimensionItems = [
 ];
 
 const systemItems = [
-  { title: 'Importar', url: '/importar', icon: Database },
+  { title: 'Configurações', url: '/config', icon: Settings },
   { title: 'Ajuda', url: '/ajuda', icon: HelpCircle },
 ];
 

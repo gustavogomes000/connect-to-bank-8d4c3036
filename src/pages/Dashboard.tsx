@@ -1,4 +1,3 @@
-import { useTabelas } from '@/hooks/useBigQuery';
 import {
   useKPIs, useCheckEmpty,
   useCandidatosPorPartido, useDistribuicaoGenero,
@@ -11,7 +10,7 @@ import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, SITUACAO_CORE
 import { KPISkeleton, ChartSkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { EmptyState } from '@/components/eleicoes/EmptyState';
-import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Database, Loader2, Vote, TrendingUp, RefreshCw } from 'lucide-react';
+import { Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Vote, TrendingUp } from 'lucide-react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area, LineChart, Line,
@@ -67,35 +66,6 @@ function useComparecimentoGeral() {
   });
 }
 
-function BigQueryStatus() {
-  const { data: tabelas, isLoading } = useTabelas();
-  if (isLoading) return (
-    <Card className="col-span-full">
-      <div className="flex items-center gap-2 text-muted-foreground text-xs">
-        <Loader2 className="w-3 h-3 animate-spin" />Conectando ao BigQuery...
-      </div>
-    </Card>
-  );
-  if (!tabelas) return null;
-  const totalLinhas = tabelas.reduce((s, t) => s + Number(t.linhas), 0);
-  const totalMB = tabelas.reduce((s, t) => s + Number(t.tamanho_mb), 0);
-  return (
-    <Card>
-      <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-          <Database className="w-4 h-4 text-primary" />
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-foreground">BigQuery Conectado</p>
-          <p className="text-[10px] text-muted-foreground">
-            {tabelas.length} tabelas • {totalLinhas.toLocaleString('pt-BR')} registros • {totalMB.toFixed(0)} MB
-          </p>
-        </div>
-        <Link to="/explorador" className="ml-auto text-xs text-primary hover:underline">Explorar →</Link>
-      </div>
-    </Card>
-  );
-}
 
 export default function Dashboard() {
   const { data: isEmpty, isLoading: loadingEmpty } = useCheckEmpty();
@@ -136,8 +106,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-4 max-w-[1600px] mx-auto">
-      <BigQueryStatus />
-
       {/* KPIs */}
       {loadingKPIs ? <KPISkeleton /> : (
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
