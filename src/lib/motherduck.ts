@@ -25,7 +25,7 @@ const PERFIL_ANOS = [2018, 2020, 2022, 2024];
  * When ano is null: returns UNION ALL subquery.
  */
 // Common columns that exist across ALL year tables for safe UNION ALL
-const CAND_COMMON_COLS = 'ano_eleicao, nr_turno, nm_candidato, nm_urna_candidato, sg_partido, nm_partido, ds_cargo, nm_ue, ds_genero, ds_grau_instrucao, ds_ocupacao, ds_sit_tot_turno, sq_candidato, nr_candidato, nr_cpf_candidato, dt_nascimento, ds_nacionalidade, ds_cor_raca, ds_estado_civil, nm_social_candidato';
+const CAND_COMMON_COLS = 'ano_eleicao, nr_turno, nm_candidato, nm_urna_candidato, sg_partido, nm_partido, ds_cargo, nm_ue, ds_genero, ds_grau_instrucao, ds_ocupacao, ds_sit_tot_turno, sq_candidato, nr_candidato, nr_cpf_candidato, dt_nascimento, ds_nacionalidade, ds_cor_raca, ds_estado_civil';
 const BENS_COMMON_COLS = 'ano_eleicao, sq_candidato, nr_ordem_bem_candidato, ds_tipo_bem_candidato, ds_bem_candidato, vr_bem_candidato';
 
 function yearTable(base: string, anos: number[], ano?: number | null, commonCols?: string): string {

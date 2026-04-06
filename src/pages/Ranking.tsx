@@ -92,7 +92,7 @@ export default function Ranking() {
                   const pos = page * pageSize + idx + 1;
                   return (
                     <tr
-                      key={r.id}
+                      key={`${r.id}-${r.ano}`}
                       className="border-b border-border/20 last:border-0 cursor-pointer hover:bg-primary/5 transition-colors"
                       onClick={() => navigate(`/candidato/${r.id}`)}
                     >
