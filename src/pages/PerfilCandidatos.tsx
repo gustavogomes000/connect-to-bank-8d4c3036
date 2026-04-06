@@ -1,21 +1,21 @@
-import { usePerfilCandidatos, useFaixaEtaria, useDistribuicaoEscolaridade, useTopOcupacoes } from '@/hooks/useEleicoes';
+import { usePerfilCandidatos, useFaixaEtaria, useDistribuicaoEscolaridade, useTopOcupacoes, useNacionalidade } from '@/hooks/useEleicoes';
 import { formatNumber, formatPercent, CHART_COLORS } from '@/lib/eleicoes';
 import { ChartSkeleton } from '@/components/eleicoes/Skeletons';
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Legend, RadialBarChart, RadialBar } from 'recharts';
-import { Users } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Legend } from 'recharts';
+import { Users, Globe } from 'lucide-react';
 
 export default function PerfilCandidatos() {
   const { data: perfil, isLoading } = usePerfilCandidatos();
   const { data: faixaEtaria, isLoading: loadingIdade } = useFaixaEtaria();
   const { data: escolaridade, isLoading: loadingEsc } = useDistribuicaoEscolaridade();
   const { data: ocupacoes, isLoading: loadingOcup } = useTopOcupacoes();
+  const { data: nacionalidade, isLoading: loadingNac } = useNacionalidade();
 
   if (isLoading) return <ChartSkeleton />;
 
   const generoData = (perfil?.generos || []).map((g, i) => ({ ...g, fill: CHART_COLORS[i % CHART_COLORS.length] }));
   const instrucaoData = (escolaridade || perfil?.instrucoes || []).slice(0, 10);
   const ocupacaoData = (ocupacoes || perfil?.ocupacoes || []).slice(0, 15);
-
   const totalCandidatos = perfil?.total || 0;
 
   return (
@@ -108,23 +108,55 @@ export default function PerfilCandidatos() {
         )}
       </div>
 
-      {/* Row 3: Occupation */}
-      <div className="bg-card rounded-lg border border-border/50 p-4">
-        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Top Ocupações</h3>
-        {loadingOcup ? <ChartSkeleton /> : (
-          <ResponsiveContainer width="100%" height={Math.max(350, (ocupacaoData.length || 0) * 25)}>
-            <BarChart data={ocupacaoData} layout="vertical" margin={{ left: 200 }}>
-              <XAxis type="number" tick={{ fontSize: 10 }} />
-              <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={190} />
-              <Tooltip formatter={(v: number) => formatNumber(v)} />
-              <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
-                {(ocupacaoData || []).map((_: any, i: number) => (
-                  <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+      {/* Row 3: Occupation + Nacionalidade */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <div className="bg-card rounded-lg border border-border/50 p-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Top Ocupações</h3>
+          {loadingOcup ? <ChartSkeleton /> : (
+            <ResponsiveContainer width="100%" height={Math.max(350, (ocupacaoData.length || 0) * 25)}>
+              <BarChart data={ocupacaoData} layout="vertical" margin={{ left: 200 }}>
+                <XAxis type="number" tick={{ fontSize: 10 }} />
+                <YAxis type="category" dataKey="nome" tick={{ fontSize: 10 }} width={190} />
+                <Tooltip formatter={(v: number) => formatNumber(v)} />
+                <Bar dataKey="total" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]}>
+                  {(ocupacaoData || []).map((_: any, i: number) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        <div className="bg-card rounded-lg border border-border/50 p-4">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
+            <Globe className="w-3 h-3" /> Nacionalidade
+          </h3>
+          {loadingNac ? <ChartSkeleton /> : (
+            <>
+              <ResponsiveContainer width="100%" height={200}>
+                <PieChart>
+                  <Pie data={(nacionalidade || []).slice(0, 6)} dataKey="total" nameKey="nome" cx="50%" cy="50%" innerRadius={40} outerRadius={75} paddingAngle={2} strokeWidth={0}>
+                    {(nacionalidade || []).slice(0, 6).map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v: number) => formatNumber(v)} />
+                  <Legend wrapperStyle={{ fontSize: 10 }} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="mt-3 space-y-1">
+                {(nacionalidade || []).map((n: any, i: number) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      {n.nome}
+                    </span>
+                    <span className="font-semibold metric-value">{formatNumber(n.total)}</span>
+                  </div>
                 ))}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
