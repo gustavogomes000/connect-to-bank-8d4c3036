@@ -223,7 +223,7 @@ export default function CandidatoPerfil() {
                 ['Nascimento', candidato.data_nascimento],
                 ['Escolaridade', candidato.grau_instrucao],
                 ['Ocupação', candidato.ocupacao],
-                ['Nacionalidade', candidato.nacionalidade],
+                ['UF Nascimento', candidato.uf_nascimento],
                 ['Sit. Final', candidato.situacao_final],
                 ['Turno', candidato.turno ? `${candidato.turno}º Turno` : null],
                 ['Sequencial', candidato.sequencial_candidato],

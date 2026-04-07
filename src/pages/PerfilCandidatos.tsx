@@ -130,7 +130,7 @@ export default function PerfilCandidatos() {
 
         <div className="bg-card rounded-lg border border-border/50 p-4">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Globe className="w-3 h-3" /> Nacionalidade
+            <Globe className="w-3 h-3" /> UF Nascimento
           </h3>
           {loadingNac ? <ChartSkeleton /> : (
             <>
