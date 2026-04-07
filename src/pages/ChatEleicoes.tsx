@@ -313,7 +313,7 @@ const SUGESTOES_RAPIDAS = [
 ];
 
 export default function ChatEleicoes() {
-  const { messages, loading, enviar, limpar } = useChatEleicoes();
+  const { messages, loading, enviar, limpar, cooldownRemaining, isRateLimited } = useChatEleicoes();
   const { favoritos, adicionar, isFavorito } = useChatFavoritos();
   const [input, setInput] = useState('');
   const [showFavoritos, setShowFavoritos] = useState(false);
@@ -355,9 +355,9 @@ export default function ChatEleicoes() {
           <div className="w-9 h-9 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
             <MessageSquare className="w-5 h-5 text-primary" />
           </div>
-          <div>
-            <h1 className="text-base font-bold text-foreground">Chat Eleições</h1>
-            <p className="text-[10px] text-muted-foreground">Pergunte qualquer coisa sobre os dados eleitorais de Goiás</p>
+           <div>
+            <h1 className="text-base font-bold text-foreground">Consulta por IA</h1>
+            <p className="text-[10px] text-muted-foreground">Converse com o Gemini sobre os dados eleitorais de Goiás</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
@@ -395,9 +395,9 @@ export default function ChatEleicoes() {
             <div className="w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4">
               <Database className="w-8 h-8 text-primary/60" />
             </div>
-            <h2 className="text-lg font-semibold text-foreground mb-1">Chat Eleições GO</h2>
+             <h2 className="text-lg font-semibold text-foreground mb-1">Consulta por IA</h2>
             <p className="text-xs text-muted-foreground max-w-md mb-6">
-              Converse com o banco de dados eleitorais de Goiás. Pergunte sobre candidatos, votos, partidos, comparecimento, patrimônio e mais.
+              Converse com o Gemini sobre candidatos, votos, partidos, comparecimento, patrimônio e mais dados eleitorais de Goiás.
             </p>
 
             {/* Quick Favoritos */}
@@ -453,6 +453,16 @@ export default function ChatEleicoes() {
 
       {/* Input area */}
       <div className="border-t border-border/30 pt-3 shrink-0">
+        {/* Rate limit warning */}
+        {(isRateLimited || cooldownRemaining > 0) && (
+          <div className="mb-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/30 text-center">
+            <p className="text-xs text-warning font-medium">
+              {isRateLimited
+                ? `⏳ Limite atingido — aguarde ${cooldownRemaining}s para a próxima pergunta`
+                : `⏳ Aguarde ${cooldownRemaining}s antes da próxima pergunta`}
+            </p>
+          </div>
+        )}
         <div className="flex gap-2 items-end">
           <div className="flex-1 relative">
             <Textarea
@@ -462,13 +472,13 @@ export default function ChatEleicoes() {
               onKeyDown={handleKeyDown}
               placeholder="Pergunte sobre candidatos, votos, partidos, comparecimento..."
               className="min-h-[44px] max-h-[120px] resize-none pr-12 text-sm bg-muted/30 border-border/50"
-              disabled={loading}
+              disabled={loading || isRateLimited}
               rows={1}
             />
           </div>
           <Button
             onClick={handleSend}
-            disabled={loading || !input.trim()}
+            disabled={loading || !input.trim() || isRateLimited}
             size="icon"
             className="h-[44px] w-[44px] shrink-0"
           >
@@ -476,7 +486,7 @@ export default function ChatEleicoes() {
           </Button>
         </div>
         <p className="text-[9px] text-muted-foreground/50 text-center mt-2">
-          100% algorítmico • Sem IA externa • Dados do TSE/Goiás 2012-2024
+          Powered by Gemini • Dados do TSE/Goiás 2012-2024
         </p>
       </div>
     </div>
