@@ -457,9 +457,25 @@ ${SCHEMA_COMPLETO}`;
     const colunas = dados.length > 0 ? Object.keys(dados[0]) : [];
     let resposta = plan.descricao || plan.titulo;
     if (dados.length === 0) {
-      resposta = `Nenhum dado encontrado para "${pergunta}".`;
+      resposta = `Nenhum dado encontrado para "${pergunta}". Tente ajustar os filtros (ano, município, cargo).`;
+    } else if (dados.length === 1 && colunas.length <= 6) {
+      // KPI-style summary
+      const parts = colunas.map(c => {
+        const v = dados[0][c];
+        const formatted = typeof v === 'number' ? v.toLocaleString('pt-BR') : v;
+        return `**${c.replace(/_/g, ' ')}**: ${formatted}`;
+      });
+      resposta = `**${plan.titulo}**\n\n${parts.join(' · ')}`;
     } else {
-      resposta = `${plan.titulo}: ${dados.length} resultado(s). ${plan.descricao}`;
+      // Summary with top highlights
+      const firstCol = colunas[0];
+      const numCol = colunas.find(c => typeof dados[0]?.[c] === 'number');
+      const highlights = dados.slice(0, 3).map((r, i) => {
+        const label = r[firstCol] || '';
+        const val = numCol && typeof r[numCol] === 'number' ? ` (${r[numCol].toLocaleString('pt-BR')})` : '';
+        return `${i + 1}. ${label}${val}`;
+      }).join(', ');
+      resposta = `**${plan.titulo}** — ${dados.length} resultado(s).\n\nDestaques: ${highlights}${dados.length > 3 ? '...' : ''}`;
     }
 
     return new Response(JSON.stringify({
