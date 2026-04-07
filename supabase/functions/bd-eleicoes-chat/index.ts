@@ -254,8 +254,8 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
     }
     case "distribuicao_idade": {
       const w = buildWhere(e);
-      const wc = w ? `${w} AND dt_nascimento IS NOT NULL` : "WHERE dt_nascimento IS NOT NULL";
-      return { sql: `SELECT CASE WHEN age<=25 THEN '18-25' WHEN age<=35 THEN '26-35' WHEN age<=45 THEN '36-45' WHEN age<=55 THEN '46-55' WHEN age<=65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total FROM (SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE,TRY_CAST(dt_nascimento AS DATE)))AS INT) as age FROM ${candTable(ano)} ${wc}) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`, tipo_grafico: "bar", titulo: `Faixa etária — ${ano}`, descricao: `Distribuição` };
+      const wc = w ? `${w} AND dt_nascimento IS NOT NULL AND dt_nascimento != ''` : "WHERE dt_nascimento IS NOT NULL AND dt_nascimento != ''";
+      return { sql: `SELECT CASE WHEN age<=25 THEN '18-25' WHEN age<=35 THEN '26-35' WHEN age<=45 THEN '36-45' WHEN age<=55 THEN '46-55' WHEN age<=65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total FROM (SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE,TRY_CAST(dt_nascimento AS DATE)))AS INT) as age FROM ${candTable(ano)} ${wc} AND TRY_CAST(dt_nascimento AS DATE) IS NOT NULL) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`, tipo_grafico: "bar", titulo: `Faixa etária — ${ano}`, descricao: `Distribuição` };
     }
     case "bairro_comparecimento":
       return { sql: `SELECT nm_bairro AS bairro, count(DISTINCT nr_local_votacao) AS locais, sum(qt_eleitor_secao) AS eleitores FROM ${eleitLocalTable(ano)} WHERE nm_municipio='${mun}' AND nm_bairro IS NOT NULL AND nm_bairro!='' GROUP BY nm_bairro ORDER BY eleitores DESC LIMIT 30`, tipo_grafico: "bar", titulo: `Bairros — ${mun} ${ano}`, descricao: `Eleitores por bairro` };
