@@ -548,27 +548,22 @@ ${SCHEMA_COMPLETO}`;
       }
     }
 
-    // ── STEP 4: Gemini interprets data → text response ──
-    // For small/simple results, generate text algorithmically (save AI call)
+    // ── STEP 4: Format response as text ──
+    // Maximize algorithmic formatting, minimize AI calls for MVP efficiency
     let resposta: string;
 
     if (dados.length === 0) {
       resposta = "Não encontrei resultados para essa consulta. Tente reformular ou verificar os filtros (ano, município, cargo).";
-    } else if (dados.length <= 5 && Object.keys(dados[0]).length <= 3) {
-      // Simple results: format algorithmically, no AI needed
+    } else if (dados.length <= 15) {
+      // Format algorithmically — no AI call needed for most results
       resposta = formatSimpleResult(intent, entities, dados);
     } else {
-      // Complex results: use Gemini to write a nice text response
-      const dadosResumo = dados.length > 30
-        ? JSON.stringify(dados.slice(0, 30)) + `\n... (total: ${dados.length} registros)`
-        : JSON.stringify(dados);
-
+      // Large results: use Gemini only for interpretation (compact prompt)
+      const sample = dados.slice(0, 15);
       const textRaw = await callGemini(
-        `Você é um assistente de eleições de Goiás. Escreva uma resposta em texto (markdown) clara e informativa.
-NÃO mencione SQL, banco de dados ou termos técnicos. Use negrito, listas e tabelas quando útil.
-Inclua números relevantes. Seja direto mas completo.`,
-        `Pergunta: "${pergunta}"\nDados (${dados.length} registros):\n${dadosResumo}`,
-        geminiKey, 1500
+        `Assistente de eleições de Goiás. Responda em markdown. NÃO mencione SQL/banco. Use negrito e listas. Seja direto.`,
+        `Pergunta: "${pergunta}"\nDados (${dados.length} registros, amostra de 15):\n${JSON.stringify(sample)}`,
+        geminiKey, 800
       );
 
       resposta = (textRaw && textRaw !== "ERROR:429" && textRaw !== "ERROR:402")
