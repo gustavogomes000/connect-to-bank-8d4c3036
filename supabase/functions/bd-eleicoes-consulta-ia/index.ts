@@ -47,60 +47,46 @@ ATENÇÃO: Use APENAS as colunas listadas abaixo. NUNCA invente colunas.
 
 1. my_db.candidatos_YYYY_GO (anos: 2012-2024)
    Colunas: ano_eleicao(BIGINT), nr_turno(BIGINT), nm_candidato(VARCHAR), nm_urna_candidato(VARCHAR),
-   nm_social_candidato(VARCHAR), sg_partido(VARCHAR), nm_partido(VARCHAR), ds_cargo(VARCHAR),
+   sg_partido(VARCHAR), nm_partido(VARCHAR), ds_cargo(VARCHAR),
    nm_ue(VARCHAR=município), sg_uf(VARCHAR), sq_candidato(BIGINT), nr_candidato(BIGINT),
-   nr_cpf_candidato(BIGINT), ds_email(VARCHAR), ds_situacao_candidatura(VARCHAR),
-   sg_uf_nascimento(VARCHAR), dt_nascimento(DATE), ds_genero(VARCHAR), ds_grau_instrucao(VARCHAR),
+   nr_cpf_candidato(BIGINT), ds_situacao_candidatura(VARCHAR),
+   sg_uf_nascimento(VARCHAR), dt_nascimento(VARCHAR - pode ser vazio!), ds_genero(VARCHAR), ds_grau_instrucao(VARCHAR),
    ds_ocupacao(VARCHAR), ds_cor_raca(VARCHAR), ds_estado_civil(VARCHAR),
    ds_sit_tot_turno(VARCHAR=situação final: ELEITO/NÃO ELEITO/etc),
-   nr_partido(BIGINT), tp_agremiacao(VARCHAR)
+   nr_partido(BIGINT)
    ⚠️ NÃO EXISTE: ds_nacionalidade, nr_idade_data_posse, nm_bairro
+   ⚠️ dt_nascimento pode conter strings vazias! SEMPRE use TRY_CAST(dt_nascimento AS DATE)
 
 2. my_db.bens_candidatos_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao(BIGINT), sg_uf(VARCHAR), sg_ue(BIGINT), nm_ue(VARCHAR),
-   sq_candidato(BIGINT), nr_ordem_bem_candidato(BIGINT),
+   Colunas: ano_eleicao, sg_uf, nm_ue, sq_candidato(BIGINT), nr_ordem_bem_candidato(BIGINT),
    ds_tipo_bem_candidato(VARCHAR), ds_bem_candidato(VARCHAR),
    vr_bem_candidato(VARCHAR! vírgula decimal, ex: '100000,00')
    ⚠️ Para somar: CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)
-   ⚠️ NÃO TEM: nm_candidato, sg_partido, nr_turno (precisa JOIN com candidatos via sq_candidato)
+   ⚠️ NÃO TEM: nm_candidato, sg_partido (precisa JOIN com candidatos via sq_candidato)
 
 3. my_db.votacao_munzona_YYYY_GO (anos: 2012-2024)
-   Colunas: ano_eleicao, nr_turno, sg_uf, nm_ue, cd_municipio(BIGINT), nm_municipio(VARCHAR),
-   nr_zona(BIGINT), cd_cargo, ds_cargo, sq_candidato, nr_candidato, nm_candidato,
-   nm_urna_candidato, sg_partido, nm_partido, qt_votos_nominais(BIGINT),
-   ds_sit_tot_turno, ds_situacao_candidatura
+   Colunas: ano_eleicao, nr_turno, nm_municipio(VARCHAR), nr_zona(BIGINT), ds_cargo,
+   sq_candidato, nr_candidato, nm_candidato, nm_urna_candidato, sg_partido, nm_partido,
+   qt_votos_nominais(BIGINT), ds_sit_tot_turno
 
 4. my_db.comparecimento_munzona_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, cd_cargo, ds_cargo,
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
    qt_aptos(BIGINT), qt_comparecimento(BIGINT), qt_abstencoes(BIGINT),
-   qt_votos_brancos(BIGINT), qt_votos_nulos(BIGINT), qt_votos(BIGINT)
+   qt_votos_brancos(BIGINT), qt_votos_nulos(BIGINT)
 
-5. my_db.comparecimento_abstencao_YYYY_GO (anos: 2018-2024)
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona,
-   ds_genero, ds_estado_civil, ds_faixa_etaria, ds_grau_escolaridade, ds_cor_raca,
-   qt_aptos(BIGINT), qt_comparecimento(BIGINT), qt_abstencao(BIGINT)
-
-6. my_db.eleitorado_local_YYYY_GO (anos: 2018-2024) — TEM BAIRRO!
-   Colunas: aa_eleicao(BIGINT), nm_municipio, nr_zona, nr_secao,
-   nr_local_votacao(BIGINT), nm_local_votacao(VARCHAR), ds_endereco(VARCHAR),
-   nm_bairro(VARCHAR), nr_cep(VARCHAR), nr_latitude(DOUBLE), nr_longitude(DOUBLE),
-   qt_eleitor_secao(BIGINT), qt_eleitor_eleicao_municipal(BIGINT)
+5. my_db.eleitorado_local_YYYY_GO (anos: 2018-2024) — TEM BAIRRO!
+   Colunas: aa_eleicao(BIGINT! não ano_eleicao), nm_municipio, nr_zona, nr_secao,
+   nm_local_votacao(VARCHAR), ds_endereco(VARCHAR), nm_bairro(VARCHAR),
+   qt_eleitor_secao(BIGINT)
    ⚠️ Campo ano é aa_eleicao (não ano_eleicao)
 
-7. my_db.votacao_secao_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, nr_secao, ds_cargo,
-   qt_aptos, qt_comparecimento, qt_abstencoes, qt_votos_nominais, qt_votos_brancos,
-   qt_votos_nulos, qt_votos_legenda, nr_local_votacao, nm_local_votacao,
-   ds_local_votacao_endereco
-
-8. my_db.votacao_partido_munzona_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, cd_cargo, ds_cargo,
+6. my_db.votacao_partido_munzona_YYYY_GO (anos: 2014-2024)
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
    nr_partido, sg_partido, nm_partido, qt_votos_nominais, qt_votos_legenda
 
-9. my_db.perfil_eleitorado_YYYY_GO (anos: 2018-2024)
-   Colunas: ano_eleicao, nm_municipio, nr_zona, ds_genero, ds_estado_civil,
-   ds_faixa_etaria, ds_grau_escolaridade, ds_raca_cor,
-   qt_eleitores_perfil(BIGINT), qt_eleitores_biometria(BIGINT)
+7. my_db.perfil_eleitorado_YYYY_GO (anos: 2018-2024)
+   Colunas: ano_eleicao, nm_municipio, nr_zona, ds_genero, ds_faixa_etaria,
+   ds_grau_escolaridade, ds_raca_cor, qt_eleitores_perfil(BIGINT), qt_eleitores_biometria
 
 REGRAS:
 - Sempre especifique o ano na tabela (ex: my_db.candidatos_2024_GO)
@@ -108,6 +94,7 @@ REGRAS:
 - vr_bem_candidato é VARCHAR com vírgula decimal
 - NUNCA use colunas que não existem
 - Use LIMIT máximo 200
+- dt_nascimento é VARCHAR e pode ser vazio - SEMPRE use TRY_CAST
 - Contexto: Dados eleitorais do estado de Goiás (GO), Brasil
 `;
 
@@ -251,15 +238,14 @@ function extractEntities(text: string): Entities {
 }
 
 // =============================================
-// SQL BUILDER (same templates as chat)
+// SQL BUILDER
 // =============================================
 
 function candTable(ano: number) { return `my_db.candidatos_${ano}_GO`; }
 function bensTable(ano: number) { return `my_db.bens_candidatos_${ano}_GO`; }
-function votTable(ano: number) { return `my_db.votacao_munzona_${ano}_GO`; }
+function votPartTable(ano: number) { return `my_db.votacao_partido_munzona_${ano}_GO`; }
 function compTable(ano: number) { return `my_db.comparecimento_munzona_${ano}_GO`; }
 function eleitLocalTable(ano: number) { return `my_db.eleitorado_local_${ano}_GO`; }
-function votPartTable(ano: number) { return `my_db.votacao_partido_munzona_${ano}_GO`; }
 
 function buildWhere(e: Entities, isMunField = false): string {
   const munField = isMunField ? "nm_municipio" : "nm_ue";
@@ -282,7 +268,6 @@ function buildSQL(intent: Intent, e: Entities): string {
   switch (intent) {
     case "ranking_votos":
     case "total_votos": {
-      // votacao_munzona has incomplete candidate data — use party ranking instead
       const mCond = e.municipios.length ? `WHERE nm_municipio = '${mun}'` : '';
       const cCond = e.cargos.length ? `${mCond ? ' AND' : ' WHERE'} ds_cargo ILIKE '%${e.cargos[0]}%'` : '';
       return `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda
@@ -342,11 +327,18 @@ function buildSQL(intent: Intent, e: Entities): string {
     }
     case "distribuicao_idade": {
       const w = buildWhere(e);
-      const wc = w ? `${w} AND dt_nascimento IS NOT NULL AND dt_nascimento != ''` : "WHERE dt_nascimento IS NOT NULL AND dt_nascimento != ''";
+      // Use subquery to safely filter valid dates first, then calculate age
+      const baseWhere = w || 'WHERE 1=1';
       return `SELECT CASE WHEN age <= 25 THEN '18-25' WHEN age <= 35 THEN '26-35' WHEN age <= 45 THEN '36-45'
         WHEN age <= 55 THEN '46-55' WHEN age <= 65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total
-        FROM (SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE, TRY_CAST(dt_nascimento AS DATE))) AS INT) as age
-        FROM ${candTable(ano)} ${wc} AND TRY_CAST(dt_nascimento AS DATE) IS NOT NULL) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`;
+        FROM (
+          SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE, valid_date)) AS INT) as age
+          FROM (
+            SELECT TRY_CAST(dt_nascimento AS DATE) as valid_date
+            FROM ${candTable(ano)} ${baseWhere}
+          ) dates
+          WHERE valid_date IS NOT NULL
+        ) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`;
     }
     case "bairro_comparecimento":
       return `SELECT nm_bairro AS bairro, count(DISTINCT nr_local_votacao) AS locais, sum(qt_eleitor_secao) AS eleitores
@@ -523,7 +515,6 @@ ${SCHEMA_COMPLETO}`;
       dados = await executarQuery(sql);
     } catch (queryErr: any) {
       console.error("Query error:", queryErr.message, "SQL:", sql);
-      // Retry with Gemini error correction
       const retryRaw = await callGemini(
         `SQL falhou. Corrija usando APENAS colunas existentes.\n${SCHEMA_COMPLETO}\nResponda APENAS JSON: {"sql":"SELECT ..."}`,
         `Pergunta: "${pergunta}"\nSQL: ${sql}\nErro: ${queryErr.message}`,
@@ -554,16 +545,13 @@ ${SCHEMA_COMPLETO}`;
     }
 
     // ── STEP 4: Format response as text ──
-    // Maximize algorithmic formatting, minimize AI calls for MVP efficiency
     let resposta: string;
 
     if (dados.length === 0) {
       resposta = "Não encontrei resultados para essa consulta. Tente reformular ou verificar os filtros (ano, município, cargo).";
     } else if (dados.length <= 15) {
-      // Format algorithmically — no AI call needed for most results
       resposta = formatSimpleResult(intent, entities, dados);
     } else {
-      // Large results: use Gemini only for interpretation (compact prompt)
       const sample = dados.slice(0, 15);
       const textRaw = await callGemini(
         `Assistente de eleições de Goiás. Responda em markdown. NÃO mencione SQL/banco. Use negrito e listas. Seja direto.`,
@@ -600,7 +588,6 @@ function formatSimpleResult(intent: Intent, entities: Entities, dados: Record<st
   const cols = Object.keys(dados[0]);
 
   if (dados.length === 1 && cols.length <= 6) {
-    // KPI-style
     const lines = cols.map(c => {
       const v = dados[0][c];
       const formatted = typeof v === 'number' ? v.toLocaleString('pt-BR') : v;
@@ -609,7 +596,6 @@ function formatSimpleResult(intent: Intent, entities: Entities, dados: Record<st
     return `📊 **Resultado — ${mun} ${ano}**\n\n${lines.join('\n')}`;
   }
 
-  // Table-style
   let text = `📊 **${mun} ${ano}** — ${dados.length} resultado(s)\n\n`;
   const header = `| ${cols.map(c => c.replace(/_/g, ' ')).join(' | ')} |`;
   const separator = `| ${cols.map(() => '---').join(' | ')} |`;

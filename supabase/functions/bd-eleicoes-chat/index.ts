@@ -46,8 +46,9 @@ const SCHEMA_COMPLETO = `
 Tabelas DuckDB/MotherDuck. Banco: my_db. Sufixo: _YYYY_GO.
 Use APENAS colunas listadas. NUNCA invente.
 
-1. candidatos_YYYY_GO (2012-2024): ano_eleicao,nr_turno,nm_candidato,nm_urna_candidato,sg_partido,nm_partido,ds_cargo,nm_ue(município),sq_candidato,nr_candidato,ds_situacao_candidatura,dt_nascimento(DATE),ds_genero,ds_grau_instrucao,ds_ocupacao,ds_cor_raca,ds_estado_civil,ds_sit_tot_turno(ELEITO/NÃO ELEITO),nr_partido
+1. candidatos_YYYY_GO (2012-2024): ano_eleicao,nr_turno,nm_candidato,nm_urna_candidato,sg_partido,nm_partido,ds_cargo,nm_ue(município),sq_candidato,nr_candidato,ds_situacao_candidatura,dt_nascimento(VARCHAR-pode ser vazio!),ds_genero,ds_grau_instrucao,ds_ocupacao,ds_cor_raca,ds_estado_civil,ds_sit_tot_turno(ELEITO/NÃO ELEITO),nr_partido
 ⚠️ SEM: ds_nacionalidade,nr_idade_data_posse,nm_bairro
+⚠️ dt_nascimento é VARCHAR e pode ser vazio - SEMPRE use TRY_CAST
 
 2. bens_candidatos_YYYY_GO (2014-2024): ano_eleicao,sg_uf,nm_ue,sq_candidato,nr_ordem_bem_candidato,ds_tipo_bem_candidato,ds_bem_candidato,vr_bem_candidato(VARCHAR vírgula→CAST(REPLACE(v,',','.')AS DOUBLE))
 ⚠️ SEM: nm_candidato,sg_partido (JOIN via sq_candidato)
@@ -186,7 +187,6 @@ function extractEntities(text: string): Entities {
 
 function candTable(a: number) { return `my_db.candidatos_${a}_GO`; }
 function bensTable(a: number) { return `my_db.bens_candidatos_${a}_GO`; }
-function votTable(a: number) { return `my_db.votacao_munzona_${a}_GO`; }
 function compTable(a: number) { return `my_db.comparecimento_munzona_${a}_GO`; }
 function eleitLocalTable(a: number) { return `my_db.eleitorado_local_${a}_GO`; }
 function votPartTable(a: number) { return `my_db.votacao_partido_munzona_${a}_GO`; }
@@ -255,8 +255,8 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
     }
     case "distribuicao_idade": {
       const w = buildWhere(e);
-      const wc = w ? `${w} AND dt_nascimento IS NOT NULL AND dt_nascimento != ''` : "WHERE dt_nascimento IS NOT NULL AND dt_nascimento != ''";
-      return { sql: `SELECT CASE WHEN age<=25 THEN '18-25' WHEN age<=35 THEN '26-35' WHEN age<=45 THEN '36-45' WHEN age<=55 THEN '46-55' WHEN age<=65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total FROM (SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE,TRY_CAST(dt_nascimento AS DATE)))AS INT) as age FROM ${candTable(ano)} ${wc} AND TRY_CAST(dt_nascimento AS DATE) IS NOT NULL) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`, tipo_grafico: "bar", titulo: `Faixa etária — ${ano}`, descricao: `Distribuição` };
+      const baseWhere = w || 'WHERE 1=1';
+      return { sql: `SELECT CASE WHEN age<=25 THEN '18-25' WHEN age<=35 THEN '26-35' WHEN age<=45 THEN '36-45' WHEN age<=55 THEN '46-55' WHEN age<=65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total FROM (SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE,valid_date))AS INT) as age FROM (SELECT TRY_CAST(dt_nascimento AS DATE) as valid_date FROM ${candTable(ano)} ${baseWhere}) dates WHERE valid_date IS NOT NULL) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`, tipo_grafico: "bar", titulo: `Faixa etária — ${ano}`, descricao: `Distribuição` };
     }
     case "bairro_comparecimento":
       return { sql: `SELECT nm_bairro AS bairro, count(DISTINCT nr_local_votacao) AS locais, sum(qt_eleitor_secao) AS eleitores FROM ${eleitLocalTable(ano)} WHERE nm_municipio='${mun}' AND nm_bairro IS NOT NULL AND nm_bairro!='' GROUP BY nm_bairro ORDER BY eleitores DESC LIMIT 30`, tipo_grafico: "bar", titulo: `Bairros — ${mun} ${ano}`, descricao: `Eleitores por bairro` };
@@ -419,7 +419,6 @@ ${SCHEMA_COMPLETO}`;
       dados = await exec(plan.sql);
     } catch (queryErr: any) {
       console.error("Query error:", queryErr.message, "SQL:", plan.sql);
-      // Retry with AI correction
       if (lovableKey) {
         const retryRaw = await callLovableAI(
           `SQL falhou. Corrija usando APENAS colunas existentes.\n${SCHEMA_COMPLETO}\nResponda APENAS JSON válido sem markdown: {"sql":"SELECT ...","tipo_grafico":"...","titulo":"...","descricao":"..."}`,
@@ -460,7 +459,6 @@ ${SCHEMA_COMPLETO}`;
     if (dados.length === 0) {
       resposta = `Nenhum dado encontrado para "${pergunta}". Tente ajustar os filtros (ano, município, cargo).`;
     } else if (dados.length === 1 && colunas.length <= 6) {
-      // KPI-style summary
       const parts = colunas.map(c => {
         const v = dados[0][c];
         const formatted = typeof v === 'number' ? v.toLocaleString('pt-BR') : v;
@@ -468,7 +466,6 @@ ${SCHEMA_COMPLETO}`;
       });
       resposta = `**${plan.titulo}**\n\n${parts.join(' · ')}`;
     } else {
-      // Summary with top highlights
       const firstCol = colunas[0];
       const numCol = colunas.find(c => typeof dados[0]?.[c] === 'number');
       const highlights = dados.slice(0, 3).map((r, i) => {
