@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import type { ConsultaResultado } from './useConsultaIA';
 
 const STORAGE_KEY = 'eleicoes_relatorios_salvos';
 const MAX_SALVOS = 50;
@@ -7,7 +6,7 @@ const MAX_SALVOS = 50;
 export interface RelatorioSalvo {
   id: string;
   consulta: string;
-  resultado: ConsultaResultado;
+  resposta: string;
   criadoEm: string;
 }
 
@@ -29,13 +28,13 @@ export function useRelatoriosSalvos() {
 
   useEffect(() => { save(salvos); }, [salvos]);
 
-  const salvar = useCallback((consulta: string, resultado: ConsultaResultado) => {
+  const salvar = useCallback((consulta: string, resposta: string) => {
     setSalvos(prev => {
       if (prev.some(s => s.consulta === consulta.trim())) return prev;
       const novo: RelatorioSalvo = {
         id: `rel_${Date.now()}`,
         consulta: consulta.trim(),
-        resultado,
+        resposta,
         criadoEm: new Date().toISOString(),
       };
       return [novo, ...prev].slice(0, MAX_SALVOS);
