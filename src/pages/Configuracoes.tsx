@@ -1,18 +1,35 @@
-import { useTabelas } from '@/hooks/useBigQuery';
 import { useDataAvailability } from '@/hooks/useEleicoes';
-import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
+import { mdQuery } from '@/lib/motherduck';
 import { formatNumber } from '@/lib/eleicoes';
-import { Database, CheckCircle, XCircle, Loader2, Settings, Server, HardDrive } from 'lucide-react';
+import { Database, CheckCircle, XCircle, Loader2, Settings, Server, HardDrive, Table2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
 
-function BigQueryStatus() {
-  const { data: tabelas, isLoading, error } = useTabelas();
+function MotherDuckStatus() {
+  const { data: tabelas, isLoading, error } = useQuery({
+    queryKey: ['md-status-tables'],
+    queryFn: async () => {
+      const rows = await mdQuery<{table_name: string}>(`SELECT table_name FROM information_schema.tables WHERE table_schema = 'main' AND table_catalog = 'my_db' ORDER BY table_name`);
+      const counts: {name: string; count: number}[] = [];
+      // Get counts for a sample of tables (first 20)
+      for (const r of rows.slice(0, 20)) {
+        try {
+          const [c] = await mdQuery<{total: string}>(`SELECT count(*) as total FROM my_db.${r.table_name}`);
+          counts.push({ name: r.table_name, count: Number(c?.total || 0) });
+        } catch {
+          counts.push({ name: r.table_name, count: 0 });
+        }
+      }
+      return { total: rows.length, tabelas: counts, allNames: rows.map(r => r.table_name) };
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   if (isLoading) return (
     <div className="bg-card rounded-lg border border-border/50 p-6 flex items-center gap-3">
       <Loader2 className="w-5 h-5 animate-spin text-primary" />
-      <span className="text-sm text-muted-foreground">Conectando ao BigQuery...</span>
+      <span className="text-sm text-muted-foreground">Conectando ao MotherDuck...</span>
     </div>
   );
 
@@ -21,24 +38,23 @@ function BigQueryStatus() {
       <div className="flex items-center gap-3">
         <XCircle className="w-5 h-5 text-destructive" />
         <div>
-          <p className="text-sm font-semibold text-destructive">Erro na conexão BigQuery</p>
+          <p className="text-sm font-semibold text-destructive">Erro na conexão MotherDuck</p>
           <p className="text-xs text-muted-foreground mt-1">{(error as any).message}</p>
         </div>
       </div>
     </div>
   );
 
-  if (!tabelas || tabelas.length === 0) return (
+  if (!tabelas || tabelas.total === 0) return (
     <div className="bg-card rounded-lg border border-warning/30 p-6">
       <div className="flex items-center gap-3">
         <Database className="w-5 h-5 text-warning" />
-        <p className="text-sm text-muted-foreground">Nenhuma tabela encontrada no BigQuery</p>
+        <p className="text-sm text-muted-foreground">Nenhuma tabela encontrada no MotherDuck</p>
       </div>
     </div>
   );
 
-  const totalLinhas = tabelas.reduce((s, t) => s + Number(t.linhas), 0);
-  const totalMB = tabelas.reduce((s, t) => s + Number(t.tamanho_mb), 0);
+  const totalRegistros = tabelas.tabelas.reduce((s, t) => s + t.count, 0);
 
   return (
     <div className="space-y-4">
@@ -48,33 +64,32 @@ function BigQueryStatus() {
             <CheckCircle className="w-5 h-5 text-success" />
           </div>
           <div>
-            <p className="text-sm font-semibold text-foreground">BigQuery Conectado</p>
+            <p className="text-sm font-semibold text-foreground">MotherDuck Conectado</p>
             <p className="text-xs text-muted-foreground">
-              {tabelas.length} tabelas • {formatNumber(totalLinhas)} registros • {totalMB.toFixed(0)} MB
+              {tabelas.total} tabelas • {formatNumber(totalRegistros)} registros (amostra)
             </p>
           </div>
         </div>
       </div>
 
-      <div className="bg-card rounded-lg border border-border/50 overflow-hidden">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="border-b border-border/30 bg-muted/30">
-              <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">Tabela</th>
-              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Registros</th>
-              <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">Tamanho (MB)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {tabelas.map((t) => (
-              <tr key={t.nome} className="border-b border-border/20 last:border-0">
-                <td className="px-4 py-2 font-mono text-foreground">{t.nome}</td>
-                <td className="px-4 py-2 text-right metric-value">{Number(t.linhas).toLocaleString('pt-BR')}</td>
-                <td className="px-4 py-2 text-right text-muted-foreground">{Number(t.tamanho_mb).toFixed(1)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <div className="bg-card rounded-lg border border-border/50 p-4">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+          Categorias de Dados ({tabelas.total} tabelas)
+        </h3>
+        <div className="flex flex-wrap gap-1.5">
+          {['candidatos', 'bens_candidatos', 'votacao_munzona', 'votacao_partido', 'votacao_secao',
+            'comparecimento_munzona', 'comparecimento_abstencao', 'perfil_eleitorado', 'perfil_eleitor_secao',
+            'eleitorado_local', 'receitas', 'despesas', 'coligacoes', 'vagas', 'redes_sociais',
+            'mesarios', 'boletim_urna', 'cassacoes', 'pesquisas'].map(cat => {
+            const count = tabelas.allNames.filter(n => n.startsWith(cat)).length;
+            return count > 0 ? (
+              <Badge key={cat} variant="secondary" className="text-[10px] py-0.5">
+                <Table2 className="w-2.5 h-2.5 mr-1" />
+                {cat} <span className="ml-1 opacity-60">({count})</span>
+              </Badge>
+            ) : null;
+          })}
+        </div>
       </div>
     </div>
   );
@@ -83,39 +98,19 @@ function BigQueryStatus() {
 function SupabaseStatus() {
   const { data: availability, isLoading } = useDataAvailability();
 
-  const tables = [
-    { key: 'candidatos', label: 'Candidatos', table: 'bd_eleicoes_candidatos' },
-    { key: 'votacao', label: 'Votação', table: 'bd_eleicoes_votacao' },
-    { key: 'comparecimento', label: 'Comparecimento', table: 'bd_eleicoes_comparecimento' },
-    { key: 'bens', label: 'Bens', table: 'bd_eleicoes_bens_candidatos' },
-    { key: 'partido', label: 'Votação Partido', table: 'bd_eleicoes_votacao_partido' },
-    { key: 'locais', label: 'Locais de Votação', table: 'bd_eleicoes_locais_votacao' },
-    { key: 'secao', label: 'Comparecimento Seção', table: 'bd_eleicoes_comparecimento_secao' },
-  ];
-
   if (isLoading) return (
     <div className="bg-card rounded-lg border border-border/50 p-6 flex items-center gap-3">
       <Loader2 className="w-5 h-5 animate-spin text-primary" />
-      <span className="text-sm text-muted-foreground">Verificando tabelas Supabase...</span>
+      <span className="text-sm text-muted-foreground">Verificando Supabase...</span>
     </div>
   );
 
   return (
     <div className="bg-card rounded-lg border border-border/50 p-4">
-      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Status das Tabelas Supabase</h3>
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-        {tables.map((t) => {
-          const hasData = (availability as any)?.[t.key];
-          return (
-            <div key={t.key} className={`rounded-lg border p-3 ${hasData ? 'border-success/30 bg-success/5' : 'border-border/30'}`}>
-              <div className="flex items-center gap-2 mb-1">
-                {hasData ? <CheckCircle className="w-3.5 h-3.5 text-success" /> : <XCircle className="w-3.5 h-3.5 text-muted-foreground/50" />}
-                <span className="text-xs font-medium">{t.label}</span>
-              </div>
-              <p className="text-[10px] text-muted-foreground font-mono">{t.table}</p>
-            </div>
-          );
-        })}
+      <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Supabase (Backend/Auth)</h3>
+      <div className="flex items-center gap-2">
+        <CheckCircle className="w-4 h-4 text-success" />
+        <span className="text-sm text-foreground">Conectado — usado para autenticação e logs</span>
       </div>
     </div>
   );
@@ -128,21 +123,21 @@ export default function Configuracoes() {
         <h1 className="text-xl font-bold flex items-center gap-2">
           <Settings className="w-5 h-5 text-primary" /> Configurações do Sistema
         </h1>
-        <p className="text-xs text-muted-foreground mt-1">Painel administrativo — conexões, importação e status</p>
+        <p className="text-xs text-muted-foreground mt-1">Painel administrativo — conexões e status</p>
       </div>
 
-      <Tabs defaultValue="status" className="space-y-4">
+      <Tabs defaultValue="motherduck" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="status"><Server className="w-3.5 h-3.5 mr-1" /> Status</TabsTrigger>
-          <TabsTrigger value="bigquery"><HardDrive className="w-3.5 h-3.5 mr-1" /> BigQuery</TabsTrigger>
+          <TabsTrigger value="motherduck"><HardDrive className="w-3.5 h-3.5 mr-1" /> MotherDuck</TabsTrigger>
+          <TabsTrigger value="supabase"><Server className="w-3.5 h-3.5 mr-1" /> Supabase</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="status" className="space-y-4">
-          <SupabaseStatus />
+        <TabsContent value="motherduck" className="space-y-4">
+          <MotherDuckStatus />
         </TabsContent>
 
-        <TabsContent value="bigquery" className="space-y-4">
-          <BigQueryStatus />
+        <TabsContent value="supabase" className="space-y-4">
+          <SupabaseStatus />
         </TabsContent>
       </Tabs>
     </div>
