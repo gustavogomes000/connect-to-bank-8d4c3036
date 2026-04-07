@@ -214,8 +214,9 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
 
   switch (intent) {
     case "ranking_votos": {
-      // votacao_munzona has NULL candidate data — use Supabase bd_eleicoes_votacao
-      return { sql: "__SUPABASE_RANKING_VOTOS__", tipo_grafico: "bar", titulo: `Top ${e.limite} mais votados — ${lbl} ${ano}`, descricao: `Ranking por votos nominais` };
+      const mCond = e.municipios.length ? `WHERE nm_municipio='${mun}'` : '';
+      const cCond = e.cargos.length ? `${mCond ? ' AND' : ' WHERE'} ds_cargo ILIKE '%${e.cargos[0]}%'` : '';
+      return { sql: `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda FROM ${votPartTable(ano)} ${mCond}${cCond} GROUP BY sg_partido,nm_partido ORDER BY votos_nominais DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Top ${e.limite} partidos — ${lbl} ${ano}`, descricao: `Ranking por votos nominais` };
     }
     case "ranking_patrimonio":
       return { sql: `SELECT c.nm_urna_candidato AS candidato, c.sg_partido AS partido, sum(CAST(REPLACE(b.vr_bem_candidato,',','.')AS DOUBLE)) AS patrimonio FROM ${bensTable(ano)} b JOIN ${candTable(ano)} c ON b.sq_candidato=c.sq_candidato ${e.municipios.length?`WHERE c.nm_ue='${mun}'`:''} GROUP BY c.nm_urna_candidato,c.sg_partido ORDER BY patrimonio DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Maior patrimônio — ${ano}`, descricao: `Patrimônio declarado` };

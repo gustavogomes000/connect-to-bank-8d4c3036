@@ -282,8 +282,11 @@ function buildSQL(intent: Intent, e: Entities): string {
   switch (intent) {
     case "ranking_votos":
     case "total_votos": {
-      // votacao_munzona has NULL candidate data — use Supabase bd_eleicoes_votacao instead
-      return "__SUPABASE_RANKING_VOTOS__";
+      // votacao_munzona has incomplete candidate data — use party ranking instead
+      const mCond = e.municipios.length ? `WHERE nm_municipio = '${mun}'` : '';
+      const cCond = e.cargos.length ? `${mCond ? ' AND' : ' WHERE'} ds_cargo ILIKE '%${e.cargos[0]}%'` : '';
+      return `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda
+        FROM ${votPartTable(ano)} ${mCond}${cCond} GROUP BY sg_partido, nm_partido ORDER BY votos_nominais DESC LIMIT ${e.limite}`;
     }
     case "ranking_patrimonio":
       return `SELECT c.nm_urna_candidato AS candidato, c.sg_partido AS partido,
