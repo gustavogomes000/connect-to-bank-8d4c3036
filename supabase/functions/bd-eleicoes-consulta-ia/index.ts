@@ -3,49 +3,79 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// MotherDuck schema for AI context
-const TABELAS_SCHEMA = `
-Tabelas disponíveis no MotherDuck (banco my_db). Cada tabela tem sufixo _YYYY_GO (ex: candidatos_2024_GO).
-Anos disponíveis para candidatos: 2012, 2014, 2016, 2018, 2020, 2022, 2024
-Anos para bens: 2014, 2016, 2018, 2020, 2022, 2024
-Anos para votação/comparecimento: 2012-2024
+// =============================================
+// VALIDATED MOTHERDUCK SCHEMA (April 2026)
+// =============================================
 
-1. my_db.candidatos_YYYY_GO: candidatos eleitorais de Goiás
-   Colunas: ano_eleicao, nr_turno, nm_candidato, nm_urna_candidato, sg_partido, nm_partido,
-   ds_cargo, nm_ue (município), ds_genero, ds_grau_instrucao, ds_ocupacao,
-   ds_sit_tot_turno (situação final), sq_candidato, nr_candidato, nr_cpf_candidato,
-   dt_nascimento, ds_nacionalidade, ds_cor_raca, ds_estado_civil, nr_idade_data_posse
+const SCHEMA_COMPLETO = `
+Tabelas MotherDuck (DuckDB). Banco: my_db. Sufixo: _YYYY_GO.
+ATENÇÃO: Use APENAS as colunas listadas abaixo. NUNCA invente colunas.
 
-2. my_db.bens_candidatos_YYYY_GO: bens declarados
-   Colunas: sq_candidato, ds_tipo_bem_candidato, ds_bem_candidato, vr_bem_candidato (VARCHAR! use CAST para somar),
-   nr_ordem_bem_candidato, ano_eleicao, sg_partido
+1. my_db.candidatos_YYYY_GO (anos: 2012-2024)
+   Colunas: ano_eleicao(BIGINT), nr_turno(BIGINT), nm_candidato(VARCHAR), nm_urna_candidato(VARCHAR),
+   nm_social_candidato(VARCHAR), sg_partido(VARCHAR), nm_partido(VARCHAR), ds_cargo(VARCHAR),
+   nm_ue(VARCHAR=município), sg_uf(VARCHAR), sq_candidato(BIGINT), nr_candidato(BIGINT),
+   nr_cpf_candidato(BIGINT), ds_email(VARCHAR), ds_situacao_candidatura(VARCHAR),
+   sg_uf_nascimento(VARCHAR), dt_nascimento(DATE), ds_genero(VARCHAR), ds_grau_instrucao(VARCHAR),
+   ds_ocupacao(VARCHAR), ds_cor_raca(VARCHAR), ds_estado_civil(VARCHAR),
+   ds_sit_tot_turno(VARCHAR=situação final: ELEITO/NÃO ELEITO/etc),
+   nr_partido(BIGINT), tp_agremiacao(VARCHAR)
+   ⚠️ NÃO EXISTE: ds_nacionalidade, nr_idade_data_posse, nm_bairro
 
-3. my_db.votacao_munzona_YYYY_GO: votos por candidato/zona
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo, nm_urna_candidato,
-   sg_partido, nr_candidato, qt_votos_nominais
+2. my_db.bens_candidatos_YYYY_GO (anos: 2014-2024)
+   Colunas: ano_eleicao(BIGINT), sg_uf(VARCHAR), sg_ue(BIGINT), nm_ue(VARCHAR),
+   sq_candidato(BIGINT), nr_ordem_bem_candidato(BIGINT),
+   ds_tipo_bem_candidato(VARCHAR), ds_bem_candidato(VARCHAR),
+   vr_bem_candidato(VARCHAR! vírgula decimal, ex: '100000,00')
+   ⚠️ Para somar: CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)
+   ⚠️ NÃO TEM: nm_candidato, sg_partido, nr_turno (precisa JOIN com candidatos via sq_candidato)
 
-4. my_db.comparecimento_munzona_YYYY_GO: comparecimento por zona
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, qt_aptos, qt_comparecimento,
-   qt_abstencoes, qt_votos_brancos, qt_votos_nulos
+3. my_db.votacao_munzona_YYYY_GO (anos: 2012-2024)
+   Colunas: ano_eleicao, nr_turno, nm_municipio(VARCHAR), nr_zona(BIGINT), ds_cargo,
+   sq_candidato, nr_candidato, nm_candidato, nm_urna_candidato, sg_partido, nm_partido,
+   qt_votos_nominais(BIGINT), ds_sit_tot_turno, ds_situacao_candidatura
 
-5. my_db.comparecimento_abstencao_YYYY_GO: comparecimento por seção/bairro
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, nr_secao, nm_local_votacao,
-   nm_bairro, ds_endereco, qt_aptos, qt_comparecimento, qt_abstencoes
+4. my_db.comparecimento_munzona_YYYY_GO (anos: 2014-2024)
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
+   qt_aptos(BIGINT), qt_comparecimento(BIGINT), qt_abstencoes(BIGINT),
+   qt_votos_brancos(BIGINT), qt_votos_nulos(BIGINT), qt_votos(BIGINT)
+   ⚠️ NÃO TEM: nm_bairro, nm_local_votacao
 
-6. my_db.perfil_eleitorado_YYYY_GO: perfil do eleitorado
-   Colunas: nm_municipio, ds_genero, ds_faixa_etaria, ds_grau_escolaridade, qt_eleitores_perfil
+5. my_db.comparecimento_abstencao_YYYY_GO (anos: 2018-2024)
+   É perfil demográfico de comparecimento por zona.
+   Colunas: nm_municipio, nr_zona, ds_genero, ds_estado_civil, ds_faixa_etaria,
+   ds_grau_escolaridade, ds_cor_raca, qt_aptos, qt_comparecimento, qt_abstencao
+   ⚠️ NÃO TEM: nm_bairro, nm_local_votacao, ds_endereco
 
-7. my_db.votacao_partido_munzona_YYYY_GO: votos por partido
-   Colunas: nm_municipio, nr_zona, sg_partido, ds_cargo, qt_votos_nominais, qt_votos_legenda
+6. my_db.eleitorado_local_YYYY_GO (anos: 2018-2024) — TEM BAIRRO!
+   Colunas: aa_eleicao(BIGINT), nm_municipio, nr_zona, nr_secao,
+   nr_local_votacao(BIGINT), nm_local_votacao(VARCHAR), ds_endereco(VARCHAR),
+   nm_bairro(VARCHAR), nr_cep(VARCHAR), nr_latitude(DOUBLE), nr_longitude(DOUBLE),
+   qt_eleitor_secao(BIGINT), qt_eleitor_eleicao_municipal(BIGINT)
+   ⚠️ Campo ano é aa_eleicao (não ano_eleicao)
 
-Contexto: Dados eleitorais do estado de Goiás (GO), Brasil.
-Principais municípios: GOIÂNIA, APARECIDA DE GOIÂNIA, ANÁPOLIS.
+7. my_db.votacao_secao_YYYY_GO (anos: 2014-2024)
+   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, nr_secao, ds_cargo,
+   qt_aptos, qt_comparecimento, qt_abstencoes, qt_votos_nominais, qt_votos_brancos,
+   qt_votos_nulos, nr_local_votacao, nm_local_votacao, ds_local_votacao_endereco
+   ⚠️ NÃO TEM: nm_bairro (use eleitorado_local para bairro)
+
+8. my_db.votacao_partido_munzona_YYYY_GO (anos: 2014-2024)
+   Colunas: nm_municipio, nr_zona, sg_partido, nm_partido, ds_cargo,
+   qt_votos_nominais, qt_votos_legenda
+
+9. my_db.perfil_eleitorado_YYYY_GO (anos: 2018-2024)
+   Colunas: nm_municipio, nr_zona, ds_genero, ds_estado_civil, ds_faixa_etaria,
+   ds_grau_escolaridade, ds_raca_cor, qt_eleitores_perfil(BIGINT), qt_eleitores_biometria
+
 REGRAS:
 - Sempre especifique o ano na tabela (ex: my_db.candidatos_2024_GO)
 - Para múltiplos anos, use UNION ALL
-- vr_bem_candidato é VARCHAR, use CAST(vr_bem_candidato AS DOUBLE) para somas
-- NUNCA pesquise dados fora deste schema
-- Responda APENAS com dados que existem nestas tabelas
+- Para bairros, use SEMPRE eleitorado_local, NUNCA comparecimento_abstencao
+- vr_bem_candidato é VARCHAR com vírgula decimal
+- Calcule idade via: EXTRACT(YEAR FROM AGE(CURRENT_DATE, TRY_CAST(dt_nascimento AS DATE)))
+- Use LIMIT máximo 200
+- Contexto: Dados eleitorais do estado de Goiás (GO), Brasil
 `;
 
 Deno.serve(async (req) => {
@@ -68,7 +98,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Step 1: Use AI Gateway to generate SQL
+    // Step 1: AI comprehension — clean up messy user input + generate SQL in one call
     const aiRes = await fetch("https://ai-gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -80,20 +110,22 @@ Deno.serve(async (req) => {
         messages: [
           {
             role: "system",
-            content: `Você é um analista de dados eleitorais especialista em Goiás. Gere queries SQL para o MotherDuck (DuckDB).
+            content: `Você é um analista de dados eleitorais especialista em Goiás. 
+O usuário pode digitar com MUITOS erros de digitação, abreviações, linguagem informal.
+Primeiro interprete o que o usuário quer dizer, depois gere a query SQL.
+
 REGRAS CRÍTICAS:
 - Use APENAS as tabelas descritas abaixo. NUNCA invente tabelas ou colunas.
-- NUNCA pesquise na internet ou invente dados. Responda APENAS com base nos dados disponíveis.
+- NUNCA use ds_nacionalidade (não existe). Use sg_uf_nascimento.
+- NUNCA use nm_bairro em comparecimento_abstencao (não tem). Use eleitorado_local.
+- NUNCA use nr_idade_data_posse (não existe). Calcule via dt_nascimento.
 - Gere APENAS SELECT, nunca INSERT/UPDATE/DELETE
 - Use LIMIT máximo de 200
-- Se o usuário perguntar algo fora do escopo eleitoral de Goiás, diga que não tem dados para isso.
 - Escolha o tipo de gráfico mais adequado: bar, pie, line, area, table, kpi
-- Para KPIs, retorne uma única linha com valores numéricos
-- Sempre ordene os resultados de forma relevante
 - Responda APENAS em JSON válido com esta estrutura:
-{"sql": "SELECT ...", "tipo_grafico": "bar|pie|line|area|table|kpi", "titulo": "...", "descricao": "..."}
+{"pergunta_interpretada": "...", "sql": "SELECT ...", "tipo_grafico": "bar|pie|line|area|table|kpi", "titulo": "...", "descricao": "..."}
 
-${TABELAS_SCHEMA}`,
+${SCHEMA_COMPLETO}`,
           },
           { role: "user", content: pergunta },
         ],
@@ -113,7 +145,6 @@ ${TABELAS_SCHEMA}`,
     const aiData = await aiRes.json();
     const rawText = aiData?.choices?.[0]?.message?.content || "";
 
-    // Extract JSON from response
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       return new Response(JSON.stringify({ erro: "IA não retornou formato válido", raw: rawText }), {
@@ -122,7 +153,7 @@ ${TABELAS_SCHEMA}`,
     }
 
     const parsed = JSON.parse(jsonMatch[0]);
-    const { sql, tipo_grafico, titulo, descricao } = parsed;
+    const { sql, tipo_grafico, titulo, descricao, pergunta_interpretada } = parsed;
 
     // Safety check
     const sqlUpper = sql.toUpperCase().trim();
@@ -175,12 +206,73 @@ ${TABELAS_SCHEMA}`,
         colunas,
         dados,
         sql_gerado: sql,
+        pergunta_interpretada: pergunta_interpretada || pergunta,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     } catch (queryErr: any) {
       await pg.end().catch(() => {});
-      console.error("Query error:", queryErr.message);
+      console.error("Query error:", queryErr.message, "SQL:", sql);
+      
+      // Auto-retry: send error back to AI for correction
+      try {
+        const retryRes = await fetch("https://ai-gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${lovableKey}` },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "system",
+                content: `O SQL anterior falhou. Corrija usando APENAS as colunas que existem.
+${SCHEMA_COMPLETO}
+Responda APENAS JSON: {"sql":"SELECT ...","tipo_grafico":"...","titulo":"...","descricao":"..."}`,
+              },
+              { role: "user", content: `Pergunta: "${pergunta_interpretada || pergunta}"\nSQL que falhou: ${sql}\nErro: ${queryErr.message}\n\nGere um SQL corrigido.` },
+            ],
+            temperature: 0.1,
+            max_tokens: 1500,
+          }),
+        });
+
+        if (retryRes.ok) {
+          const retryData = await retryRes.json();
+          const retryRaw = retryData?.choices?.[0]?.message?.content || "";
+          const retryMatch = retryRaw.match(/\{[\s\S]*\}/);
+          if (retryMatch) {
+            const retryParsed = JSON.parse(retryMatch[0]);
+            if (retryParsed.sql) {
+              const pg2 = postgres({
+                hostname: "pg.us-east-1-aws.motherduck.com",
+                port: 5432, username: "postgres", password: mdToken,
+                database: "md:", ssl: "require",
+                connection: { application_name: "eleicoesgo-consulta-ia-retry" },
+                max: 1, idle_timeout: 5, connect_timeout: 15,
+              });
+              try {
+                const rows2 = await pg2.unsafe(retryParsed.sql);
+                await pg2.end();
+                const dados2 = Array.isArray(rows2) ? rows2.map((r: any) => ({ ...r })) : [];
+                const colunas2 = dados2.length > 0 ? Object.keys(dados2[0]) : [];
+                return new Response(JSON.stringify({
+                  sucesso: true,
+                  tipo_grafico: retryParsed.tipo_grafico || "table",
+                  titulo: retryParsed.titulo || titulo || "Resultado",
+                  descricao: retryParsed.descricao || "",
+                  colunas: colunas2,
+                  dados: dados2,
+                  sql_gerado: retryParsed.sql,
+                  pergunta_interpretada: pergunta_interpretada || pergunta,
+                  retry: true,
+                }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+              } catch {
+                await pg2.end().catch(() => {});
+              }
+            }
+          }
+        }
+      } catch {}
+
       return new Response(JSON.stringify({
         sucesso: false,
         erro: `Erro na query: ${queryErr.message}`,
@@ -190,6 +282,7 @@ ${TABELAS_SCHEMA}`,
         descricao: descricao || "",
         colunas: [],
         dados: [],
+        pergunta_interpretada: pergunta_interpretada || pergunta,
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
