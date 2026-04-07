@@ -70,6 +70,10 @@ export const MD = {
   detalheVotacaoMunzona: (ano?: number | null) => yearTable('detalhe_votacao_munzona', DETALHE_VOTACAO_MUNZONA_ANOS, ano),
   detalheVotacaoSecao: (ano?: number | null) => yearTable('detalhe_votacao_secao', DETALHE_VOTACAO_SECAO_ANOS, ano),
 
+  // ── Comparecimento (alias para detalhe_votacao) ──
+  comparecimento: (ano?: number | null) => yearTable('detalhe_votacao_munzona', DETALHE_VOTACAO_MUNZONA_ANOS, ano),
+  comparecimentoSecao: (ano?: number | null) => yearTable('detalhe_votacao_secao', DETALHE_VOTACAO_SECAO_ANOS, ano),
+
   // ── Eleitorado ──
   perfilEleitorado: (ano?: number | null) => yearTableNacional('perfil_eleitorado', PERFIL_ELEITORADO_ANOS, ano),
   perfilEleitorSecao: (ano: number) => `my_db.perfil_eleitor_secao_${ano}_GO`,
