@@ -448,11 +448,11 @@ Deno.serve(async (req) => {
 
     // ── STEP 2: Only call Gemini for "generico" or empty SQL ──
     if (!sql || intent === "generico") {
-      const sqlPrompt = `Gere SQL DuckDB para MotherDuck. Use APENAS as tabelas e colunas descritas.
-NUNCA invente colunas. Responda APENAS JSON: {"sql":"SELECT ..."}
+      const sqlPrompt = `Gere SQL DuckDB/MotherDuck. Use APENAS colunas listadas. NUNCA invente.
+Responda APENAS JSON: {"sql":"SELECT ..."}
 ${SCHEMA_COMPLETO}`;
 
-      const raw = await callGemini(sqlPrompt, pergunta, geminiKey, 800);
+      const raw = await callGemini(sqlPrompt, pergunta, geminiKey, 600);
       if (raw === "ERROR:429") {
         return new Response(JSON.stringify({ erro: "Limite de requisições da IA atingido. Aguarde." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -460,9 +460,11 @@ ${SCHEMA_COMPLETO}`;
       }
       if (raw) {
         try {
-          const match = raw.match(/\{[\s\S]*\}/);
+          const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
+          const match = cleaned.match(/\{[\s\S]*\}/);
           if (match) {
-            const parsed = JSON.parse(match[0]);
+            const jsonStr = match[0].replace(/,\s*}/g, '}').replace(/,\s*]/g, ']').replace(/[\x00-\x1f]/g, ' ');
+            const parsed = JSON.parse(jsonStr);
             if (parsed.sql) { sql = parsed.sql; usedAI = true; }
           }
         } catch {}
