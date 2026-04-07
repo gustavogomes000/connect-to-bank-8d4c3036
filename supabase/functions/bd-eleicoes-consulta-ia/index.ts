@@ -4,6 +4,40 @@ const corsHeaders = {
 };
 
 // =============================================
+// GEMINI API HELPER
+// =============================================
+
+async function callGemini(systemPrompt: string, userMessage: string, geminiKey: string, maxTokens = 2000): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            { role: "user", parts: [{ text: `${systemPrompt}\n\n---\n\nPergunta do usuário: ${userMessage}` }] },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: maxTokens,
+          },
+        }),
+      }
+    );
+    if (!res.ok) {
+      console.error("Gemini error:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch (err) {
+    console.error("Gemini call failed:", err);
+    return null;
+  }
+}
+
+// =============================================
 // VALIDATED MOTHERDUCK SCHEMA (April 2026)
 // =============================================
 
@@ -91,26 +125,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!lovableKey) {
-      return new Response(JSON.stringify({ erro: "LOVABLE_API_KEY não configurada" }), {
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiKey) {
+      return new Response(JSON.stringify({ erro: "GEMINI_API_KEY não configurada" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Step 1: AI comprehension — clean up messy user input + generate SQL in one call
-    const aiRes = await fetch("https://ai-gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${lovableKey}`,
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um analista de dados eleitorais especialista em Goiás. 
+    // Step 1: AI comprehension — clean up messy user input + generate SQL
+    const systemPrompt = `Você é um analista de dados eleitorais especialista em Goiás. 
 O usuário pode digitar com MUITOS erros de digitação, abreviações, linguagem informal.
 Primeiro interprete o que o usuário quer dizer, depois gere a query SQL.
 
@@ -125,25 +148,15 @@ REGRAS CRÍTICAS:
 - Responda APENAS em JSON válido com esta estrutura:
 {"pergunta_interpretada": "...", "sql": "SELECT ...", "tipo_grafico": "bar|pie|line|area|table|kpi", "titulo": "...", "descricao": "..."}
 
-${SCHEMA_COMPLETO}`,
-          },
-          { role: "user", content: pergunta },
-        ],
-        temperature: 0.1,
-        max_tokens: 2000,
-      }),
-    });
+${SCHEMA_COMPLETO}`;
 
-    if (!aiRes.ok) {
-      const errText = await aiRes.text();
-      console.error("AI Gateway error:", aiRes.status, errText);
-      return new Response(JSON.stringify({ erro: "Erro ao consultar IA" }), {
+    const rawText = await callGemini(systemPrompt, pergunta, geminiKey);
+
+    if (!rawText) {
+      return new Response(JSON.stringify({ erro: "Erro ao consultar IA Gemini" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-
-    const aiData = await aiRes.json();
-    const rawText = aiData?.choices?.[0]?.message?.content || "";
 
     const jsonMatch = rawText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
@@ -214,30 +227,20 @@ ${SCHEMA_COMPLETO}`,
       await pg.end().catch(() => {});
       console.error("Query error:", queryErr.message, "SQL:", sql);
       
-      // Auto-retry: send error back to AI for correction
-      try {
-        const retryRes = await fetch("https://ai-gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${lovableKey}` },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "system",
-                content: `O SQL anterior falhou. Corrija usando APENAS as colunas que existem.
+      // Auto-retry: send error back to Gemini for correction
+      const retryPrompt = `O SQL anterior falhou. Corrija usando APENAS as colunas que existem.
 ${SCHEMA_COMPLETO}
-Responda APENAS JSON: {"sql":"SELECT ...","tipo_grafico":"...","titulo":"...","descricao":"..."}`,
-              },
-              { role: "user", content: `Pergunta: "${pergunta_interpretada || pergunta}"\nSQL que falhou: ${sql}\nErro: ${queryErr.message}\n\nGere um SQL corrigido.` },
-            ],
-            temperature: 0.1,
-            max_tokens: 1500,
-          }),
-        });
+Responda APENAS JSON: {"sql":"SELECT ...","tipo_grafico":"...","titulo":"...","descricao":"..."}`;
 
-        if (retryRes.ok) {
-          const retryData = await retryRes.json();
-          const retryRaw = retryData?.choices?.[0]?.message?.content || "";
+      const retryRaw = await callGemini(
+        retryPrompt,
+        `Pergunta: "${pergunta_interpretada || pergunta}"\nSQL que falhou: ${sql}\nErro: ${queryErr.message}\n\nGere um SQL corrigido.`,
+        geminiKey,
+        1500
+      );
+
+      if (retryRaw) {
+        try {
           const retryMatch = retryRaw.match(/\{[\s\S]*\}/);
           if (retryMatch) {
             const retryParsed = JSON.parse(retryMatch[0]);
@@ -270,8 +273,8 @@ Responda APENAS JSON: {"sql":"SELECT ...","tipo_grafico":"...","titulo":"...","d
               }
             }
           }
-        }
-      } catch {}
+        } catch {}
+      }
 
       return new Response(JSON.stringify({
         sucesso: false,

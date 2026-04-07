@@ -4,6 +4,40 @@ const corsHeaders = {
 };
 
 // =============================================
+// GEMINI API HELPER
+// =============================================
+
+async function callGemini(systemPrompt: string, userMessage: string, geminiKey: string, maxTokens = 2000): Promise<string | null> {
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [
+            { role: "user", parts: [{ text: `${systemPrompt}\n\n---\n\nPergunta do usuário: ${userMessage}` }] },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: maxTokens,
+          },
+        }),
+      }
+    );
+    if (!res.ok) {
+      console.error("Gemini error:", res.status, await res.text());
+      return null;
+    }
+    const data = await res.json();
+    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+  } catch (err) {
+    console.error("Gemini call failed:", err);
+    return null;
+  }
+}
+
+// =============================================
 // VALIDATED MOTHERDUCK SCHEMA (April 2026)
 // =============================================
 
@@ -247,7 +281,6 @@ function votTable(ano: number) { return `my_db.votacao_munzona_${ano}_GO`; }
 function compTable(ano: number) { return `my_db.comparecimento_munzona_${ano}_GO`; }
 function eleitLocalTable(ano: number) { return `my_db.eleitorado_local_${ano}_GO`; }
 function votPartTable(ano: number) { return `my_db.votacao_partido_munzona_${ano}_GO`; }
-function votSecaoTable(ano: number) { return `my_db.votacao_secao_${ano}_GO`; }
 
 interface QueryPlan {
   sql: string;
@@ -435,7 +468,6 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan {
       };
     }
     case "bairro_comparecimento": {
-      // USE eleitorado_local — the ONLY table with nm_bairro!
       const mun = e.municipios.length === 1 ? e.municipios[0] : 'GOIÂNIA';
       return {
         sql: `SELECT nm_bairro AS bairro, count(DISTINCT nr_local_votacao) AS locais, sum(qt_eleitor_secao) AS eleitores
@@ -511,7 +543,6 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan {
       };
     }
     case "locais_votacao": {
-      // Use eleitorado_local which has nm_local_votacao + nm_bairro
       const mun = e.municipios.length === 1 ? e.municipios[0] : 'GOIÂNIA';
       return {
         sql: `SELECT nm_local_votacao AS local, nm_bairro AS bairro, ds_endereco AS endereco, sum(qt_eleitor_secao) AS eleitores
@@ -561,20 +592,11 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan {
 }
 
 // =============================================
-// AI-POWERED QUESTION COMPREHENSION
+// AI-POWERED QUESTION COMPREHENSION (Gemini)
 // =============================================
 
-async function aiComprehendQuestion(pergunta: string, lovableKey: string): Promise<{ perguntaLimpa: string; intent: Intent | null; entities: Partial<Entities> }> {
-  try {
-    const aiRes = await fetch("https://ai-gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${lovableKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `Você é um assistente que corrige e interpreta perguntas sobre eleições em Goiás, Brasil.
+async function aiComprehendQuestion(pergunta: string, geminiKey: string): Promise<{ perguntaLimpa: string; intent: Intent | null; entities: Partial<Entities> }> {
+  const systemPrompt = `Você é um assistente que corrige e interpreta perguntas sobre eleições em Goiás, Brasil.
 O usuário pode digitar com muitos erros de digitação, abreviações, ou linguagem informal.
 Sua tarefa é:
 1. Corrigir a pergunta para português claro
@@ -586,22 +608,14 @@ Exemplos de correção:
 - "qantos veradorres en goinia" → "quantos vereadores em Goiânia"
 - "top 10 mas vtados aprecida 2024" → "top 10 mais votados Aparecida de Goiânia 2024"
 
-Responda APENAS em JSON: {"pergunta_limpa": "...", "intent": "...", "partidos": [], "anos": [], "municipios": [], "cargos": [], "nomes": []}`,
-          },
-          { role: "user", content: pergunta },
-        ],
-        temperature: 0.1,
-        max_tokens: 500,
-      }),
-    });
+Responda APENAS em JSON: {"pergunta_limpa": "...", "intent": "...", "partidos": [], "anos": [], "municipios": [], "cargos": [], "nomes": []}`;
 
-    if (!aiRes.ok) return { perguntaLimpa: pergunta, intent: null, entities: {} };
+  const raw = await callGemini(systemPrompt, pergunta, geminiKey, 500);
+  if (!raw) return { perguntaLimpa: pergunta, intent: null, entities: {} };
 
-    const aiData = await aiRes.json();
-    const raw = aiData?.choices?.[0]?.message?.content || "";
+  try {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return { perguntaLimpa: pergunta, intent: null, entities: {} };
-
     const parsed = JSON.parse(match[0]);
     return {
       perguntaLimpa: parsed.pergunta_limpa || pergunta,
@@ -620,36 +634,21 @@ Responda APENAS em JSON: {"pergunta_limpa": "...", "intent": "...", "partidos": 
 }
 
 // =============================================
-// AI SQL FALLBACK for complex queries
+// AI SQL FALLBACK for complex queries (Gemini)
 // =============================================
 
-async function aiGenerateSQL(pergunta: string, lovableKey: string): Promise<QueryPlan | null> {
-  try {
-    const aiRes = await fetch("https://ai-gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${lovableKey}` },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: `Gere SQL DuckDB para MotherDuck. Use APENAS as tabelas e colunas descritas abaixo.
+async function aiGenerateSQL(pergunta: string, geminiKey: string): Promise<QueryPlan | null> {
+  const systemPrompt = `Gere SQL DuckDB para MotherDuck. Use APENAS as tabelas e colunas descritas abaixo.
 NUNCA invente colunas que não existem. NUNCA use ds_nacionalidade, nr_idade_data_posse, ou nm_bairro em tabelas que não têm essa coluna.
 
 ${SCHEMA_COMPLETO}
 
-Responda APENAS JSON: {"sql":"SELECT ...","tipo_grafico":"bar|pie|line|area|table|kpi","titulo":"...","descricao":"..."}`,
-          },
-          { role: "user", content: pergunta },
-        ],
-        temperature: 0.1,
-        max_tokens: 1500,
-      }),
-    });
+Responda APENAS JSON: {"sql":"SELECT ...","tipo_grafico":"bar|pie|line|area|table|kpi","titulo":"...","descricao":"..."}`;
 
-    if (!aiRes.ok) return null;
-    const aiData = await aiRes.json();
-    const raw = aiData?.choices?.[0]?.message?.content || "";
+  const raw = await callGemini(systemPrompt, pergunta, geminiKey, 1500);
+  if (!raw) return null;
+
+  try {
     const match = raw.match(/\{[\s\S]*\}/);
     if (!match) return null;
     const parsed = JSON.parse(match[0]);
@@ -681,15 +680,15 @@ Deno.serve(async (req) => {
       });
     }
 
-    const lovableKey = Deno.env.get("LOVABLE_API_KEY");
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
     
     // Step 1: AI comprehension — clean up messy user input
     let perguntaLimpa = pergunta;
     let aiIntent: Intent | null = null;
     let aiEntities: Partial<Entities> = {};
     
-    if (lovableKey) {
-      const comprehension = await aiComprehendQuestion(pergunta, lovableKey);
+    if (geminiKey) {
+      const comprehension = await aiComprehendQuestion(pergunta, geminiKey);
       perguntaLimpa = comprehension.perguntaLimpa;
       aiIntent = comprehension.intent as Intent | null;
       aiEntities = comprehension.entities;
@@ -724,8 +723,8 @@ Deno.serve(async (req) => {
     let plan = buildQuery(intent, entities);
 
     // Step 3: For generic intent or empty SQL, use AI to generate SQL
-    if ((intent === "generico" || !plan.sql) && lovableKey) {
-      const aiPlan = await aiGenerateSQL(perguntaLimpa, lovableKey);
+    if ((intent === "generico" || !plan.sql) && geminiKey) {
+      const aiPlan = await aiGenerateSQL(perguntaLimpa, geminiKey);
       if (aiPlan?.sql) plan = aiPlan;
     }
 
@@ -809,11 +808,11 @@ Deno.serve(async (req) => {
       console.error("Query error:", queryErr.message, "SQL:", plan.sql);
       
       // On query error, try AI fallback with the error context
-      if (lovableKey) {
+      if (geminiKey) {
         try {
           const retryPlan = await aiGenerateSQL(
             `A pergunta era: "${perguntaLimpa}". O SQL anterior falhou com erro: ${queryErr.message}. Gere um SQL correto.`,
-            lovableKey
+            geminiKey
           );
           if (retryPlan?.sql) {
             const pg2 = postgres({
