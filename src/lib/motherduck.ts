@@ -470,6 +470,10 @@ export const ELEITORADO_LOCAL_ANOS = DATASET_MAP.eleitorado_local.anos;
 export const RECEITAS_CAND_ANOS = DATASET_MAP.receitas.anos;
 export const DESPESAS_CONTRATADAS_ANOS = DATASET_MAP.despesas_contratadas.anos;
 export const DESPESAS_PAGAS_ANOS = DATASET_MAP.despesas_pagas.anos;
+export const COMP_ANOS = DATASET_MAP.detalhe_munzona.anos;
+export const PERFIL_ELEITOR_SECAO_ANOS = [2014, 2016, 2018, 2020, 2024];
+export const PESQUISA_ELEITORAL_ANOS = [2024];
+export const PESQUISA_CONTRATANTE_ANOS = [2024];
 
 /** Column mapping TSE → app concepts */
 export const COL = {
