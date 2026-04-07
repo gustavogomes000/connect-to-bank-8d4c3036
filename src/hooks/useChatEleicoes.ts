@@ -32,10 +32,40 @@ function genId() {
 export function useChatEleicoes() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
+  const [isRateLimited, setIsRateLimited] = useState(false);
+  const lastRequestRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setInterval>>();
+
+  const COOLDOWN_MS = 4500; // 4.5s entre requests (Gemini free = 15 RPM)
+
+  const startCooldown = useCallback((durationMs = COOLDOWN_MS) => {
+    const end = Date.now() + durationMs;
+    lastRequestRef.current = Date.now();
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      const remaining = Math.max(0, end - Date.now());
+      setCooldownRemaining(Math.ceil(remaining / 1000));
+      if (remaining <= 0) {
+        clearInterval(timerRef.current);
+        setCooldownRemaining(0);
+        setIsRateLimited(false);
+      }
+    }, 200);
+    setCooldownRemaining(Math.ceil(durationMs / 1000));
+  }, []);
 
   const enviar = useCallback(async (pergunta: string) => {
     const trimmed = pergunta.trim();
     if (!trimmed || loading) return;
+
+    // Enforce cooldown
+    const timeSinceLast = Date.now() - lastRequestRef.current;
+    if (timeSinceLast < COOLDOWN_MS && lastRequestRef.current > 0) {
+      const wait = COOLDOWN_MS - timeSinceLast;
+      startCooldown(wait);
+      await new Promise(r => setTimeout(r, wait));
+    }
 
     const userMsg: ChatMessage = {
       id: genId(),
@@ -55,6 +85,7 @@ export function useChatEleicoes() {
 
     setMessages(prev => [...prev, userMsg, loadingMsg]);
     setLoading(true);
+    startCooldown();
 
     try {
       const { data, error } = await supabase.functions.invoke('bd-eleicoes-chat', {
@@ -62,6 +93,15 @@ export function useChatEleicoes() {
       });
 
       if (error) throw new Error(error.message);
+
+      // Handle rate limit from Gemini
+      const errMsg = data?.erro || '';
+      if (errMsg.includes('429') || errMsg.includes('RATE_LIMIT') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted')) {
+        setIsRateLimited(true);
+        startCooldown(30000);
+        throw new Error('⏳ Limite de requisições atingido. Aguarde 30 segundos antes da próxima pergunta.');
+      }
+
       if (data?.erro && !data?.sucesso) throw new Error(data.erro);
 
       const resultado = data as ChatResultado;
@@ -93,11 +133,11 @@ export function useChatEleicoes() {
     } finally {
       setLoading(false);
     }
-  }, [loading]);
+  }, [loading, startCooldown]);
 
   const limpar = useCallback(() => {
     setMessages([]);
   }, []);
 
-  return { messages, loading, enviar, limpar };
+  return { messages, loading, enviar, limpar, cooldownRemaining, isRateLimited };
 }

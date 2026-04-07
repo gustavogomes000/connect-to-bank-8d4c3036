@@ -313,7 +313,7 @@ const SUGESTOES_RAPIDAS = [
 ];
 
 export default function ChatEleicoes() {
-  const { messages, loading, enviar, limpar } = useChatEleicoes();
+  const { messages, loading, enviar, limpar, cooldownRemaining, isRateLimited } = useChatEleicoes();
   const { favoritos, adicionar, isFavorito } = useChatFavoritos();
   const [input, setInput] = useState('');
   const [showFavoritos, setShowFavoritos] = useState(false);

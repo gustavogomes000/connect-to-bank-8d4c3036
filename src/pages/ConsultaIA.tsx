@@ -188,10 +188,10 @@ export default function ConsultaIA() {
         <div>
           <h1 className="text-xl font-bold flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
-            Consulta Inteligente
+            Relatórios Personalizados
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Descreva os dados que deseja visualizar e a IA gerará automaticamente
+            Descreva o relatório que deseja e a IA gerará a visualização automaticamente
           </p>
         </div>
         {historico.length > 0 && (
