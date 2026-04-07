@@ -4,104 +4,90 @@ const corsHeaders = {
 };
 
 // =============================================
-// LOVABLE AI GATEWAY (replaces Gemini)
+// GEMINI NORMALIZER (Query Rewriting only)
 // =============================================
 
-async function callAI(systemPrompt: string, userMessage: string, apiKey: string, maxTokens = 2000): Promise<string | null> {
-  try {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        max_tokens: maxTokens,
-        temperature: 0.3,
-      }),
-    });
-    if (!res.ok) {
-      const errBody = await res.text();
-      console.error("Lovable AI error:", res.status, errBody);
-      if (res.status === 429) return "ERROR:429";
-      if (res.status === 402) return "ERROR:402";
-      return null;
-    }
-    const data = await res.json();
-    return data?.choices?.[0]?.message?.content || null;
-  } catch (err) {
-    console.error("AI call failed:", err);
+const GEMINI_SYSTEM_PROMPT = `Você é um normalizador de buscas eleitorais do estado de Goiás, Brasil.
+Leia a pergunta do usuário e extraia apenas as palavras-chave no formato:
+[INTENÇÃO], [CARGO], [MUNICIPIO], [ANO]
+
+Intenções válidas: ranking_votos, ranking_patrimonio, patrimonio, total_candidatos, comparecimento, abstencao, evolucao, comparativo_partidos, distribuicao_genero, distribuicao_instrucao, distribuicao_ocupacao, distribuicao_idade, bairro_comparecimento, busca_candidato, votos_por_zona, partidos_ranking, locais_votacao, resumo_eleicao, comparativo_anos, perfil_genero, escolaridade
+
+Cargos válidos: prefeito, vereador, governador, deputado estadual, deputado federal, senador, presidente
+
+Municípios comuns: Goiânia, Aparecida de Goiânia, Anápolis, Rio Verde, Luziânia, Valparaíso de Goiás, Trindade, Formosa, Senador Canedo, Catalão, Itumbiara, Jataí
+
+Se não identificar algum campo, omita-o.
+Se o usuário perguntar "quem é o mais rico", a intenção é "ranking_patrimonio".
+Se o usuário perguntar sobre "escolaridade" ou "instrução", a intenção é "distribuicao_instrucao".
+Se houver nome de candidato entre aspas, inclua como [NOME_CANDIDATO].
+Se houver partido (PL, PT, MDB etc), inclua como [PARTIDO].
+
+Exemplos:
+- "quem é o mais rico em aparecida?" -> "ranking_patrimonio, prefeito, Aparecida de Goiânia, 2024"
+- "ranking de votos vereador goiânia 2020" -> "ranking_votos, vereador, Goiânia, 2020"
+- "quantas mulheres candidatas em 2024?" -> "distribuicao_genero, , , 2024"
+- "comparecimento por bairro em goiânia" -> "bairro_comparecimento, , Goiânia, 2024"
+- "patrimônio do candidato \"JOÃO SILVA\"" -> "patrimonio, , , 2024, JOÃO SILVA"
+
+Responda APENAS com as palavras-chave separadas por vírgula. Nada mais.`;
+
+async function callGeminiNormalizer(userQuestion: string): Promise<string | null> {
+  const apiKey = Deno.env.get("GEMINI_API_KEY");
+  if (!apiKey) {
+    console.warn("[Normalizer] GEMINI_API_KEY não configurada, usando fallback direto");
     return null;
+  }
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 3000); // 3s timeout
+
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        signal: controller.signal,
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: `${GEMINI_SYSTEM_PROMPT}\n\nPergunta do usuário: "${userQuestion}"` }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.1,
+            maxOutputTokens: 100,
+          },
+        }),
+      }
+    );
+
+    clearTimeout(timeout);
+
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[Normalizer] Gemini HTTP ${res.status}:`, errText);
+      return null; // fallback silencioso
+    }
+
+    const data = await res.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    return text;
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err.name === "AbortError") {
+      console.warn("[Normalizer] Gemini timeout (3s), usando fallback");
+    } else {
+      console.error("[Normalizer] Gemini error:", err.message);
+    }
+    return null; // fallback silencioso
   }
 }
 
 // =============================================
-// SCHEMA (shared reference)
-// =============================================
-
-const SCHEMA_COMPLETO = `
-Tabelas MotherDuck (DuckDB). Banco: my_db. Sufixo: _YYYY_GO.
-ATENÇÃO: Use APENAS as colunas listadas abaixo. NUNCA invente colunas.
-
-1. my_db.consulta_cand_YYYY_GO (anos: 2014-2024) — candidatos
-   Colunas: ano_eleicao(BIGINT), nr_turno(BIGINT), nm_candidato(VARCHAR), nm_urna_candidato(VARCHAR),
-   sg_partido(VARCHAR), nm_partido(VARCHAR), ds_cargo(VARCHAR),
-   nm_ue(VARCHAR=município), sg_uf(VARCHAR), sq_candidato(BIGINT), nr_candidato(BIGINT),
-   nr_cpf_candidato(BIGINT), ds_situacao_candidatura(VARCHAR),
-   sg_uf_nascimento(VARCHAR), dt_nascimento(DATE), ds_genero(VARCHAR), ds_grau_instrucao(VARCHAR),
-   ds_ocupacao(VARCHAR), ds_cor_raca(VARCHAR), ds_estado_civil(VARCHAR),
-   ds_sit_tot_turno(VARCHAR=situação final: ELEITO/NÃO ELEITO/etc),
-   nr_partido(BIGINT)
-   ⚠️ NÃO EXISTE: ds_nacionalidade, nr_idade_data_posse, nm_bairro
-
-2. my_db.bem_candidato_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao, sg_uf, nm_ue, sq_candidato(BIGINT), nr_ordem_bem_candidato(BIGINT),
-   ds_tipo_bem_candidato(VARCHAR), ds_bem_candidato(VARCHAR),
-   vr_bem_candidato(VARCHAR! vírgula decimal, ex: '100000,00')
-   ⚠️ Para somar: CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)
-   ⚠️ NÃO TEM: nm_candidato, sg_partido (precisa JOIN com consulta_cand via sq_candidato)
-
-3. my_db.votacao_candidato_munzona_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao, nr_turno, nm_municipio(VARCHAR), nr_zona(BIGINT), ds_cargo,
-   sq_candidato, nr_candidato, nm_candidato, nm_urna_candidato, sg_partido, nm_partido,
-   qt_votos_nominais(BIGINT), ds_sit_tot_turno
-
-4. my_db.detalhe_votacao_munzona_YYYY_GO (anos: 2014-2024) — comparecimento
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
-   qt_aptos(BIGINT), qt_comparecimento(BIGINT), qt_abstencoes(BIGINT),
-   qt_votos_brancos(BIGINT), qt_votos_nulos(BIGINT)
-
-5. my_db.eleitorado_local_votacao_YYYY (anos: 2014-2024) — TEM BAIRRO! Nacional, filtrar sg_uf='GO'
-   Colunas: ano_eleicao(BIGINT), nm_municipio, nr_zona, nr_secao,
-   nm_local_votacao(VARCHAR), ds_endereco(VARCHAR), nm_bairro(VARCHAR),
-   qt_eleitores_perfil(BIGINT), sg_uf
-   ⚠️ Tabela nacional, sem sufixo _GO. Filtrar com sg_uf='GO'
-
-6. my_db.votacao_partido_munzona_YYYY_GO (anos: 2014-2024)
-   Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
-   nr_partido, sg_partido, nm_partido, qt_votos_nominais_validos(BIGINT), qt_votos_legenda_validos(BIGINT)
-   ⚠️ ATENÇÃO: colunas são qt_votos_nominais_validos e qt_votos_legenda_validos (NÃO qt_votos_nominais/qt_votos_legenda)
-
-7. my_db.perfil_eleitorado_YYYY (anos: 2014-2024) — Nacional, filtrar sg_uf='GO'
-   Colunas: ano_eleicao, nm_municipio, nr_zona, ds_genero, ds_faixa_etaria,
-   ds_grau_escolaridade, ds_raca_cor, qt_eleitores_perfil(BIGINT)
-
-REGRAS:
-- Sempre especifique o ano na tabela (ex: my_db.consulta_cand_2024_GO)
-- Para múltiplos anos, use UNION ALL
-- vr_bem_candidato é VARCHAR com vírgula decimal
-- NUNCA use colunas que não existem
-- Use LIMIT máximo 200
-- Contexto: Dados eleitorais do estado de Goiás (GO), Brasil
-`;
-
-// =============================================
-// ENTITY / INTENT (reusable engine)
+// ENTITY / INTENT ENGINE (deterministic)
 // =============================================
 
 const CARGOS_MAP: Record<string, string[]> = {
@@ -240,7 +226,7 @@ function extractEntities(text: string): Entities {
 }
 
 // =============================================
-// SQL BUILDER — corrected table/column names
+// SQL BUILDER (100% deterministic, zero-AI)
 // =============================================
 
 function candTable(ano: number) { return `my_db.consulta_cand_${ano}_GO`; }
@@ -280,6 +266,7 @@ function buildSQL(intent: Intent, e: Entities): string {
         sum(CAST(REPLACE(b.vr_bem_candidato, ',', '.') AS DOUBLE)) AS patrimonio
         FROM ${bensTable(ano)} b JOIN ${candTable(ano)} c ON b.sq_candidato = c.sq_candidato
         ${e.municipios.length ? `WHERE c.nm_ue = '${mun}'` : ''}
+        ${e.cargos.length ? `${e.municipios.length ? 'AND' : 'WHERE'} c.ds_cargo ILIKE '%${e.cargos[0]}%'` : ''}
         GROUP BY c.nm_urna_candidato, c.sg_partido ORDER BY patrimonio DESC LIMIT ${e.limite}`;
     case "patrimonio_candidato":
       if (e.nomes.length > 0) {
@@ -403,6 +390,53 @@ function buildSQL(intent: Intent, e: Entities): string {
 }
 
 // =============================================
+// MARKDOWN TABLE FORMATTER (zero-AI)
+// =============================================
+
+function jsonToMarkdownTable(dados: Record<string, any>[], maxRows = 20): string {
+  if (!dados.length) return "";
+  const cols = Object.keys(dados[0]);
+  const header = `| ${cols.map(c => c.replace(/_/g, ' ')).join(' | ')} |`;
+  const separator = `| ${cols.map(() => '---').join(' | ')} |`;
+  const rows = dados.slice(0, maxRows).map(row =>
+    `| ${cols.map(c => {
+      const v = row[c];
+      if (v === null || v === undefined) return '—';
+      if (typeof v === 'number') return v.toLocaleString('pt-BR');
+      return String(v);
+    }).join(' | ')} |`
+  );
+  return `${header}\n${separator}\n${rows.join('\n')}`;
+}
+
+function formatResult(intent: Intent, entities: Entities, dados: Record<string, any>[]): string {
+  const ano = entities.anos[0] || 2024;
+  const mun = entities.municipios[0] || "Goiás";
+
+  if (dados.length === 0) {
+    return "Não encontrei resultados para essa consulta. Tente reformular ou verificar os filtros (ano, município, cargo).";
+  }
+
+  const cols = Object.keys(dados[0]);
+
+  // Single-row KPI
+  if (dados.length === 1 && cols.length <= 6) {
+    const lines = cols.map(c => {
+      const v = dados[0][c];
+      const formatted = typeof v === 'number' ? v.toLocaleString('pt-BR') : v;
+      return `- **${c.replace(/_/g, ' ')}**: ${formatted}`;
+    });
+    return `📊 **Resultado — ${mun} ${ano}**\n\n${lines.join('\n')}`;
+  }
+
+  // Multi-row table
+  let text = `📊 **${mun} ${ano}** — ${dados.length} resultado(s)\n\n`;
+  text += jsonToMarkdownTable(dados, 20);
+  if (dados.length > 20) text += `\n\n*...e mais ${dados.length - 20} resultados.*`;
+  return text;
+}
+
+// =============================================
 // MAIN HANDLER
 // =============================================
 
@@ -419,13 +453,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) {
-      return new Response(JSON.stringify({ erro: "LOVABLE_API_KEY não configurada" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
     const mdToken = Deno.env.get("MOTHERDUCK_TOKEN");
     if (!mdToken) {
       return new Response(JSON.stringify({ erro: "MOTHERDUCK_TOKEN não configurado" }), {
@@ -433,49 +460,53 @@ Deno.serve(async (req) => {
       });
     }
 
-    // ── STEP 1: Algorithmic intent + entity detection (NO AI call) ──
-    const lower = pergunta.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    let intent = detectIntent(lower);
-    const entities = extractEntities(pergunta);
+    // ── STEP 1: Gemini Normalizer (Query Rewriting) with fallback ──
+    console.log(`[Pipeline] Input original: "${pergunta}"`);
+
+    let inputParaAnalise = pergunta;
+    let geminiUsado = false;
+
+    try {
+      const normalizado = await callGeminiNormalizer(pergunta);
+      if (normalizado) {
+        inputParaAnalise = normalizado;
+        geminiUsado = true;
+        console.log(`[Pipeline] Input normalizado pelo Gemini: "${normalizado}"`);
+      } else {
+        console.log("[Pipeline] Gemini não retornou, usando input original");
+      }
+    } catch (err: any) {
+      console.warn("[Pipeline] Fallback: Gemini falhou, usando input original:", err.message);
+    }
+
+    // ── STEP 2: Deterministic intent + entity detection ──
+    const textForDetection = `${pergunta} ${inputParaAnalise}`.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const intent = detectIntent(textForDetection);
+    const entities = extractEntities(`${pergunta} ${inputParaAnalise}`);
     if (entities.anos.length === 0) entities.anos = [2024];
 
-    let sql = buildSQL(intent, entities);
-    let usedAI = false;
+    console.log(`[Pipeline] Intent: ${intent} | Entities:`, JSON.stringify({
+      anos: entities.anos,
+      municipios: entities.municipios,
+      cargos: entities.cargos,
+      partidos: entities.partidos,
+      nomes: entities.nomes,
+    }));
 
-    // ── STEP 2: Only call AI for "generico" or empty SQL ──
-    if (!sql || intent === "generico") {
-      const sqlPrompt = `Gere SQL DuckDB/MotherDuck. Use APENAS colunas listadas. NUNCA invente.
-Responda APENAS JSON: {"sql":"SELECT ..."}
-${SCHEMA_COMPLETO}`;
-
-      const raw = await callAI(sqlPrompt, pergunta, apiKey, 600);
-      if (raw === "ERROR:429") {
-        return new Response(JSON.stringify({ erro: "Limite de requisições da IA atingido. Aguarde." }), {
-          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (raw === "ERROR:402") {
-        return new Response(JSON.stringify({ erro: "Créditos esgotados." }), {
-          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      if (raw && !raw.startsWith("ERROR:")) {
-        try {
-          const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-          const match = cleaned.match(/\{[\s\S]*\}/);
-          if (match) {
-            const jsonStr = match[0].replace(/,\s*}/g, '}').replace(/,\s*]/g, ']').replace(/[\x00-\x1f]/g, ' ');
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.sql) { sql = parsed.sql; usedAI = true; }
-          }
-        } catch {}
-      }
-    }
+    // ── STEP 3: Build SQL (100% deterministic) ──
+    const sql = buildSQL(intent, entities);
 
     if (!sql) {
       return new Response(JSON.stringify({
         sucesso: true,
-        resposta: "Não entendi sua pergunta. Tente perguntar sobre candidatos, votos, partidos, comparecimento, patrimônio ou bairros em Goiás.",
+        resposta: "Não entendi sua pergunta. Tente perguntar sobre:\n\n" +
+          "- 📊 **Ranking de votos** — ex: \"top 10 mais votados em Goiânia 2024\"\n" +
+          "- 💰 **Patrimônio** — ex: \"candidatos mais ricos de Aparecida\"\n" +
+          "- 📈 **Comparecimento** — ex: \"taxa de comparecimento em Goiânia\"\n" +
+          "- 🏛️ **Partidos** — ex: \"ranking de partidos por votos\"\n" +
+          "- 👥 **Perfil** — ex: \"distribuição por gênero dos candidatos\"\n" +
+          "- 🗺️ **Bairros** — ex: \"eleitores por bairro em Goiânia\"\n" +
+          "- 📋 **Resumo** — ex: \"resumo da eleição 2024\"",
       }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -493,125 +524,49 @@ ${SCHEMA_COMPLETO}`;
       });
     }
 
-    // ── STEP 3: Execute SQL ──
+    console.log(`[Pipeline] SQL gerado (determinístico): ${sql.substring(0, 200)}...`);
+
+    // ── STEP 4: Execute SQL on MotherDuck ──
     const { default: postgres } = await import("https://deno.land/x/postgresjs@v3.4.5/mod.js");
 
-    async function executarQuery(q: string) {
-      const pg = postgres({
-        hostname: "pg.us-east-1-aws.motherduck.com",
-        port: 5432, username: "postgres", password: mdToken,
-        database: "md:", ssl: "require",
-        connection: { application_name: "eleicoesgo-consulta-ia" },
-        max: 1, idle_timeout: 5, connect_timeout: 15,
-      });
-      try {
-        const rows = await pg.unsafe(q);
-        await pg.end();
-        return Array.isArray(rows) ? rows.map((r: any) => ({ ...r })) : [];
-      } catch (err) {
-        await pg.end().catch(() => {});
-        throw err;
-      }
-    }
+    const pg = postgres({
+      hostname: "pg.us-east-1-aws.motherduck.com",
+      port: 5432, username: "postgres", password: mdToken,
+      database: "md:", ssl: "require",
+      connection: { application_name: "eleicoesgo-consulta-ia" },
+      max: 1, idle_timeout: 5, connect_timeout: 15,
+    });
 
     let dados: Record<string, any>[];
-    let sqlUsado = sql;
-
     try {
-      dados = await executarQuery(sql);
+      const rows = await pg.unsafe(sql);
+      dados = Array.isArray(rows) ? rows.map((r: any) => ({ ...r })) : [];
+      await pg.end();
     } catch (queryErr: any) {
-      console.error("Query error:", queryErr.message, "SQL:", sql);
-      const retryRaw = await callAI(
-        `SQL falhou. Corrija usando APENAS colunas existentes.\n${SCHEMA_COMPLETO}\nResponda APENAS JSON: {"sql":"SELECT ..."}`,
-        `Pergunta: "${pergunta}"\nSQL: ${sql}\nErro: ${queryErr.message}`,
-        apiKey, 600
-      );
-      if (retryRaw && !retryRaw.startsWith("ERROR:")) {
-        try {
-          const cleaned = retryRaw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-          const match = cleaned.match(/\{[\s\S]*\}/);
-          if (match) {
-            const jsonStr = match[0].replace(/,\s*}/g, '}').replace(/,\s*]/g, ']').replace(/[\x00-\x1f]/g, ' ');
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.sql) {
-              dados = await executarQuery(parsed.sql);
-              sqlUsado = parsed.sql;
-            } else throw new Error("no sql");
-          } else throw new Error("no match");
-        } catch {
-          return new Response(JSON.stringify({
-            sucesso: false, erro: "Não consegui consultar esses dados. Reformule a pergunta.",
-          }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-        }
-      } else {
-        return new Response(JSON.stringify({
-          sucesso: false, erro: "Erro na consulta. Tente reformular.",
-        }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      }
+      await pg.end().catch(() => {});
+      console.error("[Pipeline] Query error:", queryErr.message, "SQL:", sql);
+      return new Response(JSON.stringify({
+        sucesso: false,
+        erro: "Erro ao consultar os dados. Tente reformular a pergunta.",
+        sql_gerado: sql,
+      }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // ── STEP 4: Format response as text ──
-    let resposta: string;
+    // ── STEP 5: Format response (100% TypeScript, zero-AI) ──
+    const resposta = formatResult(intent, entities, dados);
 
-    if (dados.length === 0) {
-      resposta = "Não encontrei resultados para essa consulta. Tente reformular ou verificar os filtros (ano, município, cargo).";
-    } else if (dados.length <= 15) {
-      resposta = formatSimpleResult(intent, entities, dados);
-    } else {
-      const sample = dados.slice(0, 15);
-      const textRaw = await callAI(
-        `Assistente de eleições de Goiás. Responda em markdown. NÃO mencione SQL/banco. Use negrito e listas. Seja direto.`,
-        `Pergunta: "${pergunta}"\nDados (${dados.length} registros, amostra de 15):\n${JSON.stringify(sample)}`,
-        apiKey, 800
-      );
-
-      resposta = (textRaw && !textRaw.startsWith("ERROR:"))
-        ? textRaw
-        : formatSimpleResult(intent, entities, dados);
-    }
+    console.log(`[Pipeline] Sucesso | Gemini: ${geminiUsado ? 'SIM (normalização)' : 'NÃO (fallback)'} | Resultados: ${dados.length}`);
 
     return new Response(JSON.stringify({
       sucesso: true,
       resposta,
-      sql_gerado: sqlUsado,
+      sql_gerado: sql,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   } catch (e: any) {
-    console.error("Error:", e);
+    console.error("[Pipeline] Error:", e);
     return new Response(JSON.stringify({ erro: e.message || "Erro interno" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });
-
-// =============================================
-// ALGORITHMIC TEXT FORMATTER (no AI needed)
-// =============================================
-
-function formatSimpleResult(intent: Intent, entities: Entities, dados: Record<string, any>[]): string {
-  const ano = entities.anos[0] || 2024;
-  const mun = entities.municipios[0] || "Goiás";
-  const cols = Object.keys(dados[0]);
-
-  if (dados.length === 1 && cols.length <= 6) {
-    const lines = cols.map(c => {
-      const v = dados[0][c];
-      const formatted = typeof v === 'number' ? v.toLocaleString('pt-BR') : v;
-      return `- **${c.replace(/_/g, ' ')}**: ${formatted}`;
-    });
-    return `📊 **Resultado — ${mun} ${ano}**\n\n${lines.join('\n')}`;
-  }
-
-  let text = `📊 **${mun} ${ano}** — ${dados.length} resultado(s)\n\n`;
-  const header = `| ${cols.map(c => c.replace(/_/g, ' ')).join(' | ')} |`;
-  const separator = `| ${cols.map(() => '---').join(' | ')} |`;
-  const rows = dados.slice(0, 20).map(row =>
-    `| ${cols.map(c => {
-      const v = row[c];
-      return typeof v === 'number' ? v.toLocaleString('pt-BR') : (v || '—');
-    }).join(' | ')} |`
-  );
-  text += `${header}\n${separator}\n${rows.join('\n')}`;
-  if (dados.length > 20) text += `\n\n*...e mais ${dados.length - 20} resultados.*`;
-  return text;
-}
