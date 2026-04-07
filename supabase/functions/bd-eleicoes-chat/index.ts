@@ -46,22 +46,22 @@ const SCHEMA_COMPLETO = `
 Tabelas DuckDB/MotherDuck. Banco: my_db. Sufixo: _YYYY_GO.
 Use APENAS colunas listadas. NUNCA invente.
 
-1. candidatos_YYYY_GO (2012-2024): ano_eleicao,nr_turno,nm_candidato,nm_urna_candidato,sg_partido,nm_partido,ds_cargo,nm_ue(município),sq_candidato,nr_candidato,ds_situacao_candidatura,dt_nascimento(VARCHAR-pode ser vazio!),ds_genero,ds_grau_instrucao,ds_ocupacao,ds_cor_raca,ds_estado_civil,ds_sit_tot_turno(ELEITO/NÃO ELEITO),nr_partido
+1. consulta_cand_YYYY_GO (2014-2024): ano_eleicao,nr_turno,nm_candidato,nm_urna_candidato,sg_partido,nm_partido,ds_cargo,nm_ue(município),sq_candidato,nr_candidato,ds_situacao_candidatura,dt_nascimento(DATE),ds_genero,ds_grau_instrucao,ds_ocupacao,ds_cor_raca,ds_estado_civil,ds_sit_tot_turno(ELEITO/NÃO ELEITO),nr_partido
 ⚠️ SEM: ds_nacionalidade,nr_idade_data_posse,nm_bairro
-⚠️ dt_nascimento é VARCHAR e pode ser vazio - SEMPRE use TRY_CAST
 
-2. bens_candidatos_YYYY_GO (2014-2024): ano_eleicao,sg_uf,nm_ue,sq_candidato,nr_ordem_bem_candidato,ds_tipo_bem_candidato,ds_bem_candidato,vr_bem_candidato(VARCHAR vírgula→CAST(REPLACE(v,',','.')AS DOUBLE))
+2. bem_candidato_YYYY_GO (2014-2024): ano_eleicao,sg_uf,nm_ue,sq_candidato,nr_ordem_bem_candidato,ds_tipo_bem_candidato,ds_bem_candidato,vr_bem_candidato(VARCHAR vírgula→CAST(REPLACE(v,',','.')AS DOUBLE))
 ⚠️ SEM: nm_candidato,sg_partido (JOIN via sq_candidato)
 
-3. votacao_munzona_YYYY_GO (2012-2024): ano_eleicao,nr_turno,nm_municipio,nr_zona,ds_cargo,sq_candidato,nr_candidato,nm_candidato,nm_urna_candidato,sg_partido,qt_votos_nominais,ds_sit_tot_turno
+3. votacao_candidato_munzona_YYYY_GO (2014-2024): ano_eleicao,nr_turno,nm_municipio,nr_zona,ds_cargo,sq_candidato,nr_candidato,nm_candidato,nm_urna_candidato,sg_partido,qt_votos_nominais,ds_sit_tot_turno
 
-4. comparecimento_munzona_YYYY_GO (2014-2024): ano_eleicao,nr_turno,nm_municipio,nr_zona,ds_cargo,qt_aptos,qt_comparecimento,qt_abstencoes,qt_votos_brancos,qt_votos_nulos
+4. detalhe_votacao_munzona_YYYY_GO (2014-2024): ano_eleicao,nr_turno,nm_municipio,nr_zona,ds_cargo,qt_aptos,qt_comparecimento,qt_abstencoes,qt_votos_brancos,qt_votos_nulos
 
-5. eleitorado_local_YYYY_GO (2018-2024): aa_eleicao(não ano_eleicao!),nm_municipio,nr_zona,nr_secao,nm_local_votacao,ds_endereco,nm_bairro,qt_eleitor_secao
+5. eleitorado_local_votacao_YYYY (2014-2024, NACIONAL sem _GO, filtrar sg_uf='GO'): ano_eleicao,nm_municipio,nr_zona,nr_secao,nm_local_votacao,ds_endereco,nm_bairro,qt_eleitores_perfil,sg_uf
 
-6. votacao_partido_munzona_YYYY_GO (2014-2024): ano_eleicao,nr_turno,nm_municipio,nr_zona,ds_cargo,sg_partido,nm_partido,qt_votos_nominais,qt_votos_legenda
+6. votacao_partido_munzona_YYYY_GO (2014-2024): ano_eleicao,nr_turno,nm_municipio,nr_zona,ds_cargo,sg_partido,nm_partido,qt_votos_nominais_validos,qt_votos_legenda_validos
+⚠️ ATENÇÃO: colunas são qt_votos_nominais_validos e qt_votos_legenda_validos (NÃO qt_votos_nominais/qt_votos_legenda)
 
-7. perfil_eleitorado_YYYY_GO (2018-2024): ano_eleicao,nm_municipio,nr_zona,ds_genero,ds_faixa_etaria,ds_grau_escolaridade,ds_raca_cor,qt_eleitores_perfil
+7. perfil_eleitorado_YYYY (2014-2024, NACIONAL sem _GO, filtrar sg_uf='GO'): ano_eleicao,nm_municipio,nr_zona,ds_genero,ds_faixa_etaria,ds_grau_escolaridade,ds_raca_cor,qt_eleitores_perfil
 
 REGRAS: Tabela=my_db.nome_YYYY_GO. LIMIT max 200. Contexto: Goiás, Brasil.
 `;
@@ -182,14 +182,14 @@ function extractEntities(text: string): Entities {
 }
 
 // =============================================
-// SQL BUILDER + CHART TYPE (for reports)
+// SQL BUILDER + CHART TYPE — corrected table/column names
 // =============================================
 
-function candTable(a: number) { return `my_db.candidatos_${a}_GO`; }
-function bensTable(a: number) { return `my_db.bens_candidatos_${a}_GO`; }
-function compTable(a: number) { return `my_db.comparecimento_munzona_${a}_GO`; }
-function eleitLocalTable(a: number) { return `my_db.eleitorado_local_${a}_GO`; }
+function candTable(a: number) { return `my_db.consulta_cand_${a}_GO`; }
+function bensTable(a: number) { return `my_db.bem_candidato_${a}_GO`; }
+function compTable(a: number) { return `my_db.detalhe_votacao_munzona_${a}_GO`; }
 function votPartTable(a: number) { return `my_db.votacao_partido_munzona_${a}_GO`; }
+function votCandTable(a: number) { return `my_db.votacao_candidato_munzona_${a}_GO`; }
 
 interface QueryPlan { sql: string; tipo_grafico: string; titulo: string; descricao: string; }
 
@@ -216,7 +216,7 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
     case "ranking_votos": {
       const mCond = e.municipios.length ? `WHERE nm_municipio='${mun}'` : '';
       const cCond = e.cargos.length ? `${mCond ? ' AND' : ' WHERE'} ds_cargo ILIKE '%${e.cargos[0]}%'` : '';
-      return { sql: `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda FROM ${votPartTable(ano)} ${mCond}${cCond} GROUP BY sg_partido,nm_partido ORDER BY votos_nominais DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Top ${e.limite} partidos — ${lbl} ${ano}`, descricao: `Ranking por votos nominais` };
+      return { sql: `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais_validos) AS votos_nominais, sum(qt_votos_legenda_validos) AS votos_legenda FROM ${votPartTable(ano)} ${mCond}${cCond} GROUP BY sg_partido,nm_partido ORDER BY votos_nominais DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Top ${e.limite} partidos — ${lbl} ${ano}`, descricao: `Ranking por votos nominais` };
     }
     case "ranking_patrimonio":
       return { sql: `SELECT c.nm_urna_candidato AS candidato, c.sg_partido AS partido, sum(CAST(REPLACE(b.vr_bem_candidato,',','.')AS DOUBLE)) AS patrimonio FROM ${bensTable(ano)} b JOIN ${candTable(ano)} c ON b.sq_candidato=c.sq_candidato ${e.municipios.length?`WHERE c.nm_ue='${mun}'`:''} GROUP BY c.nm_urna_candidato,c.sg_partido ORDER BY patrimonio DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Maior patrimônio — ${ano}`, descricao: `Patrimônio declarado` };
@@ -259,7 +259,7 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
       return { sql: `SELECT CASE WHEN age<=25 THEN '18-25' WHEN age<=35 THEN '26-35' WHEN age<=45 THEN '36-45' WHEN age<=55 THEN '46-55' WHEN age<=65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total FROM (SELECT CAST(EXTRACT(YEAR FROM AGE(CURRENT_DATE,valid_date))AS INT) as age FROM (SELECT TRY_CAST(dt_nascimento AS DATE) as valid_date FROM ${candTable(ano)} ${baseWhere}) dates WHERE valid_date IS NOT NULL) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`, tipo_grafico: "bar", titulo: `Faixa etária — ${ano}`, descricao: `Distribuição` };
     }
     case "bairro_comparecimento":
-      return { sql: `SELECT nm_bairro AS bairro, count(DISTINCT nr_local_votacao) AS locais, sum(qt_eleitor_secao) AS eleitores FROM ${eleitLocalTable(ano)} WHERE nm_municipio='${mun}' AND nm_bairro IS NOT NULL AND nm_bairro!='' GROUP BY nm_bairro ORDER BY eleitores DESC LIMIT 30`, tipo_grafico: "bar", titulo: `Bairros — ${mun} ${ano}`, descricao: `Eleitores por bairro` };
+      return { sql: `SELECT nm_bairro AS bairro, count(DISTINCT nm_local_votacao) AS locais, sum(qt_eleitores_perfil) AS eleitores FROM my_db.eleitorado_local_votacao_${ano} WHERE sg_uf='GO' AND nm_municipio='${mun}' AND nm_bairro IS NOT NULL AND nm_bairro!='' GROUP BY nm_bairro ORDER BY eleitores DESC LIMIT 30`, tipo_grafico: "bar", titulo: `Bairros — ${mun} ${ano}`, descricao: `Eleitores por bairro` };
     case "busca_candidato": {
       if (e.nomes.length > 0) {
         return { sql: `SELECT nm_urna_candidato AS candidato, sg_partido AS partido, ds_cargo AS cargo, nm_ue AS municipio, ds_sit_tot_turno AS situacao, ds_genero AS genero FROM ${candTable(ano)} WHERE (nm_urna_candidato ILIKE '%${e.nomes[0]}%' OR nm_candidato ILIKE '%${e.nomes[0]}%') LIMIT 20`, tipo_grafico: "table", titulo: `Busca: ${e.nomes[0]}`, descricao: `Candidatos` };
@@ -272,14 +272,14 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
     case "comparativo_partidos": {
       if (e.partidos.length >= 2) {
         const pList = e.partidos.map(p => `'${p}'`).join(',');
-        return { sql: `SELECT sg_partido AS partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda FROM ${votPartTable(ano)} WHERE sg_partido IN (${pList}) ${e.municipios.length?`AND nm_municipio='${mun}'`:''} GROUP BY sg_partido ORDER BY votos_nominais DESC`, tipo_grafico: "bar", titulo: `${e.partidos.join(' × ')} — ${ano}`, descricao: `Comparativo` };
+        return { sql: `SELECT sg_partido AS partido, sum(qt_votos_nominais_validos) AS votos_nominais, sum(qt_votos_legenda_validos) AS votos_legenda FROM ${votPartTable(ano)} WHERE sg_partido IN (${pList}) ${e.municipios.length?`AND nm_municipio='${mun}'`:''} GROUP BY sg_partido ORDER BY votos_nominais DESC`, tipo_grafico: "bar", titulo: `${e.partidos.join(' × ')} — ${ano}`, descricao: `Comparativo` };
       }
       return buildQuery("partidos_ranking", e);
     }
     case "partidos_ranking":
-      return { sql: `SELECT sg_partido AS partido, sum(qt_votos_nominais) AS votos FROM ${votPartTable(ano)} ${e.municipios.length?`WHERE nm_municipio='${mun}'`:''} GROUP BY sg_partido ORDER BY votos DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Ranking partidos — ${lbl} ${ano}`, descricao: `Por votos` };
+      return { sql: `SELECT sg_partido AS partido, sum(qt_votos_nominais_validos) AS votos FROM ${votPartTable(ano)} ${e.municipios.length?`WHERE nm_municipio='${mun}'`:''} GROUP BY sg_partido ORDER BY votos DESC LIMIT ${e.limite}`, tipo_grafico: "bar", titulo: `Ranking partidos — ${lbl} ${ano}`, descricao: `Por votos` };
     case "locais_votacao":
-      return { sql: `SELECT nm_local_votacao AS local, nm_bairro AS bairro, ds_endereco AS endereco, sum(qt_eleitor_secao) AS eleitores FROM ${eleitLocalTable(ano)} WHERE nm_municipio='${mun}' GROUP BY nm_local_votacao,nm_bairro,ds_endereco ORDER BY eleitores DESC LIMIT 30`, tipo_grafico: "table", titulo: `Locais de votação — ${mun} ${ano}`, descricao: `Escolas e colégios` };
+      return { sql: `SELECT nm_local_votacao AS local, nm_bairro AS bairro, ds_endereco AS endereco, sum(qt_eleitores_perfil) AS eleitores FROM my_db.eleitorado_local_votacao_${ano} WHERE sg_uf='GO' AND nm_municipio='${mun}' GROUP BY nm_local_votacao,nm_bairro,ds_endereco ORDER BY eleitores DESC LIMIT 30`, tipo_grafico: "table", titulo: `Locais de votação — ${mun} ${ano}`, descricao: `Escolas e colégios` };
     case "resumo_eleicao": {
       const w = buildWhere(e);
       return { sql: `SELECT count(*) AS total_candidatos, count(CASE WHEN ds_sit_tot_turno ILIKE '%ELEITO%' AND ds_sit_tot_turno NOT ILIKE '%NÃO ELEITO%' THEN 1 END) AS eleitos, count(CASE WHEN ds_genero='FEMININO' THEN 1 END) AS mulheres, count(DISTINCT sg_partido) AS partidos FROM ${candTable(ano)} ${w}`, tipo_grafico: "kpi", titulo: `Resumo — ${lbl} ${ano}`, descricao: `Visão geral` };

@@ -4,35 +4,38 @@ const corsHeaders = {
 };
 
 // =============================================
-// GEMINI API HELPER (direct, not Lovable AI)
+// LOVABLE AI GATEWAY (replaces Gemini)
 // =============================================
 
-async function callGemini(systemPrompt: string, userMessage: string, geminiKey: string, maxTokens = 2000): Promise<string | null> {
+async function callAI(systemPrompt: string, userMessage: string, apiKey: string, maxTokens = 2000): Promise<string | null> {
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: [
-            { role: "user", parts: [{ text: `${systemPrompt}\n\n---\n\nPergunta do usuário: ${userMessage}` }] },
-          ],
-          generationConfig: { temperature: 0.3, maxOutputTokens: maxTokens },
-        }),
-      }
-    );
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash-lite",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: maxTokens,
+        temperature: 0.3,
+      }),
+    });
     if (!res.ok) {
       const errBody = await res.text();
-      console.error("Gemini error:", res.status, errBody);
+      console.error("Lovable AI error:", res.status, errBody);
       if (res.status === 429) return "ERROR:429";
       if (res.status === 402) return "ERROR:402";
       return null;
     }
     const data = await res.json();
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text || null;
+    return data?.choices?.[0]?.message?.content || null;
   } catch (err) {
-    console.error("Gemini call failed:", err);
+    console.error("AI call failed:", err);
     return null;
   }
 }
@@ -45,56 +48,55 @@ const SCHEMA_COMPLETO = `
 Tabelas MotherDuck (DuckDB). Banco: my_db. Sufixo: _YYYY_GO.
 ATENÇÃO: Use APENAS as colunas listadas abaixo. NUNCA invente colunas.
 
-1. my_db.candidatos_YYYY_GO (anos: 2012-2024)
+1. my_db.consulta_cand_YYYY_GO (anos: 2014-2024) — candidatos
    Colunas: ano_eleicao(BIGINT), nr_turno(BIGINT), nm_candidato(VARCHAR), nm_urna_candidato(VARCHAR),
    sg_partido(VARCHAR), nm_partido(VARCHAR), ds_cargo(VARCHAR),
    nm_ue(VARCHAR=município), sg_uf(VARCHAR), sq_candidato(BIGINT), nr_candidato(BIGINT),
    nr_cpf_candidato(BIGINT), ds_situacao_candidatura(VARCHAR),
-   sg_uf_nascimento(VARCHAR), dt_nascimento(VARCHAR - pode ser vazio!), ds_genero(VARCHAR), ds_grau_instrucao(VARCHAR),
+   sg_uf_nascimento(VARCHAR), dt_nascimento(DATE), ds_genero(VARCHAR), ds_grau_instrucao(VARCHAR),
    ds_ocupacao(VARCHAR), ds_cor_raca(VARCHAR), ds_estado_civil(VARCHAR),
    ds_sit_tot_turno(VARCHAR=situação final: ELEITO/NÃO ELEITO/etc),
    nr_partido(BIGINT)
    ⚠️ NÃO EXISTE: ds_nacionalidade, nr_idade_data_posse, nm_bairro
-   ⚠️ dt_nascimento pode conter strings vazias! SEMPRE use TRY_CAST(dt_nascimento AS DATE)
 
-2. my_db.bens_candidatos_YYYY_GO (anos: 2014-2024)
+2. my_db.bem_candidato_YYYY_GO (anos: 2014-2024)
    Colunas: ano_eleicao, sg_uf, nm_ue, sq_candidato(BIGINT), nr_ordem_bem_candidato(BIGINT),
    ds_tipo_bem_candidato(VARCHAR), ds_bem_candidato(VARCHAR),
    vr_bem_candidato(VARCHAR! vírgula decimal, ex: '100000,00')
    ⚠️ Para somar: CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)
-   ⚠️ NÃO TEM: nm_candidato, sg_partido (precisa JOIN com candidatos via sq_candidato)
+   ⚠️ NÃO TEM: nm_candidato, sg_partido (precisa JOIN com consulta_cand via sq_candidato)
 
-3. my_db.votacao_munzona_YYYY_GO (anos: 2012-2024)
+3. my_db.votacao_candidato_munzona_YYYY_GO (anos: 2014-2024)
    Colunas: ano_eleicao, nr_turno, nm_municipio(VARCHAR), nr_zona(BIGINT), ds_cargo,
    sq_candidato, nr_candidato, nm_candidato, nm_urna_candidato, sg_partido, nm_partido,
    qt_votos_nominais(BIGINT), ds_sit_tot_turno
 
-4. my_db.comparecimento_munzona_YYYY_GO (anos: 2014-2024)
+4. my_db.detalhe_votacao_munzona_YYYY_GO (anos: 2014-2024) — comparecimento
    Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
    qt_aptos(BIGINT), qt_comparecimento(BIGINT), qt_abstencoes(BIGINT),
    qt_votos_brancos(BIGINT), qt_votos_nulos(BIGINT)
 
-5. my_db.eleitorado_local_YYYY_GO (anos: 2018-2024) — TEM BAIRRO!
-   Colunas: aa_eleicao(BIGINT! não ano_eleicao), nm_municipio, nr_zona, nr_secao,
+5. my_db.eleitorado_local_votacao_YYYY (anos: 2014-2024) — TEM BAIRRO! Nacional, filtrar sg_uf='GO'
+   Colunas: ano_eleicao(BIGINT), nm_municipio, nr_zona, nr_secao,
    nm_local_votacao(VARCHAR), ds_endereco(VARCHAR), nm_bairro(VARCHAR),
-   qt_eleitor_secao(BIGINT)
-   ⚠️ Campo ano é aa_eleicao (não ano_eleicao)
+   qt_eleitores_perfil(BIGINT), sg_uf
+   ⚠️ Tabela nacional, sem sufixo _GO. Filtrar com sg_uf='GO'
 
 6. my_db.votacao_partido_munzona_YYYY_GO (anos: 2014-2024)
    Colunas: ano_eleicao, nr_turno, nm_municipio, nr_zona, ds_cargo,
-   nr_partido, sg_partido, nm_partido, qt_votos_nominais, qt_votos_legenda
+   nr_partido, sg_partido, nm_partido, qt_votos_nominais_validos(BIGINT), qt_votos_legenda_validos(BIGINT)
+   ⚠️ ATENÇÃO: colunas são qt_votos_nominais_validos e qt_votos_legenda_validos (NÃO qt_votos_nominais/qt_votos_legenda)
 
-7. my_db.perfil_eleitorado_YYYY_GO (anos: 2018-2024)
+7. my_db.perfil_eleitorado_YYYY (anos: 2014-2024) — Nacional, filtrar sg_uf='GO'
    Colunas: ano_eleicao, nm_municipio, nr_zona, ds_genero, ds_faixa_etaria,
-   ds_grau_escolaridade, ds_raca_cor, qt_eleitores_perfil(BIGINT), qt_eleitores_biometria
+   ds_grau_escolaridade, ds_raca_cor, qt_eleitores_perfil(BIGINT)
 
 REGRAS:
-- Sempre especifique o ano na tabela (ex: my_db.candidatos_2024_GO)
+- Sempre especifique o ano na tabela (ex: my_db.consulta_cand_2024_GO)
 - Para múltiplos anos, use UNION ALL
 - vr_bem_candidato é VARCHAR com vírgula decimal
 - NUNCA use colunas que não existem
 - Use LIMIT máximo 200
-- dt_nascimento é VARCHAR e pode ser vazio - SEMPRE use TRY_CAST
 - Contexto: Dados eleitorais do estado de Goiás (GO), Brasil
 `;
 
@@ -238,14 +240,14 @@ function extractEntities(text: string): Entities {
 }
 
 // =============================================
-// SQL BUILDER
+// SQL BUILDER — corrected table/column names
 // =============================================
 
-function candTable(ano: number) { return `my_db.candidatos_${ano}_GO`; }
-function bensTable(ano: number) { return `my_db.bens_candidatos_${ano}_GO`; }
+function candTable(ano: number) { return `my_db.consulta_cand_${ano}_GO`; }
+function bensTable(ano: number) { return `my_db.bem_candidato_${ano}_GO`; }
 function votPartTable(ano: number) { return `my_db.votacao_partido_munzona_${ano}_GO`; }
-function compTable(ano: number) { return `my_db.comparecimento_munzona_${ano}_GO`; }
-function eleitLocalTable(ano: number) { return `my_db.eleitorado_local_${ano}_GO`; }
+function compTable(ano: number) { return `my_db.detalhe_votacao_munzona_${ano}_GO`; }
+function votCandTable(ano: number) { return `my_db.votacao_candidato_munzona_${ano}_GO`; }
 
 function buildWhere(e: Entities, isMunField = false): string {
   const munField = isMunField ? "nm_municipio" : "nm_ue";
@@ -270,7 +272,7 @@ function buildSQL(intent: Intent, e: Entities): string {
     case "total_votos": {
       const mCond = e.municipios.length ? `WHERE nm_municipio = '${mun}'` : '';
       const cCond = e.cargos.length ? `${mCond ? ' AND' : ' WHERE'} ds_cargo ILIKE '%${e.cargos[0]}%'` : '';
-      return `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda
+      return `SELECT sg_partido AS partido, nm_partido AS nome_partido, sum(qt_votos_nominais_validos) AS votos_nominais, sum(qt_votos_legenda_validos) AS votos_legenda
         FROM ${votPartTable(ano)} ${mCond}${cCond} GROUP BY sg_partido, nm_partido ORDER BY votos_nominais DESC LIMIT ${e.limite}`;
     }
     case "ranking_patrimonio":
@@ -327,7 +329,6 @@ function buildSQL(intent: Intent, e: Entities): string {
     }
     case "distribuicao_idade": {
       const w = buildWhere(e);
-      // Use subquery to safely filter valid dates first, then calculate age
       const baseWhere = w || 'WHERE 1=1';
       return `SELECT CASE WHEN age <= 25 THEN '18-25' WHEN age <= 35 THEN '26-35' WHEN age <= 45 THEN '36-45'
         WHEN age <= 55 THEN '46-55' WHEN age <= 65 THEN '56-65' ELSE '66+' END AS faixa, count(*) AS total
@@ -341,8 +342,8 @@ function buildSQL(intent: Intent, e: Entities): string {
         ) sub WHERE age BETWEEN 18 AND 120 GROUP BY faixa ORDER BY faixa`;
     }
     case "bairro_comparecimento":
-      return `SELECT nm_bairro AS bairro, count(DISTINCT nr_local_votacao) AS locais, sum(qt_eleitor_secao) AS eleitores
-        FROM ${eleitLocalTable(ano)} WHERE nm_municipio = '${mun}' AND nm_bairro IS NOT NULL AND nm_bairro != ''
+      return `SELECT nm_bairro AS bairro, count(DISTINCT nm_local_votacao) AS locais, sum(qt_eleitores_perfil) AS eleitores
+        FROM my_db.eleitorado_local_votacao_${ano} WHERE sg_uf = 'GO' AND nm_municipio = '${mun}' AND nm_bairro IS NOT NULL AND nm_bairro != ''
         GROUP BY nm_bairro ORDER BY eleitores DESC LIMIT 30`;
     case "busca_candidato": {
       if (e.nomes.length > 0) {
@@ -364,19 +365,19 @@ function buildSQL(intent: Intent, e: Entities): string {
         const pList = e.partidos.map(p => `'${p}'`).join(',');
         const mCond = e.municipios.length ? `AND nm_municipio = '${mun}'` : '';
         const cCond = e.cargos.length ? `AND ds_cargo ILIKE '%${e.cargos[0]}%'` : '';
-        return `SELECT sg_partido AS partido, sum(qt_votos_nominais) AS votos_nominais, sum(qt_votos_legenda) AS votos_legenda
+        return `SELECT sg_partido AS partido, sum(qt_votos_nominais_validos) AS votos_nominais, sum(qt_votos_legenda_validos) AS votos_legenda
           FROM ${votPartTable(ano)} WHERE sg_partido IN (${pList}) ${mCond} ${cCond} GROUP BY sg_partido ORDER BY votos_nominais DESC`;
       }
       return buildSQL("partidos_ranking", e);
     }
     case "partidos_ranking": {
       const mCond = e.municipios.length ? `WHERE nm_municipio = '${mun}'` : '';
-      return `SELECT sg_partido AS partido, sum(qt_votos_nominais) AS votos_nominais
+      return `SELECT sg_partido AS partido, sum(qt_votos_nominais_validos) AS votos_nominais
         FROM ${votPartTable(ano)} ${mCond} GROUP BY sg_partido ORDER BY votos_nominais DESC LIMIT ${e.limite}`;
     }
     case "locais_votacao":
-      return `SELECT nm_local_votacao AS local, nm_bairro AS bairro, ds_endereco AS endereco, sum(qt_eleitor_secao) AS eleitores
-        FROM ${eleitLocalTable(ano)} WHERE nm_municipio = '${mun}'
+      return `SELECT nm_local_votacao AS local, nm_bairro AS bairro, ds_endereco AS endereco, sum(qt_eleitores_perfil) AS eleitores
+        FROM my_db.eleitorado_local_votacao_${ano} WHERE sg_uf = 'GO' AND nm_municipio = '${mun}'
         GROUP BY nm_local_votacao, nm_bairro, ds_endereco ORDER BY eleitores DESC LIMIT 30`;
     case "resumo_eleicao": {
       const w = buildWhere(e);
@@ -418,9 +419,9 @@ Deno.serve(async (req) => {
       });
     }
 
-    const geminiKey = Deno.env.get("GEMINI_API_KEY");
-    if (!geminiKey) {
-      return new Response(JSON.stringify({ erro: "GEMINI_API_KEY não configurada" }), {
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (!apiKey) {
+      return new Response(JSON.stringify({ erro: "LOVABLE_API_KEY não configurada" }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -441,19 +442,24 @@ Deno.serve(async (req) => {
     let sql = buildSQL(intent, entities);
     let usedAI = false;
 
-    // ── STEP 2: Only call Gemini for "generico" or empty SQL ──
+    // ── STEP 2: Only call AI for "generico" or empty SQL ──
     if (!sql || intent === "generico") {
       const sqlPrompt = `Gere SQL DuckDB/MotherDuck. Use APENAS colunas listadas. NUNCA invente.
 Responda APENAS JSON: {"sql":"SELECT ..."}
 ${SCHEMA_COMPLETO}`;
 
-      const raw = await callGemini(sqlPrompt, pergunta, geminiKey, 600);
+      const raw = await callAI(sqlPrompt, pergunta, apiKey, 600);
       if (raw === "ERROR:429") {
         return new Response(JSON.stringify({ erro: "Limite de requisições da IA atingido. Aguarde." }), {
           status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
-      if (raw) {
+      if (raw === "ERROR:402") {
+        return new Response(JSON.stringify({ erro: "Créditos esgotados." }), {
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (raw && !raw.startsWith("ERROR:")) {
         try {
           const cleaned = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
           const match = cleaned.match(/\{[\s\S]*\}/);
@@ -515,12 +521,12 @@ ${SCHEMA_COMPLETO}`;
       dados = await executarQuery(sql);
     } catch (queryErr: any) {
       console.error("Query error:", queryErr.message, "SQL:", sql);
-      const retryRaw = await callGemini(
+      const retryRaw = await callAI(
         `SQL falhou. Corrija usando APENAS colunas existentes.\n${SCHEMA_COMPLETO}\nResponda APENAS JSON: {"sql":"SELECT ..."}`,
         `Pergunta: "${pergunta}"\nSQL: ${sql}\nErro: ${queryErr.message}`,
-        geminiKey, 600
+        apiKey, 600
       );
-      if (retryRaw && retryRaw !== "ERROR:429") {
+      if (retryRaw && !retryRaw.startsWith("ERROR:")) {
         try {
           const cleaned = retryRaw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
           const match = cleaned.match(/\{[\s\S]*\}/);
@@ -553,13 +559,13 @@ ${SCHEMA_COMPLETO}`;
       resposta = formatSimpleResult(intent, entities, dados);
     } else {
       const sample = dados.slice(0, 15);
-      const textRaw = await callGemini(
+      const textRaw = await callAI(
         `Assistente de eleições de Goiás. Responda em markdown. NÃO mencione SQL/banco. Use negrito e listas. Seja direto.`,
         `Pergunta: "${pergunta}"\nDados (${dados.length} registros, amostra de 15):\n${JSON.stringify(sample)}`,
-        geminiKey, 800
+        apiKey, 800
       );
 
-      resposta = (textRaw && textRaw !== "ERROR:429" && textRaw !== "ERROR:402")
+      resposta = (textRaw && !textRaw.startsWith("ERROR:"))
         ? textRaw
         : formatSimpleResult(intent, entities, dados);
     }
