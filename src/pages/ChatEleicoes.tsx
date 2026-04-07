@@ -366,7 +366,7 @@ export default function ChatEleicoes() {
           </div>
           <div>
             <h1 className="text-base font-bold text-foreground tracking-tight">Relatórios Personalizados</h1>
-            <p className="text-[10px] text-muted-foreground">Gere visualizações e gráficos sobre dados eleitorais de Goiás</p>
+            <p className="text-[10px] text-muted-foreground">Gere gráficos e visualizações sobre dados eleitorais de Goiás</p>
           </div>
         </div>
         <div className="flex items-center gap-1">

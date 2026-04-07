@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users,
-  HelpCircle, TrendingUp, Sparkles, MessageSquare, Settings, Crosshair, Vote,
+  HelpCircle, Sparkles, MessageSquare, Settings, Vote,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -9,14 +9,10 @@ import {
 } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 
-const analysisItems = [
+const mainItems = [
+  { title: 'Painel de Dados', url: '/', icon: BarChart3 },
   { title: 'Consulta por IA', url: '/consulta', icon: MessageSquare },
-  { title: 'Relatórios Personalizados', url: '/chat', icon: Sparkles },
-  { title: 'Resultado por Eleição', url: '/resultado', icon: Vote },
-  { title: 'Micro-Targeting', url: '/micro-targeting', icon: Crosshair },
-  { title: 'Goiânia & Aparecida', url: '/territorial', icon: Target },
-  { title: 'Explorador', url: '/explorador', icon: TrendingUp },
-  { title: 'Dashboard', url: '/', icon: BarChart3 },
+  { title: 'Relatórios Personalizados', url: '/relatorios', icon: Sparkles },
   { title: 'Ranking', url: '/ranking', icon: Trophy },
 ];
 
@@ -26,6 +22,7 @@ const dimensionItems = [
   { title: 'Partidos', url: '/partido', icon: Target },
   { title: 'Bairros', url: '/bairro', icon: MapPin },
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
+  { title: 'Goiânia & Aparecida', url: '/territorial', icon: Vote },
   { title: 'Perfil Geral', url: '/perfil-candidatos', icon: UserCheck },
 ];
 
@@ -39,7 +36,7 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === 'collapsed';
 
-  const MenuItem = ({ item }: { item: typeof analysisItems[0] }) => {
+  const MenuItem = ({ item }: { item: typeof mainItems[0] }) => {
     const isActive = location.pathname === item.url;
     return (
       <SidebarMenuItem>
@@ -78,9 +75,9 @@ export function AppSidebar() {
       </SidebarHeader>
       <SidebarContent className="px-2 py-3">
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Análise</SidebarGroupLabel>}
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Principal</SidebarGroupLabel>}
           <SidebarGroupContent>
-            <SidebarMenu>{analysisItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
+            <SidebarMenu>{mainItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
