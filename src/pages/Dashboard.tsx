@@ -1,457 +1,317 @@
 import { useState, useMemo } from 'react';
-import {
-  useKPIs, useCheckEmpty,
-  useCandidatosPorPartido, useDistribuicaoGenero,
-  useSituacaoFinal, useEvolucaoPorAno,
-  useTopPatrimonio, useCandidatosPorCargo, useMunicipiosRanking,
-  useFaixaEtaria, useVotosBrancosNulos, useComparativoAnos,
-  useDistribuicaoEscolaridade, useTopOcupacoes,
-} from '@/hooks/useEleicoes';
-import { useMotherDuckQuery } from '@/hooks/useMotherDuckQuery';
-import { formatNumber, formatPercent, getPartidoCor, CHART_COLORS, formatBRLCompact, formatBRL } from '@/lib/eleicoes';
-import { KPISkeleton, TableSkeleton } from '@/components/eleicoes/Skeletons';
-import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
-import { EmptyState } from '@/components/eleicoes/EmptyState';
-import { KPIDrillDownPanel, type DrillDownType } from '@/components/eleicoes/KPIDrillDown';
-import {
-  Users, CheckCircle, UserCheck, Building, MapPin, BarChart3, Vote, TrendingUp,
-  DollarSign, Calendar, Target, Database, MessageSquare, Sparkles, Trophy,
-  GraduationCap, Briefcase,
-} from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { usePainelGeral, useKPIs, useComparecimento } from '@/hooks/useEleicoes';
 import { useFilterStore } from '@/stores/filterStore';
-import { mdQuery, MD } from '@/lib/motherduck';
-import { cn } from '@/lib/utils';
+import { formatNumber, formatPercent, getPartidoCor } from '@/lib/eleicoes';
+import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { useQuery } from '@tanstack/react-query';
+import { Badge } from '@/components/ui/badge';
+import { Link } from 'react-router-dom';
+import {
+  Users, Vote, XCircle, BarChart3,
+  ChevronUp, ChevronDown, ChevronLeft, ChevronRight,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 
-// ── MotherDuck Status ──
-function MotherDuckStatusCard() {
-  const { data, isLoading, error } = useMotherDuckQuery(
-    "SELECT count(*) as total FROM my_db.candidatos_2024_GO",
-    ['motherduck-status']
-  );
-  const total = data?.rows?.[0]?.total ?? null;
+// ═══════════════════════════════════════════════════════
+// KPI Card
+// ═══════════════════════════════════════════════════════
+
+function KPICard({ label, value, sub, icon: Icon, color }: {
+  label: string; value: string; sub?: string;
+  icon: React.ElementType; color: string;
+}) {
   return (
-    <div className="bg-card rounded-lg border border-border/50 p-3 flex items-center gap-3">
-      <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center">
-        <Database className="w-4 h-4 text-primary" />
+    <div className="bg-card rounded-lg border border-border/40 p-4 flex items-start gap-3">
+      <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', color)}>
+        <Icon className="w-5 h-5" />
       </div>
-      <div className="flex-1 min-w-0">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">MotherDuck</p>
-        {isLoading ? <Skeleton className="h-5 w-24 mt-0.5" /> : error ? (
-          <p className="text-xs text-destructive truncate">{error.message}</p>
+      <div className="min-w-0">
+        <p className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
+        <p className="text-2xl font-bold tracking-tight leading-tight mt-0.5">{value}</p>
+        {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
+function KPISkeleton4() {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {[1,2,3,4].map(i => (
+        <div key={i} className="bg-card rounded-lg border border-border/40 p-4 flex items-start gap-3">
+          <Skeleton className="w-10 h-10 rounded-lg" />
+          <div className="flex-1 space-y-2">
+            <Skeleton className="h-3 w-16" />
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-3 w-20" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
+// Sortable Data Table
+// ═══════════════════════════════════════════════════════
+
+type SortKey = 'total_votos' | 'candidato' | 'partido';
+
+const PAGE_SIZE = 30;
+
+export default function Dashboard() {
+  const { ano, municipio } = useFilterStore();
+  const { data: painel, isLoading: loadingPainel } = usePainelGeral(500);
+  const { data: kpis, isLoading: loadingKpis } = useKPIs();
+  const { data: comparecimento } = useComparecimento();
+
+  const [sortKey, setSortKey] = useState<SortKey>('total_votos');
+  const [sortAsc, setSortAsc] = useState(false);
+  const [page, setPage] = useState(0);
+
+  // Derived stats
+  const comp = comparecimento?.[0] as any;
+  const votosValidos = useMemo(() => {
+    if (!painel) return 0;
+    return painel.reduce((sum: number, r: any) => sum + Number(r.total_votos || 0), 0);
+  }, [painel]);
+
+  // Sort + paginate
+  const sorted = useMemo(() => {
+    if (!painel) return [];
+    const arr = [...painel];
+    arr.sort((a: any, b: any) => {
+      let va: any, vb: any;
+      if (sortKey === 'total_votos') { va = Number(a.total_votos || 0); vb = Number(b.total_votos || 0); }
+      else if (sortKey === 'candidato') { va = a.candidato || ''; vb = b.candidato || ''; }
+      else { va = a.partido || ''; vb = b.partido || ''; }
+      if (typeof va === 'string') return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      return sortAsc ? va - vb : vb - va;
+    });
+    return arr;
+  }, [painel, sortKey, sortAsc]);
+
+  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+  const pageData = sorted.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) setSortAsc(!sortAsc);
+    else { setSortKey(key); setSortAsc(key !== 'total_votos'); }
+    setPage(0);
+  }
+
+  const SortIcon = ({ col }: { col: SortKey }) => {
+    if (sortKey !== col) return null;
+    return sortAsc ? <ChevronUp className="w-3 h-3 inline ml-0.5" /> : <ChevronDown className="w-3 h-3 inline ml-0.5" />;
+  };
+
+  return (
+    <div className="max-w-[1800px] mx-auto space-y-4">
+      {/* ── HEADER ── */}
+      <div className="flex items-baseline gap-2">
+        <h1 className="text-lg font-bold">Painel de Resultados</h1>
+        <span className="text-xs text-muted-foreground">{municipio} · {ano}</span>
+      </div>
+
+      {/* ── KPIs ── */}
+      {loadingKpis ? <KPISkeleton4 /> : (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <KPICard
+            label="Total Candidatos"
+            value={formatNumber(kpis?.totalCandidatos)}
+            sub={`${formatNumber(kpis?.totalPartidos)} partidos`}
+            icon={Users}
+            color="bg-primary/15 text-primary"
+          />
+          <KPICard
+            label="Votos Nominais"
+            value={formatNumber(votosValidos)}
+            sub={painel ? `${painel.length} candidatos listados` : undefined}
+            icon={Vote}
+            color="bg-chart-1/15 text-accent-foreground"
+          />
+          <KPICard
+            label="Eleitos"
+            value={formatNumber(kpis?.totalEleitos)}
+            sub={kpis ? `${formatPercent(kpis.totalCandidatos > 0 ? (kpis.totalEleitos / kpis.totalCandidatos) * 100 : 0)} do total` : undefined}
+            icon={BarChart3}
+            color="bg-success/15 text-success"
+          />
+          <KPICard
+            label="Comparecimento"
+            value={comp ? formatNumber(Number(comp.comparecimento)) : '—'}
+            sub={comp ? `${formatPercent(Number(comp.taxa_comparecimento))} dos aptos` : 'Sem dados'}
+            icon={XCircle}
+            color="bg-warning/15 text-warning"
+          />
+        </div>
+      )}
+
+      {/* ── DATA TABLE ── */}
+      <div className="bg-card rounded-lg border border-border/40 overflow-hidden">
+        {/* Table header info */}
+        <div className="px-4 py-2.5 border-b border-border/30 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold">Ranking de Candidatos</h2>
+            <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
+              {sorted.length} resultados
+            </Badge>
+          </div>
+          <div className="text-[10px] text-muted-foreground">
+            Página {page + 1} de {totalPages || 1}
+          </div>
+        </div>
+
+        {loadingPainel ? (
+          <div className="p-4 space-y-2">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <Skeleton key={i} className="h-8 w-full" />
+            ))}
+          </div>
+        ) : sorted.length === 0 ? (
+          <div className="p-12 text-center text-sm text-muted-foreground">
+            Nenhum candidato encontrado para os filtros selecionados.
+          </div>
         ) : (
-          <p className="text-lg font-bold">{Number(total).toLocaleString('pt-BR')} <span className="text-xs font-normal text-muted-foreground">candidatos 2024</span></p>
+          <>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent border-border/30">
+                    <TableHead className="w-[50px] text-[10px] font-semibold text-muted-foreground">#</TableHead>
+                    <TableHead
+                      className="text-[10px] font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground"
+                      onClick={() => handleSort('candidato')}
+                    >
+                      Candidato <SortIcon col="candidato" />
+                    </TableHead>
+                    <TableHead className="w-[60px] text-[10px] font-semibold text-muted-foreground text-center">Nº</TableHead>
+                    <TableHead
+                      className="w-[80px] text-[10px] font-semibold text-muted-foreground cursor-pointer select-none hover:text-foreground"
+                      onClick={() => handleSort('partido')}
+                    >
+                      Partido <SortIcon col="partido" />
+                    </TableHead>
+                    <TableHead className="w-[120px] text-[10px] font-semibold text-muted-foreground">Cargo</TableHead>
+                    <TableHead
+                      className="w-[100px] text-[10px] font-semibold text-muted-foreground text-right cursor-pointer select-none hover:text-foreground"
+                      onClick={() => handleSort('total_votos')}
+                    >
+                      Votos <SortIcon col="total_votos" />
+                    </TableHead>
+                    <TableHead className="w-[60px] text-[10px] font-semibold text-muted-foreground text-right">%</TableHead>
+                    <TableHead className="w-[100px] text-[10px] font-semibold text-muted-foreground text-center">Situação</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {pageData.map((row: any, idx: number) => {
+                    const votos = Number(row.total_votos || 0);
+                    const pct = votosValidos > 0 ? (votos / votosValidos) * 100 : 0;
+                    const pos = page * PAGE_SIZE + idx + 1;
+                    const isEleito = row.situacao?.toUpperCase()?.includes('ELEITO') && !row.situacao?.toUpperCase()?.includes('NÃO ELEITO');
+
+                    return (
+                      <TableRow
+                        key={row.sq_candidato || idx}
+                        className={cn(
+                          'border-border/20 hover:bg-muted/30 transition-colors',
+                          isEleito && 'bg-success/5'
+                        )}
+                      >
+                        <TableCell className="text-xs text-muted-foreground font-mono tabular-nums py-1.5">
+                          {pos}
+                        </TableCell>
+                        <TableCell className="py-1.5">
+                          <Link
+                            to={`/candidato/${row.sq_candidato}`}
+                            className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate block max-w-[200px]"
+                            title={row.candidato}
+                          >
+                            {row.candidato}
+                          </Link>
+                          {row.municipio && row.municipio !== municipio && (
+                            <span className="text-[10px] text-muted-foreground">{row.municipio}</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-center font-mono tabular-nums text-muted-foreground py-1.5">
+                          {row.numero}
+                        </TableCell>
+                        <TableCell className="py-1.5">
+                          <span
+                            className="text-xs font-semibold px-1.5 py-0.5 rounded"
+                            style={{
+                              backgroundColor: getPartidoCor(row.partido) + '20',
+                              color: getPartidoCor(row.partido),
+                            }}
+                          >
+                            {row.partido}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground truncate max-w-[120px] py-1.5">
+                          {row.cargo}
+                        </TableCell>
+                        <TableCell className="text-sm font-bold text-right tabular-nums py-1.5">
+                          {votos > 0 ? formatNumber(votos) : '—'}
+                        </TableCell>
+                        <TableCell className="text-xs text-right tabular-nums text-muted-foreground py-1.5">
+                          {pct > 0 ? formatPercent(pct, 2) : '—'}
+                        </TableCell>
+                        <TableCell className="text-center py-1.5">
+                          <SituacaoBadge situacao={row.situacao || '—'} />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="px-4 py-2 border-t border-border/30 flex items-center justify-between">
+                <p className="text-[10px] text-muted-foreground">
+                  {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, sorted.length)} de {sorted.length}
+                </p>
+                <div className="flex gap-1">
+                  <Button
+                    variant="ghost" size="sm"
+                    disabled={page === 0}
+                    onClick={() => setPage(p => p - 1)}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </Button>
+                  {Array.from({ length: Math.min(totalPages, 7) }).map((_, i) => {
+                    const p = totalPages <= 7 ? i : (page < 4 ? i : page > totalPages - 4 ? totalPages - 7 + i : page - 3 + i);
+                    if (p < 0 || p >= totalPages) return null;
+                    return (
+                      <Button
+                        key={p} variant={p === page ? 'default' : 'ghost'}
+                        size="sm" onClick={() => setPage(p)}
+                        className="h-7 w-7 p-0 text-xs"
+                      >
+                        {p + 1}
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant="ghost" size="sm"
+                    disabled={page >= totalPages - 1}
+                    onClick={() => setPage(p => p + 1)}
+                    className="h-7 w-7 p-0"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
-      <span className={`w-2 h-2 rounded-full ${error ? 'bg-destructive' : isLoading ? 'bg-warning animate-pulse' : 'bg-success'}`} />
-    </div>
-  );
-}
-
-// ── Data Table component ──
-function DataTable({ data, columns, maxRows = 30 }: { data: Record<string, any>[]; columns: { key: string; label: string; align?: 'right' | 'left'; format?: (v: any) => string }[]; maxRows?: number }) {
-  const sliced = data.slice(0, maxRows);
-  if (sliced.length === 0) return <p className="text-xs text-muted-foreground p-4 text-center">Sem dados</p>;
-  return (
-    <ScrollArea className="h-[400px]">
-      <table className="w-full text-xs">
-        <thead className="sticky top-0 bg-card z-10">
-          <tr className="border-b border-border/30">
-            <th className="text-left py-2 px-2 text-muted-foreground font-medium w-8">#</th>
-            {columns.map(c => (
-              <th key={c.key} className={cn("py-2 px-2 text-muted-foreground font-medium", c.align === 'right' ? 'text-right' : 'text-left')}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {sliced.map((row, i) => (
-            <tr key={i} className="border-b border-border/10 hover:bg-muted/30 transition-colors">
-              <td className="py-1.5 px-2 text-muted-foreground">{i + 1}</td>
-              {columns.map(c => (
-                <td key={c.key} className={cn("py-1.5 px-2", c.align === 'right' ? 'text-right font-mono font-semibold' : '')}>
-                  {c.format ? c.format(row[c.key]) : (typeof row[c.key] === 'number' && row[c.key] > 999 ? formatNumber(row[c.key]) : row[c.key] ?? '—')}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </ScrollArea>
-  );
-}
-
-function Card({ children, className = '', title }: { children: React.ReactNode; className?: string; title?: string }) {
-  return (
-    <div className={`bg-card rounded-lg border border-border/50 p-4 ${className}`}>
-      {title && <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">{title}</h3>}
-      {children}
-    </div>
-  );
-}
-
-// ── Tab Navigation ──
-const TABS = [
-  { id: 'resumo', label: 'Resumo', icon: BarChart3 },
-  { id: 'partidos', label: 'Partidos', icon: Target },
-  { id: 'demografico', label: 'Demográfico', icon: Users },
-  { id: 'evolucao', label: 'Evolução', icon: Calendar },
-  { id: 'geografico', label: 'Geográfico', icon: MapPin },
-  { id: 'patrimonio', label: 'Patrimônio', icon: DollarSign },
-  { id: 'votos', label: 'Votos', icon: Vote },
-] as const;
-type TabId = typeof TABS[number]['id'];
-
-function DashboardNav({ active, onChange }: { active: TabId; onChange: (t: TabId) => void }) {
-  return (
-    <nav className="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-none">
-      {TABS.map(t => (
-        <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
-          className={cn(
-            'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap transition-all',
-            active === t.id ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-          )}
-        >
-          <t.icon className="w-3.5 h-3.5" />
-          {t.label}
-        </button>
-      ))}
-    </nav>
-  );
-}
-
-// ── Comparecimento hook ──
-function useComparecimentoGeral() {
-  const { ano } = useFilterStore();
-  return useQuery({
-    queryKey: ['comparecimentoGeral', ano],
-    queryFn: async () => {
-      const anos = ano ? [ano] : [2016, 2018, 2020, 2022, 2024];
-      let totalApto = 0, totalComp = 0, totalAbst = 0, totalBrancos = 0, totalNulos = 0;
-      for (const a of anos) {
-        try {
-          const [r] = await mdQuery<any>(
-            `SELECT sum(qt_aptos) as apto, sum(qt_comparecimento) as comp, sum(qt_abstencoes) as abst,
-              sum(qt_votos_brancos) as brancos, sum(qt_votos_nulos) as nulos
-            FROM ${MD.comparecimento(a)}`
-          );
-          totalApto += Number(r?.apto || 0);
-          totalComp += Number(r?.comp || 0);
-          totalAbst += Number(r?.abst || 0);
-          totalBrancos += Number(r?.brancos || 0);
-          totalNulos += Number(r?.nulos || 0);
-        } catch {}
-      }
-      if (totalApto === 0) return null;
-      return { apto: totalApto, comp: totalComp, abst: totalAbst, brancos: totalBrancos, nulos: totalNulos };
-    },
-  });
-}
-
-// ── Tab: Resumo ──
-function TabResumo({ kpis, loadingKPIs, comparecimento, onDrillDown }: any) {
-  const kpiCards = [
-    { icon: Users, label: 'Candidatos', value: formatNumber(kpis?.totalCandidatos), sub: 'registrados', color: 'text-[hsl(var(--chart-1))]', bgColor: 'bg-[hsl(var(--chart-1))]/10', drillDown: 'candidatos' as DrillDownType },
-    { icon: CheckCircle, label: 'Eleitos', value: formatNumber(kpis?.totalEleitos), sub: 'eleitos/QP/média', color: 'text-success', bgColor: 'bg-success/10', drillDown: 'eleitos' as DrillDownType },
-    { icon: UserCheck, label: 'Mulheres', value: formatPercent(kpis?.pctMulheres), sub: `${formatNumber(kpis?.totalMulheres)} candidatas`, color: 'text-secondary', bgColor: 'bg-secondary/10', drillDown: 'mulheres' as DrillDownType },
-    { icon: Building, label: 'Partidos', value: formatNumber(kpis?.totalPartidos), sub: 'siglas', color: 'text-warning', bgColor: 'bg-warning/10', drillDown: 'partidos' as DrillDownType },
-    { icon: MapPin, label: 'Municípios', value: formatNumber(kpis?.totalMunicipios), sub: 'com candidatos', color: 'text-[hsl(var(--chart-5))]', bgColor: 'bg-[hsl(var(--chart-5))]/10', drillDown: 'municipios' as DrillDownType },
-    { icon: BarChart3, label: 'Cargos', value: formatNumber(kpis?.totalCargos), sub: 'disputados', color: 'text-[hsl(var(--chart-6))]', bgColor: 'bg-[hsl(var(--chart-6))]/10', drillDown: 'cargos' as DrillDownType },
-  ];
-  if (comparecimento) {
-    kpiCards.push(
-      { icon: Vote, label: 'Eleitorado', value: formatNumber(comparecimento.apto), sub: 'aptos a votar', color: 'text-[hsl(var(--info))]', bgColor: 'bg-[hsl(var(--info))]/10', drillDown: 'eleitorado' as DrillDownType },
-      { icon: TrendingUp, label: 'Comparecimento', value: comparecimento.apto > 0 ? formatPercent((comparecimento.comp / comparecimento.apto) * 100) : '—', sub: `${formatNumber(comparecimento.comp)} votos`, color: 'text-success', bgColor: 'bg-success/10', drillDown: 'comparecimento' as DrillDownType },
-    );
-  }
-
-  return loadingKPIs ? <KPISkeleton /> : (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
-        {kpiCards.map((kpi, i) => (
-          <button
-            key={i}
-            onClick={() => onDrillDown(kpi.drillDown, kpi.label)}
-            className="bg-card rounded-lg border border-border/50 p-3 kpi-glow hover:border-primary/30 transition-all text-left cursor-pointer group"
-          >
-            <div className="flex items-center gap-2 mb-1.5">
-              <div className={`w-6 h-6 rounded-md ${kpi.bgColor} flex items-center justify-center`}>
-                <kpi.icon className={`w-3 h-3 ${kpi.color}`} />
-              </div>
-              <span className="text-[9px] text-muted-foreground font-medium uppercase tracking-wider">{kpi.label}</span>
-            </div>
-            <p className="text-xl font-bold text-foreground">{kpi.value}</p>
-            <p className="text-[9px] text-muted-foreground mt-0.5 group-hover:text-primary transition-colors">
-              {kpi.sub} <span className="opacity-0 group-hover:opacity-100 transition-opacity">→</span>
-            </p>
-          </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {[
-          { to: '/consulta', label: 'Consulta por IA', desc: 'Pergunte sobre eleições em linguagem natural', icon: MessageSquare },
-          { to: '/relatorios', label: 'Relatórios Personalizados', desc: 'Gere gráficos e visualizações com IA', icon: Sparkles },
-          { to: '/ranking', label: 'Ranking Candidatos', desc: 'Busque e ordene todos os candidatos', icon: Trophy },
-          { to: '/territorial', label: 'Goiânia & Aparecida', desc: 'Inteligência territorial detalhada', icon: MapPin },
-        ].map((link) => (
-          <Link key={link.to} to={link.to} className="bg-card rounded-lg border border-border/50 p-4 hover:border-primary/30 transition-all group">
-            <link.icon className="w-5 h-5 text-primary mb-2 group-hover:scale-110 transition-transform" />
-            <p className="text-sm font-semibold text-foreground">{link.label}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">{link.desc}</p>
-          </Link>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ── Tab: Partidos (DATA-FIRST) ──
-function TabPartidos({ porPartido, loadingPartido, situacao, loadingSit }: any) {
-  return loadingPartido || loadingSit ? <TableSkeleton /> : (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <Card title="Candidatos por Partido">
-        <DataTable
-          data={(porPartido || []).map((r: any) => r)}
-          columns={[
-            { key: 'partido', label: 'Partido' },
-            { key: 'total', label: 'Candidatos', align: 'right' },
-          ]}
-        />
-      </Card>
-      <Card title="Resultado Eleitoral">
-        <DataTable
-          data={(situacao || []).map((s: any) => ({ situacao: s.nome, total: s.total }))}
-          columns={[
-            { key: 'situacao', label: 'Situação' },
-            { key: 'total', label: 'Qtd', align: 'right' },
-          ]}
-        />
-      </Card>
-    </div>
-  );
-}
-
-// ── Tab: Demográfico (DATA-FIRST) ──
-function TabDemografico({ genero, loadingGenero, faixaEtaria, loadingIdade, porCargo, loadingCargo }: any) {
-  const { data: escolaridades, isLoading: loadingEsc } = useDistribuicaoEscolaridade();
-  const { data: ocupacoes, isLoading: loadingOcup } = useTopOcupacoes();
-
-  const isLoading = loadingGenero || loadingIdade || loadingCargo || loadingEsc || loadingOcup;
-  if (isLoading) return <TableSkeleton />;
-
-  return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-      <Card title="Gênero">
-        <DataTable
-          data={(genero || []).map((g: any) => g)}
-          columns={[
-            { key: 'nome', label: 'Gênero' },
-            { key: 'total', label: 'Qtd', align: 'right' },
-          ]}
-        />
-      </Card>
-      <Card title="Faixa Etária">
-        <DataTable
-          data={(faixaEtaria || []).map((f: any) => f)}
-          columns={[
-            { key: 'faixa', label: 'Faixa' },
-            { key: 'total', label: 'Qtd', align: 'right' },
-          ]}
-        />
-      </Card>
-      <Card title="Por Cargo">
-        <DataTable
-          data={(porCargo || []).map((c: any) => c)}
-          columns={[
-            { key: 'cargo', label: 'Cargo' },
-            { key: 'total', label: 'Qtd', align: 'right' },
-          ]}
-        />
-      </Card>
-      <Card title="Escolaridade">
-        <DataTable
-          data={(escolaridades || []).map((e: any) => e)}
-          columns={[
-            { key: 'nome', label: 'Escolaridade' },
-            { key: 'total', label: 'Qtd', align: 'right' },
-          ]}
-        />
-      </Card>
-      <Card title="Top Ocupações">
-        <DataTable
-          data={(ocupacoes || []).map((o: any) => o)}
-          columns={[
-            { key: 'nome', label: 'Ocupação' },
-            { key: 'total', label: 'Qtd', align: 'right' },
-          ]}
-        />
-      </Card>
-    </div>
-  );
-}
-
-// ── Tab: Evolução (DATA-FIRST) ──
-function TabEvolucao({ evolucao, loadingEvol, comparativoAnos, loadingComp }: any) {
-  if (loadingEvol || loadingComp) return <TableSkeleton />;
-  return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <Card title="Evolução por Ano (Candidatos)">
-        <DataTable
-          data={(evolucao || []).map((r: any) => r)}
-          columns={[
-            { key: 'ano', label: 'Ano' },
-            { key: 'total', label: 'Total', align: 'right' },
-            { key: 'mulheres', label: 'Mulheres', align: 'right' },
-            { key: 'eleitos', label: 'Eleitos', align: 'right' },
-            { key: 'pctMulheres', label: '% Mulh.', align: 'right', format: (v: any) => `${v}%` },
-          ]}
-        />
-      </Card>
-      <Card title="Comparativo entre Eleições">
-        <DataTable
-          data={(comparativoAnos || []).map((a: any) => a)}
-          columns={[
-            { key: 'ano', label: 'Ano' },
-            { key: 'total', label: 'Total', align: 'right' },
-            { key: 'eleitos', label: 'Eleitos', align: 'right' },
-            { key: 'mulheres', label: 'Mulheres', align: 'right' },
-            { key: 'pctMulheres', label: '% Mulh.', align: 'right', format: (v: any) => `${v}%` },
-            { key: 'cargos', label: 'Cargos', align: 'right' },
-          ]}
-        />
-      </Card>
-    </div>
-  );
-}
-
-// ── Tab: Geográfico (DATA-FIRST) ──
-function TabGeografico({ muniRanking, loadingMuni }: any) {
-  if (loadingMuni) return <TableSkeleton />;
-  return (
-    <Card title="Ranking de Municípios">
-      <DataTable
-        data={(muniRanking || []).map((m: any) => ({
-          ...m,
-          pctMulheres: m.total > 0 ? Math.round((m.mulheres / m.total) * 100) : 0,
-        }))}
-        columns={[
-          { key: 'municipio', label: 'Município' },
-          { key: 'total', label: 'Candidatos', align: 'right' },
-          { key: 'eleitos', label: 'Eleitos', align: 'right' },
-          { key: 'mulheres', label: 'Mulheres', align: 'right' },
-          { key: 'pctMulheres', label: '% Mulh.', align: 'right', format: (v: any) => `${v}%` },
-        ]}
-        maxRows={50}
-      />
-    </Card>
-  );
-}
-
-// ── Tab: Patrimônio (DATA-FIRST) ──
-function TabPatrimonio({ topPatri, loadingPatri }: any) {
-  if (loadingPatri) return <TableSkeleton />;
-  return (
-    <Card title="Ranking de Patrimônio Declarado">
-      <DataTable
-        data={(topPatri || []).map((c: any) => c)}
-        columns={[
-          { key: 'nome', label: 'Candidato' },
-          { key: 'partido', label: 'Partido' },
-          { key: 'cargo', label: 'Cargo' },
-          { key: 'patrimonio', label: 'Patrimônio', align: 'right', format: (v: any) => formatBRLCompact(v) },
-        ]}
-      />
-      <div className="mt-3 text-right">
-        <Link to="/patrimonio" className="text-xs text-primary hover:underline">Análise completa →</Link>
-      </div>
-    </Card>
-  );
-}
-
-// ── Tab: Votos (DATA-FIRST) ──
-function TabVotos({ brancosNulos, loadingBN }: any) {
-  if (loadingBN) return <TableSkeleton />;
-  if (!brancosNulos || brancosNulos.length === 0) {
-    return <Card><p className="text-center text-muted-foreground py-12 text-sm">Dados de comparecimento ainda não importados.</p></Card>;
-  }
-  return (
-    <Card title="Votos Brancos e Nulos por Ano">
-      <DataTable
-        data={brancosNulos}
-        columns={[
-          { key: 'ano', label: 'Ano' },
-          { key: 'comp', label: 'Comparecimento', align: 'right' },
-          { key: 'brancos', label: 'Brancos', align: 'right' },
-          { key: 'pctBrancos', label: '% Brancos', align: 'right', format: (v: any) => `${v.toFixed(2)}%` },
-          { key: 'nulos', label: 'Nulos', align: 'right' },
-          { key: 'pctNulos', label: '% Nulos', align: 'right', format: (v: any) => `${v.toFixed(2)}%` },
-        ]}
-      />
-    </Card>
-  );
-}
-
-// ── Main ──
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabId>('resumo');
-  const [drillDown, setDrillDown] = useState<{ type: DrillDownType; title: string } | null>(null);
-
-  const { data: isEmpty, isLoading: loadingEmpty } = useCheckEmpty();
-  const { data: kpis, isLoading: loadingKPIs } = useKPIs();
-  const { data: porPartido, isLoading: loadingPartido } = useCandidatosPorPartido();
-  const { data: genero, isLoading: loadingGenero } = useDistribuicaoGenero();
-  const { data: situacao, isLoading: loadingSit } = useSituacaoFinal();
-  const { data: evolucao, isLoading: loadingEvol } = useEvolucaoPorAno();
-  const { data: topPatri, isLoading: loadingPatri } = useTopPatrimonio();
-  const { data: porCargo, isLoading: loadingCargo } = useCandidatosPorCargo();
-  const { data: muniRanking, isLoading: loadingMuni } = useMunicipiosRanking();
-  const { data: faixaEtaria, isLoading: loadingIdade } = useFaixaEtaria();
-  const { data: comparecimento } = useComparecimentoGeral();
-  const { data: brancosNulos, isLoading: loadingBN } = useVotosBrancosNulos();
-  const { data: comparativoAnos, isLoading: loadingComp } = useComparativoAnos();
-
-  if (loadingEmpty) return <KPISkeleton />;
-  if (isEmpty) return <EmptyState />;
-
-  return (
-    <div className="space-y-4 max-w-[1600px] mx-auto">
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-foreground">EleiçõesGO — Painel de Dados</h1>
-      </div>
-
-      <MotherDuckStatusCard />
-      <DashboardNav active={activeTab} onChange={setActiveTab} />
-
-      {activeTab === 'resumo' && (
-        <TabResumo kpis={kpis} loadingKPIs={loadingKPIs} comparecimento={comparecimento} onDrillDown={(type: DrillDownType, title: string) => setDrillDown({ type, title })} />
-      )}
-      {activeTab === 'partidos' && (
-        <TabPartidos porPartido={porPartido} loadingPartido={loadingPartido} situacao={situacao} loadingSit={loadingSit} />
-      )}
-      {activeTab === 'demografico' && (
-        <TabDemografico genero={genero} loadingGenero={loadingGenero} faixaEtaria={faixaEtaria} loadingIdade={loadingIdade} porCargo={porCargo} loadingCargo={loadingCargo} />
-      )}
-      {activeTab === 'evolucao' && (
-        <TabEvolucao evolucao={evolucao} loadingEvol={loadingEvol} comparativoAnos={comparativoAnos} loadingComp={loadingComp} />
-      )}
-      {activeTab === 'geografico' && (
-        <TabGeografico muniRanking={muniRanking} loadingMuni={loadingMuni} />
-      )}
-      {activeTab === 'patrimonio' && (
-        <TabPatrimonio topPatri={topPatri} loadingPatri={loadingPatri} />
-      )}
-      {activeTab === 'votos' && (
-        <TabVotos brancosNulos={brancosNulos} loadingBN={loadingBN} />
-      )}
-
-      {drillDown && (
-        <KPIDrillDownPanel type={drillDown.type} title={drillDown.title} onClose={() => setDrillDown(null)} />
-      )}
     </div>
   );
 }
