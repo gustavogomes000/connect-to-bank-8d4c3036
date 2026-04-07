@@ -154,7 +154,12 @@ ${SCHEMA_COMPLETO}`;
     const rawText = await callGemini(systemPrompt, pergunta, geminiKey);
 
     if (!rawText) {
-      return new Response(JSON.stringify({ erro: "Erro ao consultar IA Gemini" }), {
+      return new Response(JSON.stringify({ erro: "Erro ao consultar IA Gemini — chave pode estar inválida" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (rawText.startsWith("ERROR:")) {
+      return new Response(JSON.stringify({ erro: `Gemini API: ${rawText}` }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
