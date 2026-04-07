@@ -10,7 +10,7 @@ const corsHeaders = {
 async function callGemini(systemPrompt: string, userMessage: string, geminiKey: string, maxTokens = 2000): Promise<string | null> {
   try {
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
