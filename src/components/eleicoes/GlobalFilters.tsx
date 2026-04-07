@@ -105,51 +105,11 @@ export function GlobalFilters() {
         </div>
       </div>
 
-      {/* Expanded advanced filters */}
+      {/* Expanded advanced filters — placeholder for future demographic filters */}
       {expanded && (
         <div className="px-4 py-2 border-t border-border/30 bg-muted/20">
           <div className="flex flex-wrap gap-2 items-center max-w-[1600px] mx-auto">
-            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-2">Demográfico</span>
-
-            <Select value={store.genero || 'todos'} onValueChange={v => store.setGenero(v === 'todos' ? null : v)}>
-              <SelectTrigger className="w-[120px] h-7 text-xs bg-muted/50 border-border/50">
-                <SelectValue placeholder="Gênero" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos gêneros</SelectItem>
-                {(filterOpts?.generos || []).map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            <Select value={store.escolaridade || 'todos'} onValueChange={v => store.setEscolaridade(v === 'todos' ? null : v)}>
-              <SelectTrigger className="w-[170px] h-7 text-xs bg-muted/50 border-border/50">
-                <SelectValue placeholder="Escolaridade" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas escolaridades</SelectItem>
-                {(filterOpts?.escolaridades || []).map(e => <SelectItem key={e} value={e}>{e}</SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            <Select value={store.ocupacao || 'todos'} onValueChange={v => store.setOcupacao(v === 'todos' ? null : v)}>
-              <SelectTrigger className="w-[170px] h-7 text-xs bg-muted/50 border-border/50">
-                <SelectValue placeholder="Ocupação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas ocupações</SelectItem>
-                {(filterOpts?.ocupacoes || []).slice(0, 30).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
-              </SelectContent>
-            </Select>
-
-            <Select value={store.situacao || 'todos'} onValueChange={v => store.setSituacao(v === 'todos' ? null : v)}>
-              <SelectTrigger className="w-[140px] h-7 text-xs bg-muted/50 border-border/50">
-                <SelectValue placeholder="Situação" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todas situações</SelectItem>
-                {(filterOpts?.situacoes || []).map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mr-2">Filtros avançados em breve</span>
           </div>
         </div>
       )}
