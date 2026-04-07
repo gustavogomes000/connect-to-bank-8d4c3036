@@ -23,6 +23,7 @@ const dimensionItems = [
   { title: 'Bairros', url: '/bairro', icon: MapPin },
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
   { title: 'Goiânia & Aparecida', url: '/territorial', icon: Vote },
+  { title: 'Inteligência Zonal', url: '/zonal', icon: Target },
   { title: 'Perfil Geral', url: '/perfil-candidatos', icon: UserCheck },
 ];
 
