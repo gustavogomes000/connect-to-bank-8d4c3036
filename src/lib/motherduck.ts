@@ -13,18 +13,26 @@ export async function mdQuery<T = Record<string, any>>(sql: string): Promise<T[]
 }
 
 // ── Available years per dataset ──
-const CAND_ANOS = [2012, 2014, 2016, 2018, 2020, 2022, 2024];
+const CAND_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
 const BENS_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
+const VOTACAO_MUNZONA_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
+const VOTACAO_PARTIDO_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
+const VOTACAO_SECAO_ANOS = [2014, 2016, 2018, 2020, 2022];
+const DETALHE_VOTACAO_MUNZONA_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
+const DETALHE_VOTACAO_SECAO_ANOS = [2014, 2016, 2020, 2022, 2024];
+const COLIGACAO_ANOS = [2014, 2016, 2018, 2020, 2024];
+const VAGAS_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
+const PERFIL_ELEITORADO_ANOS = [2014, 2016, 2018, 2020, 2024];
+const PERFIL_ELEITOR_SECAO_ANOS = [2014, 2016, 2018, 2020, 2024];
+const ELEITORADO_LOCAL_ANOS = [2014, 2016, 2018, 2020, 2024];
+const RECEITAS_CAND_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
+const DESPESAS_CONTRATADAS_ANOS = [2018, 2020, 2022, 2024];
+const DESPESAS_PAGAS_ANOS = [2018, 2020, 2022, 2024];
+const PESQUISA_ELEITORAL_ANOS = [2024];
+const PESQUISA_CONTRATANTE_ANOS = [2024];
 const COMP_ANOS = [2014, 2016, 2018, 2020, 2022, 2024];
-const VOTACAO_ANOS = [2012, 2014, 2016, 2018, 2020, 2022, 2024];
-const PERFIL_ANOS = [2018, 2020, 2022, 2024];
 
-/**
- * Generate table reference for year-specific tables.
- * When ano is given: returns single table.
- * When ano is null: returns UNION ALL subquery.
- */
-// Common columns that exist across ALL year tables for safe UNION ALL
+// Common columns for safe UNION ALL
 const CAND_COMMON_COLS = 'ano_eleicao, nr_turno, nm_candidato, nm_urna_candidato, sg_partido, nm_partido, ds_cargo, nm_ue, ds_genero, ds_grau_instrucao, ds_ocupacao, ds_sit_tot_turno, sq_candidato, nr_candidato, nr_cpf_candidato, dt_nascimento, ds_cor_raca, ds_estado_civil, sg_uf_nascimento, ds_situacao_candidatura';
 const BENS_COMMON_COLS = 'ano_eleicao, sq_candidato, nr_ordem_bem_candidato, ds_tipo_bem_candidato, ds_bem_candidato, vr_bem_candidato';
 
@@ -35,39 +43,80 @@ function yearTable(base: string, anos: number[], ano?: number | null, commonCols
   return `(${union})`;
 }
 
+function yearTableNacional(base: string, anos: number[], ano?: number | null): string {
+  if (ano) return `my_db.${base}_${ano}`;
+  const union = anos.map(a => `SELECT * FROM my_db.${base}_${a}`).join(' UNION ALL ');
+  return `(${union})`;
+}
+
 /**
  * Table references — use these in SQL queries.
- * For year-specific tables, pass the ano parameter.
+ * Naming: {dataset}_{ano}_GO for state-level, {dataset}_{ano} for national aggregated.
  */
 export const MD = {
-  /** Candidatos — year-specific or union */
-  candidatos: (ano?: number | null) => yearTable('candidatos', CAND_ANOS, ano, CAND_COMMON_COLS),
-  /** Bens declarados */
-  bens: (ano?: number | null) => yearTable('bens_candidatos', BENS_ANOS, ano, BENS_COMMON_COLS),
-  /** Votação por município/zona */
-  votacao: (ano: number) => `my_db.votacao_munzona_${ano}_GO`,
-  /** Votação por partido */
-  votacaoPartido: (ano: number) => `my_db.votacao_partido_munzona_${ano}_GO`,
-  /** Comparecimento por município/zona */
-  comparecimento: (ano: number) => `my_db.comparecimento_munzona_${ano}_GO`,
-  /** Comparecimento por seção */
-  comparecimentoSecao: (ano: number) => `my_db.comparecimento_abstencao_${ano}_GO`,
-  /** Perfil eleitorado */
-  perfilEleitorado: (ano: number) => `my_db.perfil_eleitorado_${ano}_GO`,
-  /** Eleitorado por local */
-  eleitoradoLocal: (ano: number) => `my_db.eleitorado_local_${ano}_GO`,
-  /** Receitas de campanha */
-  receitas: (ano: number) => `my_db.receitas_${ano}_GO`,
-  /** Despesas contratadas */
-  despesas: (ano: number) => `my_db.despesas_contratadas_${ano}_GO`,
-  /** Coligações */
-  coligacoes: (ano: number) => `my_db.coligacoes_${ano}_GO`,
-  /** Vagas */
-  vagas: (ano: number) => `my_db.vagas_${ano}_GO`,
+  // ── Candidatos ──
+  candidatos: (ano?: number | null) => yearTable('consulta_cand', CAND_ANOS, ano, CAND_COMMON_COLS),
+  candidatosComplementar: (ano: number) => `my_db.consulta_cand_complementar_${ano}_GO`,
+  bens: (ano?: number | null) => yearTable('bem_candidato', BENS_ANOS, ano, BENS_COMMON_COLS),
+  coligacoes: (ano?: number | null) => yearTable('consulta_coligacao', COLIGACAO_ANOS, ano),
+  vagas: (ano?: number | null) => yearTable('consulta_vagas', VAGAS_ANOS, ano),
+  redeSocial: () => `my_db.rede_social_candidato_2024_GO`,
+  motivoCassacao: () => `my_db.motivo_cassacao_2022_GO`,
+
+  // ── Votação ──
+  votacao: (ano?: number | null) => yearTable('votacao_candidato_munzona', VOTACAO_MUNZONA_ANOS, ano),
+  votacaoPartido: (ano?: number | null) => yearTable('votacao_partido_munzona', VOTACAO_PARTIDO_ANOS, ano),
+  votacaoSecao: (ano: number) => `my_db.votacao_secao_${ano}_GO`,
+  detalheVotacaoMunzona: (ano?: number | null) => yearTable('detalhe_votacao_munzona', DETALHE_VOTACAO_MUNZONA_ANOS, ano),
+  detalheVotacaoSecao: (ano?: number | null) => yearTable('detalhe_votacao_secao', DETALHE_VOTACAO_SECAO_ANOS, ano),
+
+  // ── Comparecimento (alias para detalhe_votacao) ──
+  comparecimento: (ano?: number | null) => yearTable('detalhe_votacao_munzona', DETALHE_VOTACAO_MUNZONA_ANOS, ano),
+  comparecimentoSecao: (ano?: number | null) => yearTable('detalhe_votacao_secao', DETALHE_VOTACAO_SECAO_ANOS, ano),
+
+  // ── Eleitorado ──
+  perfilEleitorado: (ano?: number | null) => yearTableNacional('perfil_eleitorado', PERFIL_ELEITORADO_ANOS, ano),
+  perfilEleitorSecao: (ano: number) => `my_db.perfil_eleitor_secao_${ano}_GO`,
+  eleitoradoLocal: (ano?: number | null) => yearTableNacional('eleitorado_local_votacao', ELEITORADO_LOCAL_ANOS, ano),
+  filiacaoPartidaria: () => `my_db.perfil_filiacao_partidaria`,
+
+  // ── Finanças de Campanha ──
+  receitas: (ano?: number | null) => yearTable('receitas_candidatos', RECEITAS_CAND_ANOS, ano),
+  receitasDoadorOriginario: (ano: number) => `my_db.receitas_candidatos_doador_originario_${ano}_GO`,
+  receitasOrgaosPartidarios: (ano: number) => `my_db.receitas_orgaos_partidarios_${ano}_GO`,
+  despesasContratadas: (ano?: number | null) => yearTable('despesas_contratadas_candidatos', DESPESAS_CONTRATADAS_ANOS, ano),
+  despesasPagas: (ano?: number | null) => yearTable('despesas_pagas_candidatos', DESPESAS_PAGAS_ANOS, ano),
+  despesasContratOrgaos: (ano: number) => `my_db.despesas_contratadas_orgaos_partidarios_${ano}_GO`,
+  despesasPagasOrgaos: (ano: number) => `my_db.despesas_pagas_orgaos_partidarios_${ano}_GO`,
+  receitaAnual: (ano: number) => `my_db.receita_anual_${ano}_GO`,
+  despesaAnual: (ano: number) => `my_db.despesa_anual_${ano}_GO`,
+
+  // ── Pesquisas Eleitorais ──
+  pesquisaEleitoral: (ano: number) => `my_db.pesquisa_eleitoral_${ano}_GO`,
+  pesquisaContratante: (ano: number) => `my_db.pesquisa_contratante_${ano}_GO`,
+  pesquisaPagante: (ano: number) => `my_db.pesquisa_pagante_${ano}_GO`,
+
+  // ── Boletim de Urna ──
+  boletimUrna2022_1t: () => `my_db.bweb_1t_GO_051020221321`,
+  boletimUrna2022_2t: () => `my_db.bweb_2t_GO_311020221535`,
+  boletimUrna2024_1t: () => `my_db.bweb_1t_GO_091020241636`,
+  boletimUrna2024_2t: () => `my_db.bweb_2t_GO_281020241046`,
+
+  // ── Partidos / Delegados / Órgãos ──
+  delegadoPartidario: (partido: string) => `my_db.delegado_partidario_${partido}`,
 } as const;
 
 // Re-export year lists
-export { CAND_ANOS, BENS_ANOS, COMP_ANOS, VOTACAO_ANOS, PERFIL_ANOS };
+export {
+  CAND_ANOS, BENS_ANOS,
+  VOTACAO_MUNZONA_ANOS, VOTACAO_PARTIDO_ANOS, VOTACAO_SECAO_ANOS,
+  DETALHE_VOTACAO_MUNZONA_ANOS, DETALHE_VOTACAO_SECAO_ANOS,
+  COLIGACAO_ANOS, VAGAS_ANOS,
+  PERFIL_ELEITORADO_ANOS, PERFIL_ELEITOR_SECAO_ANOS, ELEITORADO_LOCAL_ANOS,
+  RECEITAS_CAND_ANOS, DESPESAS_CONTRATADAS_ANOS, DESPESAS_PAGAS_ANOS,
+  PESQUISA_ELEITORAL_ANOS, PESQUISA_CONTRATANTE_ANOS,
+  COMP_ANOS,
+};
 
 /**
  * Column mapping: MotherDuck (TSE raw) → our app concepts
@@ -98,20 +147,28 @@ export const COL = {
   // bens
   tipoBem: 'ds_tipo_bem_candidato',
   descBem: 'ds_bem_candidato',
-  valorBem: 'vr_bem_candidato',         // VARCHAR in MotherDuck! Use CAST.
-  valorBemNum: "CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)", // Use this for SUM/AVG
+  valorBem: 'vr_bem_candidato',
+  valorBemNum: "CAST(REPLACE(vr_bem_candidato, ',', '.') AS DOUBLE)",
   ordemBem: 'nr_ordem_bem_candidato',
 
   // votacao
   zona: 'nr_zona',
+  secao: 'nr_secao',
   votos: 'qt_votos_nominais',
   nmMunicipio: 'nm_municipio',
   nmCandidato: 'nm_urna_candidato',
 
-  // comparecimento
+  // comparecimento / detalhe
   aptos: 'qt_aptos',
   comp: 'qt_comparecimento',
   abst: 'qt_abstencoes',
   brancos: 'qt_votos_brancos',
   nulos: 'qt_votos_nulos',
+
+  // finanças
+  valorReceita: 'vr_receita',
+  valorDespesaContratada: 'vr_despesa_contratada',
+  valorDespesaPaga: 'vr_pagto',
+  nomeDoador: 'nm_doador',
+  nomeFornecedor: 'nm_fornecedor',
 } as const;
