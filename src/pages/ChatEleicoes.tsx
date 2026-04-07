@@ -404,10 +404,9 @@ export default function ChatEleicoes() {
             <div className="w-16 h-16 rounded-2xl bg-primary/8 border border-primary/15 flex items-center justify-center mb-4">
               <Database className="w-8 h-8 text-primary/50" />
             </div>
-             <h2 className="text-lg font-semibold text-foreground mb-1 tracking-tight">Relatórios Personalizados</h2>
-             <p className="text-xs text-muted-foreground max-w-md mb-6">
-               Gere relatórios com gráficos, tabelas e visualizações sobre candidatos, votos, partidos e mais.
-             </p>
+            <h2 className="text-lg font-semibold text-foreground mb-1 tracking-tight">Relatórios Personalizados</h2>
+            <p className="text-xs text-muted-foreground max-w-md mb-6">
+              Gere relatórios com gráficos, tabelas e visualizações sobre candidatos, votos, partidos e mais.
             </p>
 
             {favoritos.length > 0 && (
