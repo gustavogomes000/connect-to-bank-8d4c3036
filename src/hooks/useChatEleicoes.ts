@@ -29,6 +29,18 @@ function genId() {
   return `msg_${Date.now()}_${++msgCounter}`;
 }
 
+function parseErroAmigavel(msg: string): string {
+  if (msg.includes('429') || msg.includes('RATE_LIMIT') || msg.includes('quota') || msg.includes('Resource has been exhausted'))
+    return 'O sistema está processando muitas solicitações. Aguarde alguns segundos e tente novamente.';
+  if (msg.includes('timeout') || msg.includes('TIMEOUT'))
+    return 'A consulta demorou mais do que o esperado. Tente simplificar a pergunta.';
+  if (msg.includes('MOTHERDUCK') || msg.includes('connection'))
+    return 'Erro de conexão com o banco de dados. Tente novamente em alguns instantes.';
+  if (msg.includes('GEMINI') || msg.includes('Gemini'))
+    return 'Serviço temporariamente indisponível. Tente novamente em alguns instantes.';
+  return 'Não foi possível processar sua consulta. Tente novamente.';
+}
+
 export function useChatEleicoes() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(false);
@@ -37,7 +49,7 @@ export function useChatEleicoes() {
   const lastRequestRef = useRef(0);
   const timerRef = useRef<ReturnType<typeof setInterval>>();
 
-  const COOLDOWN_MS = 4500; // 4.5s entre requests (Gemini free = 15 RPM)
+  const COOLDOWN_MS = 4500;
 
   const startCooldown = useCallback((durationMs = COOLDOWN_MS) => {
     const end = Date.now() + durationMs;
@@ -59,7 +71,6 @@ export function useChatEleicoes() {
     const trimmed = pergunta.trim();
     if (!trimmed || loading) return;
 
-    // Enforce cooldown
     const timeSinceLast = Date.now() - lastRequestRef.current;
     if (timeSinceLast < COOLDOWN_MS && lastRequestRef.current > 0) {
       const wait = COOLDOWN_MS - timeSinceLast;
@@ -94,12 +105,11 @@ export function useChatEleicoes() {
 
       if (error) throw new Error(error.message);
 
-      // Handle rate limit from Gemini
       const errMsg = data?.erro || '';
       if (errMsg.includes('429') || errMsg.includes('RATE_LIMIT') || errMsg.includes('quota') || errMsg.includes('Resource has been exhausted')) {
         setIsRateLimited(true);
         startCooldown(30000);
-        throw new Error('⏳ Limite de requisições atingido. Aguarde 30 segundos antes da próxima pergunta.');
+        throw new Error(errMsg);
       }
 
       if (data?.erro && !data?.sucesso) throw new Error(data.erro);
@@ -111,7 +121,7 @@ export function useChatEleicoes() {
           m.id === assistantId
             ? {
                 ...m,
-                content: resultado.resposta_texto || resultado.descricao || 'Consulta realizada.',
+                content: resultado.resposta_texto || resultado.descricao || 'Consulta realizada com sucesso.',
                 resultado,
                 loading: false,
               }
@@ -119,12 +129,13 @@ export function useChatEleicoes() {
         )
       );
     } catch (e: any) {
+      const friendlyMsg = parseErroAmigavel(e.message || '');
       setMessages(prev =>
         prev.map(m =>
           m.id === assistantId
             ? {
                 ...m,
-                content: `❌ ${e.message || 'Erro ao processar consulta'}`,
+                content: friendlyMsg,
                 loading: false,
               }
             : m
