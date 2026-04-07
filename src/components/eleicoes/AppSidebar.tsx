@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users,
-  HelpCircle, TrendingUp, Sparkles, MessageSquare, Settings, Crosshair,
+  HelpCircle, TrendingUp, Sparkles, MessageSquare, Settings, Crosshair, Vote,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 const analysisItems = [
   { title: 'Consulta por IA', url: '/chat', icon: MessageSquare },
   { title: 'Relatórios Personalizados', url: '/consulta', icon: Sparkles },
+  { title: 'Resultado por Eleição', url: '/resultado', icon: Vote },
   { title: 'Micro-Targeting', url: '/micro-targeting', icon: Crosshair },
   { title: 'Goiânia & Aparecida', url: '/territorial', icon: Target },
   { title: 'Explorador', url: '/explorador', icon: TrendingUp },

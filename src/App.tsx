@@ -17,6 +17,7 @@ import PorPartido from "./pages/PorPartido";
 import AnaliseBairro from "./pages/AnaliseBairro";
 import Patrimonio from "./pages/Patrimonio";
 import PerfilCandidatos from "./pages/PerfilCandidatos";
+import ResultadoEleicao from "./pages/ResultadoEleicao";
 
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
@@ -29,7 +30,7 @@ const queryClient = new QueryClient();
 
 function Layout() {
   const location = useLocation();
-  const hideFilters = ['/importar', '/ajuda', '/consulta', '/explorador', '/chat', '/config', '/territorial', '/micro-targeting'].includes(location.pathname);
+  const hideFilters = ['/importar', '/ajuda', '/consulta', '/explorador', '/chat', '/config', '/territorial', '/micro-targeting', '/resultado'].includes(location.pathname);
 
   return (
     <SidebarProvider>
@@ -61,6 +62,7 @@ function Layout() {
               <Route path="/micro-targeting" element={<MicroTargeting />} />
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
+              <Route path="/resultado" element={<ResultadoEleicao />} />
               
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
