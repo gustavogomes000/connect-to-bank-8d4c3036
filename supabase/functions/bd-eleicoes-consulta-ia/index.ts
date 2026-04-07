@@ -280,10 +280,10 @@ function buildSQL(intent: Intent, e: Entities): string {
   const mun = e.municipios[0] || 'GOIÂNIA';
 
   switch (intent) {
-    case "ranking_votos": {
-      const w = buildWhere(e, true);
-      return `SELECT nm_urna_candidato AS candidato, sg_partido AS partido, sum(qt_votos_nominais) AS total_votos
-        FROM ${votTable(ano)} ${w} GROUP BY nm_urna_candidato, sg_partido ORDER BY total_votos DESC LIMIT ${e.limite}`;
+    case "ranking_votos":
+    case "total_votos": {
+      // votacao_munzona has NULL candidate data — use Supabase bd_eleicoes_votacao instead
+      return "__SUPABASE_RANKING_VOTOS__";
     }
     case "ranking_patrimonio":
       return `SELECT c.nm_urna_candidato AS candidato, c.sg_partido AS partido,
