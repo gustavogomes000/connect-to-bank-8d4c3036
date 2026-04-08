@@ -408,6 +408,21 @@ export function sqlHistoricoComVotos(cpf: string): string {
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
+/** Votos por zona de uma eleição específica (por SQ_CANDIDATO) */
+export function sqlVotosHistoricoPorZona(ano: number, sqCandidato: string): string {
+  const vot = getTableName('votacao', ano);
+  return `
+    SELECT
+      v.NR_ZONA AS zona,
+      v.NM_MUNICIPIO AS municipio,
+      SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
+    FROM ${vot} v
+    WHERE v.SQ_CANDIDATO = '${sqCandidato}'
+    GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
+    ORDER BY total_votos DESC
+  `.trim();
+}
+
 // ── QUERIES AGREGADAS ──
 
 /** Ranking de patrimônio dos candidatos */
