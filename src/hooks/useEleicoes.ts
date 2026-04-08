@@ -125,8 +125,8 @@ export function useHistoricoCandidato(cpf: string | null) {
 export function useZonasEleitorais(sqCandidato?: string) {
   const f = useFilters();
   return useQuery({
-    queryKey: ['zonasEleitorais', sqCandidato, f.ano],
-    queryFn: () => mdQuery(sqlVotacaoPorZona(f.ano, sqCandidato!)),
+    queryKey: ['zonasEleitorais', sqCandidato, f],
+    queryFn: () => mdQuery(sqlVotacaoPorZona(f.ano, sqCandidato!, toFiltrosPainel(f))),
     enabled: !!sqCandidato,
     staleTime: 5 * 60 * 1000,
   });
