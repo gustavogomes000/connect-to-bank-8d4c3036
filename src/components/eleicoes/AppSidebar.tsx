@@ -13,7 +13,7 @@ const mainItems = [
   { title: 'Zonas Eleitorais', url: '/zonas', icon: Hash },
   { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
   { title: 'Converse com a IA', url: '/chat', icon: MessageSquare },
-  { title: 'Relatórios', url: '/relatorios', icon: Sparkles },
+  
 ];
 
 const systemItems = [
