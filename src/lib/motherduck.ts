@@ -329,52 +329,82 @@ export function sqlRankingPatrimonio(filtros: FiltrosPainel = {}): string {
   `.trim();
 }
 
-/** Comparecimento e abstenção por município */
+/** Comparecimento e abstenção — geo-aware via detalhe_secao when filters active */
 export function sqlComparecimento(filtros: FiltrosPainel = {}): string {
   const ano = filtros.ano || 2024;
-  const comp = getTableName('detalhe_munzona', ano);
+  const geo = needsGeoJoin(filtros);
+  // When geo filters active, use detalhe_secao for section-level join
+  const comp = geo ? getTableName('detalhe_secao', ano) : getTableName('detalhe_munzona', ano);
 
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`NM_MUNICIPIO = '${filtros.municipio}'`);
-  if (filtros.turno) conds.push(`NR_TURNO = ${filtros.turno}`);
+  if (filtros.municipio) conds.push(`d.NM_MUNICIPIO = '${filtros.municipio}'`);
+  if (filtros.turno) conds.push(`d.NR_TURNO = ${filtros.turno}`);
+  if (filtros.zona) conds.push(`d.NR_ZONA = ${filtros.zona}`);
+
+  const { join: geoJoin, conds: geoConds } = geo ? buildGeoJoin(filtros, 'd', 'loc') : { join: '', conds: [] as string[] };
+  conds.push(...geoConds);
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
   return `
     SELECT
-      NM_MUNICIPIO AS municipio,
-      SUM(QT_APTOS) AS eleitores,
-      SUM(QT_COMPARECIMENTO) AS comparecimento,
-      SUM(QT_ABSTENCOES) AS abstencoes,
-      ROUND(SUM(QT_COMPARECIMENTO) * 100.0 / NULLIF(SUM(QT_APTOS), 0), 1) AS taxa_comparecimento
-    FROM ${comp}
+      d.NM_MUNICIPIO AS municipio,
+      SUM(d.QT_APTOS) AS eleitores,
+      SUM(d.QT_COMPARECIMENTO) AS comparecimento,
+      SUM(d.QT_ABSTENCOES) AS abstencoes,
+      ROUND(SUM(d.QT_COMPARECIMENTO) * 100.0 / NULLIF(SUM(d.QT_APTOS), 0), 1) AS taxa_comparecimento
+    FROM ${comp} d
+    ${geoJoin}
     ${where}
-    GROUP BY NM_MUNICIPIO
+    GROUP BY d.NM_MUNICIPIO
     ORDER BY eleitores DESC
     LIMIT 50
   `.trim();
 }
 
-/** Ranking de partidos por votos */
+/** Ranking de partidos por votos — geo-aware */
 export function sqlRankingPartidos(filtros: FiltrosPainel = {}): string {
   const ano = filtros.ano || 2024;
-  const vp = getTableName('votacao_partido', ano);
   const limit = filtros.limite || 20;
+  const geo = needsGeoJoin(filtros);
+  // Use votacao_secao for geo filtering; votacao_partido_munzona otherwise
+  const vp = geo ? getTableName('votacao_secao', ano) : getTableName('votacao_partido', ano);
 
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`NM_MUNICIPIO = '${filtros.municipio}'`);
-  if (filtros.cargo) conds.push(`DS_CARGO ILIKE '%${filtros.cargo}%'`);
-  if (filtros.turno) conds.push(`NR_TURNO = ${filtros.turno}`);
+  if (filtros.municipio) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
+  if (filtros.cargo && !geo) conds.push(`v.DS_CARGO ILIKE '%${filtros.cargo}%'`);
+  if (filtros.turno) conds.push(`v.NR_TURNO = ${filtros.turno}`);
+  if (filtros.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
+
+  const { join: geoJoin, conds: geoConds } = geo ? buildGeoJoin(filtros, 'v', 'loc') : { join: '', conds: [] as string[] };
+  conds.push(...geoConds);
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
+
+  if (geo) {
+    // Aggregate from votacao_secao by partido
+    return `
+      SELECT
+        v.NM_PARTIDO AS partido,
+        v.NM_PARTIDO AS nome_partido,
+        SUM(v.QT_VOTOS_NOMINAIS) AS votos_nominais,
+        0 AS votos_legenda
+      FROM ${vp} v
+      ${geoJoin}
+      ${where}
+      GROUP BY v.NM_PARTIDO
+      ORDER BY votos_nominais DESC
+      LIMIT ${limit}
+    `.trim();
+  }
 
   return `
     SELECT
-      SG_PARTIDO AS partido,
-      NM_PARTIDO AS nome_partido,
-      SUM(QT_VOTOS_NOMINAIS_VALIDOS) AS votos_nominais,
-      SUM(QT_VOTOS_LEGENDA_VALIDOS) AS votos_legenda
-    FROM ${vp}
+      v.SG_PARTIDO AS partido,
+      v.NM_PARTIDO AS nome_partido,
+      SUM(v.QT_VOTOS_NOMINAIS_VALIDOS) AS votos_nominais,
+      SUM(v.QT_VOTOS_LEGENDA_VALIDOS) AS votos_legenda
+    FROM ${vp} v
     ${where}
-    GROUP BY SG_PARTIDO, NM_PARTIDO
+    GROUP BY v.SG_PARTIDO, v.NM_PARTIDO
     ORDER BY votos_nominais DESC
     LIMIT ${limit}
   `.trim();
