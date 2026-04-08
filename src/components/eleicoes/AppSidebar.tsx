@@ -18,7 +18,6 @@ const mainItems = [
 
 const systemItems = [
   { title: 'Configurações', url: '/config', icon: Settings },
-  { title: 'Ajuda', url: '/ajuda', icon: HelpCircle },
 ];
 
 export function AppSidebar() {
