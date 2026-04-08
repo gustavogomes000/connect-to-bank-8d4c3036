@@ -1173,3 +1173,41 @@ export function usePatrimonioVsVotos() {
     staleTime: 5 * 60 * 1000,
   });
 }
+
+// ═══════════════════════════════════════════════════════════════
+// INTELIGÊNCIA GEOGRÁFICA — Votos por Bairro + Escolas
+// ═══════════════════════════════════════════════════════════════
+
+export function useVotosPorBairro(municipio?: string, sqCandidato?: string | null) {
+  const { ano, municipio: munStore } = useFilterStore();
+  const mun = municipio || munStore;
+  return useQuery({
+    queryKey: ['votosPorBairro', mun, ano, sqCandidato || 'all'],
+    queryFn: async () => {
+      const { sqlVotosPorBairro, sqlVotosCandidatoPorBairro } = await import('@/lib/motherduck');
+      const sql = sqCandidato
+        ? sqlVotosCandidatoPorBairro(ano, mun, sqCandidato)
+        : sqlVotosPorBairro(ano, mun);
+      return mdQuery(sql);
+    },
+    enabled: !!mun,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useEscolasPorBairro(bairro: string | null, municipio?: string, sqCandidato?: string | null) {
+  const { ano, municipio: munStore } = useFilterStore();
+  const mun = municipio || munStore;
+  return useQuery({
+    queryKey: ['escolasPorBairro', bairro, mun, ano, sqCandidato || 'all'],
+    queryFn: async () => {
+      const { sqlEscolasPorBairro, sqlEscolasCandidatoPorBairro } = await import('@/lib/motherduck');
+      const sql = sqCandidato
+        ? sqlEscolasCandidatoPorBairro(ano, mun, bairro!, sqCandidato)
+        : sqlEscolasPorBairro(ano, mun, bairro!);
+      return mdQuery(sql);
+    },
+    enabled: !!mun && !!bairro,
+    staleTime: 5 * 60 * 1000,
+  });
+}

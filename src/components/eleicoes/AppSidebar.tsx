@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users,
+  BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users, Globe,
   HelpCircle, Sparkles, MessageSquare, Settings, Vote, School,
 } from 'lucide-react';
 import {
@@ -24,6 +24,7 @@ const dimensionItems = [
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
   { title: 'Goiânia & Aparecida', url: '/territorial', icon: Vote },
   { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
+  { title: 'Intel. Geográfica', url: '/geografica', icon: Globe },
   { title: 'Perfil Geral', url: '/perfil-candidatos', icon: UserCheck },
 ];
 

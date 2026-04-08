@@ -21,6 +21,7 @@ import DiretorioCandidatos from "./pages/DiretorioCandidatos";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
 import EscolasEleitorais from "./pages/EscolasEleitorais";
+import InteligenciaGeografica from "./pages/InteligenciaGeografica";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,6 +61,7 @@ function Layout() {
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
               <Route path="/escolas" element={<EscolasEleitorais />} />
+              <Route path="/geografica" element={<InteligenciaGeografica />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}

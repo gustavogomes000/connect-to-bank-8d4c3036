@@ -456,6 +456,100 @@ export function sqlResumoEleicao(filtros: FiltrosPainel = {}): string {
   `.trim();
 }
 
+// ── INTELIGÊNCIA GEOGRÁFICA: Votos por Bairro + Escola ──
+
+/** Votos totais agrupados por bairro (via votacao_secao JOIN eleitorado_local) */
+export function sqlVotosPorBairro(ano: number, municipio: string): string {
+  const vot = getTableName('votacao_secao', ano);
+  const loc = getTableName('eleitorado_local', ano);
+
+  return `
+    SELECT
+      l.NM_BAIRRO AS bairro,
+      COUNT(DISTINCT l.NM_LOCAL_VOTACAO) AS locais,
+      COUNT(DISTINCT v.NR_SECAO) AS secoes,
+      SUM(v.QT_VOTOS_NOMINAIS) AS votos
+    FROM ${vot} v
+    JOIN ${loc} l
+      ON v.NR_ZONA = l.NR_ZONA AND v.NR_SECAO = l.NR_SECAO
+      AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
+    WHERE v.NM_MUNICIPIO = '${municipio}'
+      AND l.NM_BAIRRO IS NOT NULL AND l.NM_BAIRRO != ''
+    GROUP BY l.NM_BAIRRO
+    ORDER BY votos DESC
+  `.trim();
+}
+
+/** Votos de um candidato por bairro */
+export function sqlVotosCandidatoPorBairro(ano: number, municipio: string, sqCandidato: string): string {
+  const vot = getTableName('votacao_secao', ano);
+  const loc = getTableName('eleitorado_local', ano);
+
+  return `
+    SELECT
+      l.NM_BAIRRO AS bairro,
+      COUNT(DISTINCT l.NM_LOCAL_VOTACAO) AS locais,
+      COUNT(DISTINCT v.NR_SECAO) AS secoes,
+      SUM(v.QT_VOTOS_NOMINAIS) AS votos
+    FROM ${vot} v
+    JOIN ${loc} l
+      ON v.NR_ZONA = l.NR_ZONA AND v.NR_SECAO = l.NR_SECAO
+      AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
+    WHERE v.NM_MUNICIPIO = '${municipio}'
+      AND v.SQ_CANDIDATO = '${sqCandidato}'
+      AND l.NM_BAIRRO IS NOT NULL AND l.NM_BAIRRO != ''
+    GROUP BY l.NM_BAIRRO
+    ORDER BY votos DESC
+  `.trim();
+}
+
+/** Escolas de um bairro com votos totais */
+export function sqlEscolasPorBairro(ano: number, municipio: string, bairro: string): string {
+  const vot = getTableName('votacao_secao', ano);
+  const loc = getTableName('eleitorado_local', ano);
+
+  return `
+    SELECT
+      l.NM_LOCAL_VOTACAO AS local_votacao,
+      l.DS_ENDERECO AS endereco,
+      l.NR_ZONA AS zona,
+      COUNT(DISTINCT v.NR_SECAO) AS secoes,
+      SUM(v.QT_VOTOS_NOMINAIS) AS votos
+    FROM ${vot} v
+    JOIN ${loc} l
+      ON v.NR_ZONA = l.NR_ZONA AND v.NR_SECAO = l.NR_SECAO
+      AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
+    WHERE v.NM_MUNICIPIO = '${municipio}'
+      AND l.NM_BAIRRO = '${bairro}'
+    GROUP BY l.NM_LOCAL_VOTACAO, l.DS_ENDERECO, l.NR_ZONA
+    ORDER BY votos DESC
+  `.trim();
+}
+
+/** Escolas de um bairro filtradas por candidato */
+export function sqlEscolasCandidatoPorBairro(ano: number, municipio: string, bairro: string, sqCandidato: string): string {
+  const vot = getTableName('votacao_secao', ano);
+  const loc = getTableName('eleitorado_local', ano);
+
+  return `
+    SELECT
+      l.NM_LOCAL_VOTACAO AS local_votacao,
+      l.DS_ENDERECO AS endereco,
+      l.NR_ZONA AS zona,
+      COUNT(DISTINCT v.NR_SECAO) AS secoes,
+      SUM(v.QT_VOTOS_NOMINAIS) AS votos
+    FROM ${vot} v
+    JOIN ${loc} l
+      ON v.NR_ZONA = l.NR_ZONA AND v.NR_SECAO = l.NR_SECAO
+      AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
+    WHERE v.NM_MUNICIPIO = '${municipio}'
+      AND l.NM_BAIRRO = '${bairro}'
+      AND v.SQ_CANDIDATO = '${sqCandidato}'
+    GROUP BY l.NM_LOCAL_VOTACAO, l.DS_ENDERECO, l.NR_ZONA
+    ORDER BY votos DESC
+  `.trim();
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 3. RE-EXPORTS LEGADOS (compatibilidade com código existente)
 // ═══════════════════════════════════════════════════════════════
