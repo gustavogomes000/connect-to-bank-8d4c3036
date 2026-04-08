@@ -155,16 +155,19 @@ export default function Dashboard() {
       {/* ── DATA TABLE ── */}
       <div className="bg-card rounded-lg border border-border/40 overflow-hidden">
         {/* Table header info */}
-        <div className="px-4 py-2.5 border-b border-border/30 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold">Ranking de Candidatos</h2>
-            <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
-              {sorted.length} resultados
-            </Badge>
+        <div className="px-4 py-2.5 border-b border-border/30 space-y-1.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-semibold">Ranking de Candidatos</h2>
+              <Badge variant="outline" className="text-[10px] h-5 px-1.5 font-mono">
+                {sorted.length} resultados
+              </Badge>
+            </div>
+            <div className="text-[10px] text-muted-foreground">
+              Página {page + 1} de {totalPages || 1}
+            </div>
           </div>
-          <div className="text-[10px] text-muted-foreground">
-            Página {page + 1} de {totalPages || 1}
-          </div>
+          <GeoFilterBadge />
         </div>
 
         {loadingPainel ? (
