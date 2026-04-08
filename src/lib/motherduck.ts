@@ -424,6 +424,50 @@ export function sqlVotosHistoricoPorZona(ano: number, sqCandidato: string): stri
   `.trim();
 }
 
+/** Votos por local de votação de uma zona específica em uma eleição (por NR_CANDIDATO + zona) */
+export function sqlVotosHistoricoPorLocal(ano: number, nrCandidato: number | string, zona: number, municipio: string): string {
+  const bu = getTableName('boletim_urna', ano);
+  const hasEleitorado = getAnosDisponiveis('eleitorado_local').includes(ano);
+
+  if (hasEleitorado) {
+    const loc = getTableName('eleitorado_local', ano);
+    return `
+      SELECT
+        COALESCE(l.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
+        COALESCE(l.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS local_votacao,
+        b.nr_zona AS zona,
+        SUM(b.qt_votos) AS total_votos,
+        COUNT(DISTINCT b.nr_secao) AS secoes
+      FROM ${bu} b
+      LEFT JOIN ${loc} l
+        ON b.nr_zona = l.NR_ZONA AND b.nr_secao = l.NR_SECAO
+        AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
+      WHERE b.nm_municipio = '${municipio}'
+        AND b.nr_votavel = ${nrCandidato}
+        AND b.nr_zona = ${zona}
+        AND b.ds_tipo_votavel = 'Nominal'
+      GROUP BY l.NM_BAIRRO, l.NM_LOCAL_VOTACAO, b.nr_zona
+      ORDER BY total_votos DESC
+    `.trim();
+  }
+
+  return `
+    SELECT
+      'NÃO INFORMADO' AS bairro,
+      'NÃO INFORMADO' AS local_votacao,
+      b.nr_zona AS zona,
+      SUM(b.qt_votos) AS total_votos,
+      COUNT(DISTINCT b.nr_secao) AS secoes
+    FROM ${bu} b
+    WHERE b.nm_municipio = '${municipio}'
+      AND b.nr_votavel = ${nrCandidato}
+      AND b.nr_zona = ${zona}
+      AND b.ds_tipo_votavel = 'Nominal'
+    GROUP BY b.nr_zona
+    ORDER BY total_votos DESC
+  `.trim();
+}
+
 // ── QUERIES AGREGADAS ──
 
 /** Ranking de patrimônio dos candidatos */
