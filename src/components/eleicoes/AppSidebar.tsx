@@ -9,7 +9,7 @@ import {
 import { cn } from '@/lib/utils';
 
 const mainItems = [
-  { title: 'Ranking', url: '/', icon: Trophy },
+  { title: 'Dados Eleitorais', url: '/', icon: Trophy },
   { title: 'Zonas Eleitorais', url: '/zonas', icon: Hash },
   { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
   { title: 'Mesários', url: '/mesarios', icon: Users },
