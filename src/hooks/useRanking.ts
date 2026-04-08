@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useFilterStore } from '@/store/filterStore';
 
 export interface RankingItem {
+  SQ_CANDIDATO: string;
   NM_CANDIDATO: string;
   NM_PARTIDO: string;
   DS_CARGO: string;

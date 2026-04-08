@@ -585,7 +585,7 @@ export default function CandidatoPerfil() {
           <MapPinned className="w-4 h-4 text-[#C8AA64]" />
           <h3 className="text-sm font-semibold text-slate-900">Geografia do Voto (Goiânia e Aparecida de Goiânia)</h3>
           <Badge variant="outline" className="ml-auto text-[10px]">
-            Fonte: <span className="font-mono ml-1">{votacaoQ.data?.table}</span>
+            Fonte: <span className="font-mono ml-1">votacao_secao + eleitorado_local</span>
           </Badge>
         </div>
 
