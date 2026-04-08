@@ -281,7 +281,16 @@ export default function PorMunicipio() {
               </TabsContent>
             )}
 
-            {hasComparecimento && resumo && (
+            <TabsContent value="regional">
+              <VotosRegionalTable
+                data={regional || []}
+                isLoading={loadingRegional}
+                title={`Votos por Bairro/Escola — ${selected}`}
+                emptyMessage="Selecione um município para ver a distribuição regional."
+              />
+            </TabsContent>
+
+
               <TabsContent value="historico">
                 <div className="bg-card rounded-lg border border-border/50 p-4">
                   <ResponsiveContainer width="100%" height={300}>
