@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useFilterStore } from '@/store/filterStore';
+import { useFilterStore } from '@/stores/filterStore';
 
 export interface BemItem {
   DS_TIPO_BEM_CANDIDATO: string;
@@ -20,9 +20,7 @@ export const useBensCandidato = (sq_candidato: string) => {
     queryKey: ['bens', sq_candidato, ano],
     queryFn: async () => {
       const resp = await fetch(`/api/dados/candidato/${sq_candidato}/bens?ano=${ano}`);
-      if (!resp.ok) {
-        throw new Error('Falha ao carregar bens do candidato');
-      }
+      if (!resp.ok) throw new Error('Falha ao carregar bens do candidato');
       return resp.json();
     },
     staleTime: 5 * 60 * 1000,
@@ -36,9 +34,7 @@ export const useReceitasCandidato = (sq_candidato: string) => {
     queryKey: ['receitas', sq_candidato, ano],
     queryFn: async () => {
       const resp = await fetch(`/api/dados/candidato/${sq_candidato}/receitas?ano=${ano}`);
-      if (!resp.ok) {
-        throw new Error('Falha ao carregar receitas do candidato');
-      }
+      if (!resp.ok) throw new Error('Falha ao carregar receitas do candidato');
       return resp.json();
     },
     staleTime: 5 * 60 * 1000,

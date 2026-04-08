@@ -15,6 +15,8 @@ import {
   Hash, MapPin, School, Users, Vote, Search, ChevronDown, ChevronRight, BarChart3, Building2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { mdQuery, getTableName, getAnosDisponiveis } from '@/lib/motherduck';
+import { useQuery } from '@tanstack/react-query';
 
 const fmt = (n: number | string) => Number(n || 0).toLocaleString('pt-BR');
 
@@ -35,6 +37,38 @@ function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; valu
   );
 }
 
+/** Hook: top candidatos por zona selecionada */
+function useVotosPorZona(zona: number | null) {
+  const { ano, municipio } = useFilterStore();
+  return useQuery({
+    queryKey: ['votosPorZona', ano, municipio, zona],
+    queryFn: async () => {
+      if (!zona || !getAnosDisponiveis('votacao').includes(ano)) return [];
+      const vot = getTableName('votacao', ano);
+      const cand = getTableName('candidatos', ano);
+      const rows = await mdQuery<any>(`
+        SELECT
+          c.NM_URNA_CANDIDATO AS candidato,
+          c.SG_PARTIDO AS partido,
+          c.DS_CARGO AS cargo,
+          c.SQ_CANDIDATO AS sq_candidato,
+          c.NR_CANDIDATO AS numero,
+          SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
+        FROM ${vot} v
+        JOIN ${cand} c ON v.SQ_CANDIDATO = c.SQ_CANDIDATO
+        WHERE v.NM_MUNICIPIO = '${municipio}'
+          AND v.NR_ZONA = ${zona}
+        GROUP BY c.NM_URNA_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO, c.SQ_CANDIDATO, c.NR_CANDIDATO
+        ORDER BY total_votos DESC
+        LIMIT 30
+      `);
+      return rows;
+    },
+    enabled: !!zona && !!municipio,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
 export default function ZonasEleitorais() {
   const { municipio, ano } = useFilterStore();
   const { data: locais, isLoading: loadingLocais } = useLocaisVotacao();
@@ -43,7 +77,8 @@ export default function ZonasEleitorais() {
   const [search, setSearch] = useState('');
   const [expandedZona, setExpandedZona] = useState<number | null>(null);
 
-  // Aggregate by zone
+  const { data: votosDaZona, isLoading: loadingVotosZona } = useVotosPorZona(expandedZona);
+
   const zonas = useMemo(() => {
     if (!locais) return [];
     const map = new Map<number, { zona: number; locais: number; secoes: number; eleitores: number; bairros: Set<string> }>();
@@ -61,14 +96,12 @@ export default function ZonasEleitorais() {
       .sort((a, b) => b.eleitores - a.eleitores);
   }, [locais]);
 
-  // Locais for expanded zone
   const locaisZona = useMemo(() => {
     if (!locais || expandedZona === null) return [];
     return (locais as any[]).filter((r: any) => Number(r.zona) === expandedZona)
       .sort((a: any, b: any) => Number(b.eleitores || 0) - Number(a.eleitores || 0));
   }, [locais, expandedZona]);
 
-  // Top candidates (from painel) — group by zone using votação data
   const topCandidatos = useMemo(() => {
     if (!painel) return [];
     return (painel as any[])
@@ -108,7 +141,6 @@ export default function ZonasEleitorais() {
 
       <GeoFilterBadge />
 
-      {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KPI icon={Hash} label="Zonas" value={loadingLocais ? '...' : fmt(totalZonas)} />
         <KPI icon={School} label="Locais de Votação" value={loadingLocais ? '...' : fmt(totalLocais)} />
@@ -118,7 +150,6 @@ export default function ZonasEleitorais() {
           sub={comp ? `${fmt(Number(comp.comparecimento))} de ${fmt(Number(comp.eleitores))}` : undefined} />
       </div>
 
-      {/* Search */}
       <div className="relative max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input placeholder="Buscar zona..." value={search} onChange={e => setSearch(e.target.value)}
@@ -131,7 +162,6 @@ export default function ZonasEleitorais() {
           <TabsTrigger value="candidatos" className="text-xs gap-1.5"><Vote className="w-3.5 h-3.5" /> Top Candidatos</TabsTrigger>
         </TabsList>
 
-        {/* ── ABA ZONAS ── */}
         <TabsContent value="zonas" className="mt-3">
           <Card className="border-border/50 overflow-hidden">
             <div className="overflow-x-auto">
@@ -190,15 +220,16 @@ export default function ZonasEleitorais() {
                               </div>
                             </TableCell>
                           </TableRow>
-                          {/* Expanded: locais within this zone */}
+                          {/* Expanded: locais + top candidatos da zona */}
                           {isExpanded && (
                             <TableRow>
                               <TableCell colSpan={7} className="p-0">
                                 <div className="bg-muted/20 border-t border-border/30 p-4">
+                                  {/* Colégios */}
                                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-3">
                                     Colégios eleitorais da Zona {z.zona} ({locaisZona.length} locais)
                                   </p>
-                                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3">
+                                  <div className="grid gap-2 md:grid-cols-2 lg:grid-cols-3 mb-4">
                                     {locaisZona.map((l: any, i: number) => (
                                       <div key={i} className="bg-card rounded-lg border border-border/40 p-3">
                                         <div className="flex items-start gap-2">
@@ -208,9 +239,6 @@ export default function ZonasEleitorais() {
                                             <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                                               <MapPin className="w-3 h-3" />{l.bairro || 'Bairro não informado'}
                                             </p>
-                                            {l.endereco && (
-                                              <p className="text-[10px] text-muted-foreground/70 truncate mt-0.5">{l.endereco}</p>
-                                            )}
                                           </div>
                                         </div>
                                         <div className="flex items-center justify-between mt-2 pt-2 border-t border-border/20">
@@ -220,6 +248,54 @@ export default function ZonasEleitorais() {
                                       </div>
                                     ))}
                                   </div>
+
+                                  {/* Top candidatos da zona */}
+                                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">
+                                    Top candidatos na Zona {z.zona}
+                                  </p>
+                                  {loadingVotosZona ? (
+                                    <div className="space-y-1">
+                                      {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-6 w-full" />)}
+                                    </div>
+                                  ) : !votosDaZona?.length ? (
+                                    <p className="text-xs text-muted-foreground">Sem dados de votação por zona.</p>
+                                  ) : (
+                                    <div className="overflow-x-auto rounded-lg border border-border/30">
+                                      <Table>
+                                        <TableHeader>
+                                          <TableRow className="bg-muted/20 hover:bg-muted/20">
+                                            <TableHead className="text-[10px] w-8">#</TableHead>
+                                            <TableHead className="text-[10px]">Candidato</TableHead>
+                                            <TableHead className="text-[10px]">Nº</TableHead>
+                                            <TableHead className="text-[10px]">Partido</TableHead>
+                                            <TableHead className="text-[10px]">Cargo</TableHead>
+                                            <TableHead className="text-[10px] text-right">Votos</TableHead>
+                                          </TableRow>
+                                        </TableHeader>
+                                        <TableBody>
+                                          {votosDaZona.map((c: any, i: number) => (
+                                            <TableRow key={i} className="border-border/20">
+                                              <TableCell className="text-[10px] text-muted-foreground">{i + 1}</TableCell>
+                                              <TableCell>
+                                                <Link to={`/candidato/${c.sq_candidato}`} className="text-xs font-medium hover:text-primary transition-colors">
+                                                  {c.candidato}
+                                                </Link>
+                                              </TableCell>
+                                              <TableCell className="text-xs font-mono text-muted-foreground">{c.numero}</TableCell>
+                                              <TableCell>
+                                                <span className="text-[10px] font-bold px-1 py-0.5 rounded"
+                                                  style={{ backgroundColor: getPartidoCor(c.partido) + '20', color: getPartidoCor(c.partido) }}>
+                                                  {c.partido}
+                                                </span>
+                                              </TableCell>
+                                              <TableCell className="text-xs text-muted-foreground">{c.cargo}</TableCell>
+                                              <TableCell className="text-sm font-bold text-right text-primary">{formatNumber(Number(c.total_votos))}</TableCell>
+                                            </TableRow>
+                                          ))}
+                                        </TableBody>
+                                      </Table>
+                                    </div>
+                                  )}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -234,7 +310,6 @@ export default function ZonasEleitorais() {
           </Card>
         </TabsContent>
 
-        {/* ── ABA TOP CANDIDATOS ── */}
         <TabsContent value="candidatos" className="mt-3">
           <Card className="border-border/50 overflow-hidden">
             <div className="px-4 py-2.5 border-b border-border/30">

@@ -1,4 +1,4 @@
-import { useFilterStore } from "@/store/filterStore";
+import { useFilterStore } from "@/stores/filterStore";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -17,7 +17,7 @@ export function GlobalFilters() {
     setAno,
     setMunicipio,
     setCargo,
-    resetFilters,
+    limpar: resetFilters,
   } = useFilterStore();
 
   return (
@@ -45,7 +45,7 @@ export function GlobalFilters() {
         <Label htmlFor="municipio">Município</Label>
         <Select 
           value={municipio || "todos"} 
-          onValueChange={(val) => setMunicipio(val === "todos" ? null : val)}
+          onValueChange={(val) => setMunicipio(val === "todos" ? "GOIÂNIA" : val)}
         >
           <SelectTrigger id="municipio">
             <SelectValue placeholder="Todos os Municípios" />

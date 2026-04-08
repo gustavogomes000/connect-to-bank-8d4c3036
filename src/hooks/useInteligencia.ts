@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useFilterStore } from '@/store/filterStore';
+import { useFilterStore } from '@/stores/filterStore';
 
 export interface VotoInteligenciaItem {
   setor: string;
