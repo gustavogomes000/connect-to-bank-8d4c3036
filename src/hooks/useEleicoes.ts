@@ -18,6 +18,8 @@ import {
   sqlResumoEleicao,
   sqlEleitoresPorBairro,
   sqlEvolucaoComparecimento,
+  sqlLocaisVotacao,
+  sqlSecoesLocal,
 } from '@/lib/motherduck';
 
 // ═══════════════════════════════════════════════════════════════
@@ -128,8 +130,30 @@ export function useZonasEleitorais(sqCandidato?: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 5. ESCOLAS/LOCAIS DE VOTAÇÃO — logística por bairro
+// 5. ESCOLAS/LOCAIS DE VOTAÇÃO — logística eleitoral
 // ═══════════════════════════════════════════════════════════════
+
+export function useLocaisVotacao(municipio?: string) {
+  const { ano, municipio: munStore } = useFilterStore();
+  const mun = municipio || munStore;
+  return useQuery({
+    queryKey: ['locaisVotacao', mun, ano],
+    queryFn: () => mdQuery(sqlLocaisVotacao(ano, mun)),
+    enabled: !!mun,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSecoesLocal(localVotacao: string | null, municipio?: string) {
+  const { ano, municipio: munStore } = useFilterStore();
+  const mun = municipio || munStore;
+  return useQuery({
+    queryKey: ['secoesLocal', localVotacao, mun, ano],
+    queryFn: () => mdQuery(sqlSecoesLocal(ano, mun, localVotacao!)),
+    enabled: !!mun && !!localVotacao,
+    staleTime: 5 * 60 * 1000,
+  });
+}
 
 export function useEscolasEleitorais(municipio?: string) {
   const { ano, municipio: munStore } = useFilterStore();

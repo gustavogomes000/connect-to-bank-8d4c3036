@@ -20,6 +20,7 @@ import InteligenciaTerritorial from "./pages/InteligenciaTerritorial";
 import DiretorioCandidatos from "./pages/DiretorioCandidatos";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
+import EscolasEleitorais from "./pages/EscolasEleitorais";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -58,6 +59,7 @@ function Layout() {
               <Route path="/territorial" element={<InteligenciaTerritorial />} />
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
+              <Route path="/escolas" element={<EscolasEleitorais />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}
