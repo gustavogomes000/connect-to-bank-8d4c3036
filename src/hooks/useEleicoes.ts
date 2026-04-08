@@ -28,7 +28,7 @@ import {
 
 function useFilters() {
   const s = useFilterStore();
-  return { ano: s.ano, municipio: s.municipio, cargo: s.cargo, turno: s.turno, partido: s.partido, searchText: s.searchText };
+  return { ano: s.ano, municipio: s.municipio, cargo: s.cargo, turno: s.turno, partido: s.partido, bairro: s.bairro, escola: s.escola, searchText: s.searchText };
 }
 
 type Filtros = ReturnType<typeof useFilters>;
@@ -40,6 +40,8 @@ function toFiltrosPainel(f: Filtros) {
     cargo: f.cargo || undefined,
     turno: f.turno || undefined,
     partido: f.partido || undefined,
+    bairro: f.bairro || undefined,
+    escola: f.escola || undefined,
   };
 }
 
@@ -304,6 +306,40 @@ export function useCargos() {
       );
       return rows.map(r => r.c);
     },
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+// ── Filtros geográficos em cascata: Bairros e Escolas ──
+
+export function useBairros() {
+  const { ano, municipio } = useFilterStore();
+  return useQuery({
+    queryKey: ['bairrosLista', municipio, ano],
+    queryFn: async () => {
+      const loc = getTableName('eleitorado_local', ano);
+      const rows = await mdQuery<{ b: string }>(
+        `SELECT DISTINCT NM_BAIRRO AS b FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}' AND NM_BAIRRO IS NOT NULL AND NM_BAIRRO != '' ORDER BY b`
+      );
+      return rows.map(r => r.b);
+    },
+    enabled: !!municipio,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useEscolas() {
+  const { ano, municipio, bairro } = useFilterStore();
+  return useQuery({
+    queryKey: ['escolasLista', municipio, bairro, ano],
+    queryFn: async () => {
+      const loc = getTableName('eleitorado_local', ano);
+      const rows = await mdQuery<{ e: string }>(
+        `SELECT DISTINCT NM_LOCAL_VOTACAO AS e FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}' AND NM_BAIRRO = '${bairro}' AND NM_LOCAL_VOTACAO IS NOT NULL ORDER BY e`
+      );
+      return rows.map(r => r.e);
+    },
+    enabled: !!municipio && !!bairro,
     staleTime: 30 * 60 * 1000,
   });
 }

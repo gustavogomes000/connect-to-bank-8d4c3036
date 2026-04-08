@@ -1,10 +1,10 @@
 import { useFilterStore } from '@/stores/filterStore';
-import { useMunicipios, usePartidos, useCargos } from '@/hooks/useEleicoes';
+import { useMunicipios, usePartidos, useCargos, useBairros, useEscolas } from '@/hooks/useEleicoes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { X, Filter, Search } from 'lucide-react';
+import { X, Filter, Search, MapPin, School } from 'lucide-react';
 
 const ANOS = [2024, 2022, 2020, 2018, 2016, 2014];
 
@@ -13,6 +13,8 @@ export function GlobalFilters() {
   const { data: municipios } = useMunicipios();
   const { data: partidos } = usePartidos();
   const { data: cargos } = useCargos();
+  const { data: bairros } = useBairros();
+  const { data: escolas } = useEscolas();
   const activeCount = store.activeFiltersCount();
 
   return (
@@ -85,6 +87,38 @@ export function GlobalFilters() {
             <SelectContent>
               <SelectItem value="_all">Todos</SelectItem>
               {(partidos || []).map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          {/* Bairro — cascata: só habilitado se município selecionado */}
+          <Select
+            value={store.bairro || '_all'}
+            onValueChange={v => store.setBairro(v === '_all' ? null : v)}
+            disabled={!store.municipio}
+          >
+            <SelectTrigger className="w-[130px] h-7 text-xs bg-muted/50 border-border/50">
+              <MapPin className="w-3 h-3 mr-1 text-muted-foreground/60 shrink-0" />
+              <SelectValue placeholder="Bairro" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="_all">Todos bairros</SelectItem>
+              {(bairros || []).map(b => <SelectItem key={b} value={b} className="text-xs">{b}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          {/* Escola — cascata: só habilitado se bairro selecionado */}
+          <Select
+            value={store.escola || '_all'}
+            onValueChange={v => store.setEscola(v === '_all' ? null : v)}
+            disabled={!store.bairro}
+          >
+            <SelectTrigger className="w-[160px] h-7 text-xs bg-muted/50 border-border/50">
+              <School className="w-3 h-3 mr-1 text-muted-foreground/60 shrink-0" />
+              <SelectValue placeholder="Escola" />
+            </SelectTrigger>
+            <SelectContent className="max-h-[280px]">
+              <SelectItem value="_all">Todos locais</SelectItem>
+              {(escolas || []).map(e => <SelectItem key={e} value={e} className="text-xs">{e}</SelectItem>)}
             </SelectContent>
           </Select>
 

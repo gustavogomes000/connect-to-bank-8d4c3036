@@ -104,6 +104,8 @@ interface FiltrosPainel {
   turno?: number;
   genero?: string;
   situacao?: string;
+  bairro?: string;
+  escola?: string;
   limite?: number;
 }
 
@@ -127,8 +129,11 @@ function buildWhereClause(filtros: FiltrosPainel, campoMunicipio = 'NM_UE'): str
 export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
   const ano = filtros.ano || 2024;
   const cand = getTableName('candidatos', ano);
-  const vot = getTableName('votacao', ano);
   const limit = filtros.limite || 100;
+  const needGeo = !!(filtros.bairro || filtros.escola);
+
+  // When geo filters active, use votacao_secao + eleitorado_local for precise filtering
+  const vot = needGeo ? getTableName('votacao_secao', ano) : getTableName('votacao', ano);
 
   const conds: string[] = [];
   if (filtros.municipio) conds.push(`c.NM_UE = '${filtros.municipio}'`);
@@ -137,6 +142,15 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
   if (filtros.turno) conds.push(`c.NR_TURNO = ${filtros.turno}`);
   if (filtros.genero) conds.push(`c.DS_GENERO = '${filtros.genero}'`);
   if (filtros.situacao) conds.push(`c.DS_SIT_TOT_TURNO ILIKE '%${filtros.situacao}%'`);
+
+  let geoJoin = '';
+  if (needGeo) {
+    const loc = getTableName('eleitorado_local', ano);
+    geoJoin = `INNER JOIN ${loc} loc ON v.NR_ZONA = loc.NR_ZONA AND v.NR_SECAO = loc.NR_SECAO AND loc.SG_UF = 'GO' AND loc.NM_MUNICIPIO = '${filtros.municipio}'`;
+    if (filtros.bairro) conds.push(`loc.NM_BAIRRO = '${filtros.bairro}'`);
+    if (filtros.escola) conds.push(`loc.NM_LOCAL_VOTACAO = '${filtros.escola}'`);
+  }
+
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
   return `
@@ -155,6 +169,7 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
       COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos
     FROM ${cand} c
     LEFT JOIN ${vot} v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
+    ${geoJoin}
     ${where}
     GROUP BY c.NM_URNA_CANDIDATO, c.NM_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO,
              c.NM_UE, c.DS_SIT_TOT_TURNO, c.DS_GENERO, c.DS_GRAU_INSTRUCAO,
