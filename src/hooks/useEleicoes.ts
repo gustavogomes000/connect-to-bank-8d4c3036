@@ -757,7 +757,7 @@ export function useCheckEmpty() {
 // 26. BAIRRO (comparecimento por bairro e local)
 // ═══════════════════════════════════════════════════════════════
 
-export function useVotosPorBairro(municipio: string, ano?: number) {
+export function useComparecimentoPorBairro(municipio: string, ano?: number) {
   const { ano: anoStore } = useFilterStore();
   const anoFinal = ano || anoStore;
   return useQuery({
