@@ -76,7 +76,7 @@ function MessageBubble({ message, onSalvar, isSalvo }: { message: ChatMessage; o
                     {message.resultado.sql_gerado}
                   </pre>
                 )}
-                <DynamicChart
+                <DynamicChartRenderer
                   configVisual={message.resultado.config_visual}
                   dadosBrutos={message.resultado.dados_brutos}
                   colunas={message.resultado.colunas}
