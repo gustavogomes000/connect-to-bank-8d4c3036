@@ -6,27 +6,18 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/eleicoes/AppSidebar";
 import { GlobalFilters } from "@/components/eleicoes/GlobalFilters";
-import Dashboard from "./pages/Dashboard";
 import Ranking from "./pages/Ranking";
-import ConsultaIA from "./pages/ConsultaIA";
+import ZonasEleitorais from "./pages/ZonasEleitorais";
+import EscolasEleitorais from "./pages/EscolasEleitorais";
 import ChatEleicoes from "./pages/ChatEleicoes";
 import CandidatoPerfil from "./pages/CandidatoPerfil";
-import PorMunicipio from "./pages/PorMunicipio";
-import PorPartido from "./pages/PorPartido";
-import AnaliseBairro from "./pages/AnaliseBairro";
-import Patrimonio from "./pages/Patrimonio";
-import PerfilCandidatos from "./pages/PerfilCandidatos";
-import InteligenciaTerritorial from "./pages/InteligenciaTerritorial";
-import DiretorioCandidatos from "./pages/DiretorioCandidatos";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
-import EscolasEleitorais from "./pages/EscolasEleitorais";
-import InteligenciaGeografica from "./pages/InteligenciaGeografica";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const HIDE_FILTERS = ['/ajuda', '/consulta', '/relatorios', '/config', '/territorial'];
+const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios'];
 
 function Layout() {
   const location = useLocation();
@@ -41,34 +32,33 @@ function Layout() {
             <SidebarTrigger />
             <div className="ml-3 flex items-center gap-2">
               <span className="text-xs font-semibold text-foreground">EleiçõesGO</span>
-              <span className="text-[10px] text-muted-foreground">Inteligência de Dados Eleitorais</span>
+              <span className="text-[10px] text-muted-foreground">Inteligência Eleitoral</span>
             </div>
           </header>
           {!hideFilters && <GlobalFilters />}
           <main className="flex-1 p-3 md:p-4 overflow-auto">
             <Routes>
-              <Route path="/" element={<Dashboard />} />
+              <Route path="/" element={<Ranking />} />
               <Route path="/ranking" element={<Ranking />} />
-              <Route path="/consulta" element={<ConsultaIA />} />
-              <Route path="/relatorios" element={<ChatEleicoes />} />
-              <Route path="/candidatos" element={<Ranking />} />
-              <Route path="/diretorio" element={<DiretorioCandidatos />} />
-              <Route path="/candidato/:id" element={<CandidatoPerfil />} />
-              <Route path="/municipio" element={<PorMunicipio />} />
-              <Route path="/partido" element={<PorPartido />} />
-              <Route path="/bairro" element={<AnaliseBairro />} />
-              <Route path="/territorial" element={<InteligenciaTerritorial />} />
-              <Route path="/patrimonio" element={<Patrimonio />} />
-              <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
+              <Route path="/zonas" element={<ZonasEleitorais />} />
               <Route path="/escolas" element={<EscolasEleitorais />} />
-              <Route path="/geografica" element={<InteligenciaGeografica />} />
+              <Route path="/chat" element={<ChatEleicoes />} />
+              <Route path="/relatorios" element={<ChatEleicoes />} />
+              <Route path="/candidato/:id" element={<CandidatoPerfil />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}
-              <Route path="/chat" element={<ChatEleicoes />} />
-              <Route path="/resultado" element={<Dashboard />} />
+              <Route path="/consulta" element={<ChatEleicoes />} />
+              <Route path="/resultado" element={<Ranking />} />
               <Route path="/explorador" element={<Ranking />} />
-              <Route path="/micro-targeting" element={<Dashboard />} />
+              <Route path="/diretorio" element={<Ranking />} />
+              <Route path="/municipio" element={<Ranking />} />
+              <Route path="/partido" element={<Ranking />} />
+              <Route path="/bairro" element={<ZonasEleitorais />} />
+              <Route path="/territorial" element={<ZonasEleitorais />} />
+              <Route path="/patrimonio" element={<Ranking />} />
+              <Route path="/geografica" element={<ZonasEleitorais />} />
+              <Route path="/perfil-candidatos" element={<Ranking />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

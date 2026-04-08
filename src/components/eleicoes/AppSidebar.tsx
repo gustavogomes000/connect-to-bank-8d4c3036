@@ -1,7 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users, Globe,
-  HelpCircle, Sparkles, MessageSquare, Settings, Vote, School,
+  Trophy, HelpCircle, MessageSquare, Settings, School, Hash, User, Sparkles,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -10,22 +9,11 @@ import {
 import { cn } from '@/lib/utils';
 
 const mainItems = [
-  { title: 'Painel de Dados', url: '/', icon: BarChart3 },
-  { title: 'Consulta por IA', url: '/consulta', icon: MessageSquare },
-  { title: 'Relatórios Personalizados', url: '/relatorios', icon: Sparkles },
-  { title: 'Ranking', url: '/ranking', icon: Trophy },
-];
-
-const dimensionItems = [
-  { title: 'Diretório Candidatos', url: '/diretorio', icon: Users },
-  { title: 'Municípios', url: '/municipio', icon: Building2 },
-  { title: 'Partidos', url: '/partido', icon: Target },
-  { title: 'Bairros', url: '/bairro', icon: MapPin },
-  { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
-  { title: 'Goiânia & Aparecida', url: '/territorial', icon: Vote },
+  { title: 'Ranking', url: '/', icon: Trophy },
+  { title: 'Zonas Eleitorais', url: '/zonas', icon: Hash },
   { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
-  { title: 'Intel. Geográfica', url: '/geografica', icon: Globe },
-  { title: 'Perfil Geral', url: '/perfil-candidatos', icon: UserCheck },
+  { title: 'Converse com a IA', url: '/chat', icon: MessageSquare },
+  { title: 'Relatórios', url: '/relatorios', icon: Sparkles },
 ];
 
 const systemItems = [
@@ -39,7 +27,8 @@ export function AppSidebar() {
   const collapsed = state === 'collapsed';
 
   const MenuItem = ({ item }: { item: typeof mainItems[0] }) => {
-    const isActive = location.pathname === item.url;
+    const isActive = location.pathname === item.url || 
+      (item.url !== '/' && location.pathname.startsWith(item.url));
     return (
       <SidebarMenuItem>
         <SidebarMenuButton asChild>
@@ -65,27 +54,21 @@ export function AppSidebar() {
       <SidebarHeader className="p-4 border-b border-sidebar-border">
         <Link to="/" className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
-            <BarChart3 className="w-4 h-4 text-primary" />
+            <Trophy className="w-4 h-4 text-primary" />
           </div>
           {!collapsed && (
             <div className="flex flex-col">
               <span className="text-sm font-bold text-sidebar-foreground tracking-tight">EleiçõesGO</span>
-              <span className="text-[10px] text-sidebar-foreground/40 uppercase tracking-widest">Inteligência de Dados</span>
+              <span className="text-[10px] text-sidebar-foreground/40 uppercase tracking-widest">Inteligência Eleitoral</span>
             </div>
           )}
         </Link>
       </SidebarHeader>
       <SidebarContent className="px-2 py-3">
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Principal</SidebarGroupLabel>}
+          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1">Módulos</SidebarGroupLabel>}
           <SidebarGroupContent>
             <SidebarMenu>{mainItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-[10px] text-sidebar-foreground/30 uppercase tracking-widest px-3 mb-1 mt-4">Dimensões</SidebarGroupLabel>}
-          <SidebarGroupContent>
-            <SidebarMenu>{dimensionItems.map(item => <MenuItem key={item.url} item={item} />)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
         <SidebarGroup>
