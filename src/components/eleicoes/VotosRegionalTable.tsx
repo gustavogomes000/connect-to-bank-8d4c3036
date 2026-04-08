@@ -15,8 +15,10 @@ export interface VotosRegionalRow {
   [key: string]: any;
 }
 
+type VotosRegionalRowInput = Record<string, any>;
+
 interface VotosRegionalTableProps {
-  data: VotosRegionalRow[];
+  data: VotosRegionalRowInput[];
   isLoading?: boolean;
   title?: string;
   showBairro?: boolean;
