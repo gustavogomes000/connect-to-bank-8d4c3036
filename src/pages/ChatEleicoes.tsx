@@ -310,7 +310,7 @@ export default function ChatEleicoes() {
               <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-semibold">Experimente perguntar</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-w-lg w-full">
-              {SUGESTOES_RAPIDAS.map((s, i) => (
+              {[...SUGESTOES_RAPIDAS, ...SUGESTOES_EXTRAS].map((s, i) => (
                 <button
                   key={i}
                   onClick={() => handleSend(s)}
