@@ -374,11 +374,37 @@ export function sqlHistoricoCandidato(cpf: string, anosParam?: number[]): string
       DS_CARGO AS cargo,
       NM_UE AS municipio,
       DS_SIT_TOT_TURNO AS situacao,
-      SQ_CANDIDATO AS sq_candidato
+      SQ_CANDIDATO AS sq_candidato,
+      NR_CANDIDATO AS numero
     FROM ${cand}
     WHERE NR_CPF_CANDIDATO = '${cpf}'`;
   });
 
+  return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
+}
+
+/** Histórico com votos totais por eleição (por CPF) */
+export function sqlHistoricoComVotos(cpf: string): string {
+  const anos = [2014, 2016, 2018, 2020, 2022, 2024];
+  const unions: string[] = [];
+  for (const a of anos) {
+    const cand = getTableName('candidatos', a);
+    const vot = getTableName('votacao', a);
+    unions.push(`SELECT
+      ${a} AS ano,
+      c.NM_URNA_CANDIDATO AS candidato,
+      c.SG_PARTIDO AS partido,
+      c.DS_CARGO AS cargo,
+      c.NM_UE AS municipio,
+      c.DS_SIT_TOT_TURNO AS situacao,
+      c.SQ_CANDIDATO AS sq_candidato,
+      c.NR_CANDIDATO AS numero,
+      COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos
+    FROM ${cand} c
+    LEFT JOIN ${vot} v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
+    WHERE c.NR_CPF_CANDIDATO = '${cpf}'
+    GROUP BY c.NM_URNA_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO, c.NM_UE, c.DS_SIT_TOT_TURNO, c.SQ_CANDIDATO, c.NR_CANDIDATO`);
+  }
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
