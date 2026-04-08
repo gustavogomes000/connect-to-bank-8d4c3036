@@ -11,6 +11,7 @@ import {
   sqlPatrimonioCandidato,
   sqlHistoricoCandidato,
   sqlVotacaoTerritorialDetalhada,
+  sqlComposicaoVotosCandidato,
 } from '@/lib/motherduck';
 import { useFilterStore } from '@/stores/filterStore';
 import { Button } from '@/components/ui/button';
