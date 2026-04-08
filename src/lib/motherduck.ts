@@ -110,6 +110,11 @@ interface FiltrosPainel {
   limite?: number;
 }
 
+/** Returns true if this is a general (state/federal) election year */
+export function isEleicaoGeral(ano: number): boolean {
+  return [2014, 2018, 2022].includes(ano);
+}
+
 /** Check if any geo filter (zona/bairro/escola) is active */
 function needsGeoJoin(f: FiltrosPainel): boolean {
   return !!(f.zona || f.bairro || f.escola);
