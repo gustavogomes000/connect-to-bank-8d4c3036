@@ -5,11 +5,15 @@ import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { CandidatoAvatar } from '@/components/eleicoes/CandidatoAvatar';
 import { KPISkeleton, TableSkeleton, ChartSkeleton } from '@/components/eleicoes/Skeletons';
 import { DataPendingCard } from '@/components/eleicoes/DataPendingCard';
+import { VotosRegionalTable } from '@/components/eleicoes/VotosRegionalTable';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, BarChart, Bar } from 'recharts';
-import { Search, Trophy, Users, TrendingUp, MapPin } from 'lucide-react';
+import { Search, Trophy, Users, TrendingUp, MapPin, School } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useFilterStore } from '@/stores/filterStore';
+import { mdQuery, getTableName } from '@/lib/motherduck';
+import { useQuery } from '@tanstack/react-query';
 
 import { Pagination } from '@/components/eleicoes/Pagination';
 
