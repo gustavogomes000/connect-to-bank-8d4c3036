@@ -16,6 +16,49 @@ const SUGESTOES = [
   'Quais candidatos declararam maior patrimônio em 2024?',
 ];
 
+const ATALHOS_CONTEXTUAIS = [
+  'Resuma os bens do candidato "Maguito Vilela"',
+  'Compare abstenção em Aparecida vs Goiânia',
+  'Top 10 vereadores mais ricos em 2024',
+  'Evolução do comparecimento em Goiânia',
+];
+
+function formatMarkdown(text: string): string {
+  if (!text) return '';
+  let html = text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\n/g, '<br/>');
+
+  html = html.replace(/(<li>.*?<\/li>)+/gs, (match) => `<ul>${match}</ul>`);
+
+  // Table support with shadcn-like styling
+  if (html.includes('|')) {
+    html = html.replace(/(<p>)?\|(.+?)\|(<br\/>)?\|[-\s|]+\|((<br\/>)?\|.+?\|)+/gs, (match) => {
+      const lines = match.replace(/<\/?p>/g, '').replace(/<br\/>/g, '\n').trim().split('\n').filter(l => l.includes('|'));
+      if (lines.length < 2) return match;
+      const headers = lines[0].split('|').filter(Boolean).map(h =>
+        `<th class="h-8 px-3 text-left align-middle font-medium text-muted-foreground text-[10px] uppercase tracking-wider">${h.trim()}</th>`
+      ).join('');
+      const rows = lines.slice(2).map((line, i) => {
+        const cells = line.split('|').filter(Boolean).map(c =>
+          `<td class="px-3 py-2 align-middle text-xs">${c.trim()}</td>`
+        ).join('');
+        return `<tr class="border-b border-border/10 transition-colors hover:bg-muted/30 ${i % 2 === 0 ? 'bg-muted/5' : ''}">${cells}</tr>`;
+      }).join('');
+      return `<div class="my-3 overflow-x-auto rounded-lg border border-border/30"><table class="w-full caption-bottom text-sm"><thead><tr class="border-b border-border/20 bg-muted/40">${headers}</tr></thead><tbody>${rows}</tbody></table></div>`;
+    });
+  }
+
+  return `<p>${html}</p>`;
+}
+
 function MessageBubble({ msg, onToggleSQL }: { msg: ChatMessage; onToggleSQL?: () => void }) {
   const isUser = msg.role === 'user';
 
@@ -41,7 +84,10 @@ function MessageBubble({ msg, onToggleSQL }: { msg: ChatMessage; onToggleSQL?: (
           <p>{msg.content}</p>
         ) : (
           <div className="space-y-2">
-            <div className="prose prose-sm max-w-none dark:prose-invert [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_table]:text-xs" dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }} />
+            <div
+              className="prose prose-sm max-w-none dark:prose-invert [&_p]:my-1 [&_ul]:my-1 [&_ol]:my-1 [&_li]:my-0.5 [&_h1]:text-base [&_h2]:text-sm [&_h3]:text-sm [&_strong]:text-foreground"
+              dangerouslySetInnerHTML={{ __html: formatMarkdown(msg.content) }}
+            />
             {msg.sql_gerado && onToggleSQL && (
               <button onClick={onToggleSQL} className="flex items-center gap-1 text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors mt-2">
                 <Code2 className="w-3 h-3" />
@@ -58,45 +104,6 @@ function MessageBubble({ msg, onToggleSQL }: { msg: ChatMessage; onToggleSQL?: (
       )}
     </div>
   );
-}
-
-function formatMarkdown(text: string): string {
-  if (!text) return '';
-  let html = text
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    // Headers
-    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
-    // Unordered lists
-    .replace(/^[-*] (.+)$/gm, '<li>$1</li>')
-    // Ordered lists
-    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
-    // Line breaks
-    .replace(/\n\n/g, '</p><p>')
-    .replace(/\n/g, '<br/>');
-
-  // Wrap consecutive <li> in <ul>
-  html = html.replace(/(<li>.*?<\/li>)+/gs, (match) => `<ul>${match}</ul>`);
-
-  // Simple table support
-  if (html.includes('|')) {
-    html = html.replace(/(<p>)?\|(.+?)\|(<br\/>)?\|[-\s|]+\|((<br\/>)?\|.+?\|)+/gs, (match) => {
-      const lines = match.replace(/<\/?p>/g, '').replace(/<br\/>/g, '\n').trim().split('\n').filter(l => l.includes('|'));
-      if (lines.length < 2) return match;
-      const headers = lines[0].split('|').filter(Boolean).map(h => `<th class="px-2 py-1 text-left">${h.trim()}</th>`).join('');
-      const rows = lines.slice(2).map(line => {
-        const cells = line.split('|').filter(Boolean).map(c => `<td class="px-2 py-1">${c.trim()}</td>`).join('');
-        return `<tr>${cells}</tr>`;
-      }).join('');
-      return `<table class="w-full border-collapse border border-border/20 rounded"><thead><tr class="bg-muted/30">${headers}</tr></thead><tbody>${rows}</tbody></table>`;
-    });
-  }
-
-  return `<p>${html}</p>`;
 }
 
 export default function ConsultaIA() {
@@ -118,6 +125,7 @@ export default function ConsultaIA() {
   }
 
   const isEmpty = messages.length === 0;
+  const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant' && !m.loading);
 
   return (
     <div className="flex flex-col h-[calc(100vh-120px)] max-w-[900px] mx-auto">
@@ -188,6 +196,22 @@ export default function ConsultaIA() {
                 )}
               </div>
             ))}
+
+            {/* Contextual shortcuts after last response */}
+            {lastAssistantMsg && !loading && (
+              <div className="ml-11 flex flex-wrap gap-1.5">
+                {ATALHOS_CONTEXTUAIS.map((a, i) => (
+                  <button
+                    key={i}
+                    onClick={() => enviar(a)}
+                    className="text-[10px] px-2.5 py-1.5 rounded-full border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all"
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div ref={messagesEndRef} />
           </>
         )}

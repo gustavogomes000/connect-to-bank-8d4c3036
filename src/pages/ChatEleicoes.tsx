@@ -12,11 +12,18 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+const ATALHOS_POS_RESPOSTA = [
+  'Resuma os bens do candidato "Maguito Vilela"',
+  'Compare abstenção em Aparecida vs Goiânia',
+  'Top 5 partidos com mais votos em 2024',
+  'Evolução do comparecimento em Goiânia',
+];
+
 // ── MESSAGE BUBBLE ──
 function MessageBubble({ message, onSalvar, isSalvo }: { message: ChatMessage; onSalvar: (p: string) => void; isSalvo: boolean }) {
   const [showSQL, setShowSQL] = useState(false);
   const isUser = message.role === 'user';
-  const isError = !isUser && message.content.startsWith('Não foi possível') || message.content.startsWith('O sistema está') || message.content.startsWith('Erro') || message.content.startsWith('Serviço');
+  const isError = !isUser && (message.content.startsWith('Não foi possível') || message.content.startsWith('O sistema está') || message.content.startsWith('Erro') || message.content.startsWith('Serviço'));
 
   return (
     <div className={cn('flex gap-3 max-w-full', isUser ? 'justify-end' : 'justify-start')}>
@@ -204,10 +211,11 @@ export default function ChatEleicoes() {
     }
   }, [input]);
 
-  function handleSend() {
-    if (!input.trim() || loading) return;
-    enviar(input);
-    setInput('');
+  function handleSend(text?: string) {
+    const q = text || input.trim();
+    if (!q || loading) return;
+    enviar(q);
+    if (!text) setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   }
 
@@ -222,6 +230,7 @@ export default function ChatEleicoes() {
   }
 
   const isEmpty = messages.length === 0;
+  const lastAssistantMsg = [...messages].reverse().find(m => m.role === 'assistant' && !m.loading);
 
   return (
     <div className="flex flex-col h-[calc(100vh-7rem)] max-w-[900px] mx-auto">
@@ -305,7 +314,7 @@ export default function ChatEleicoes() {
               {SUGESTOES_RAPIDAS.map((s, i) => (
                 <button
                   key={i}
-                  onClick={() => { setInput(s); enviar(s); }}
+                  onClick={() => handleSend(s)}
                   className="text-[11px] text-left px-3 py-2 rounded-lg border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/25 hover:bg-primary/5 transition-all"
                 >
                   {s}
@@ -314,21 +323,37 @@ export default function ChatEleicoes() {
             </div>
           </div>
         ) : (
-          messages.map(msg => (
-            <MessageBubble
-              key={msg.id}
-              message={msg}
-              onSalvar={adicionar}
-              isSalvo={msg.role === 'user' ? isFavorito(msg.content) : false}
-            />
-          ))
+          <>
+            {messages.map(msg => (
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                onSalvar={adicionar}
+                isSalvo={msg.role === 'user' ? isFavorito(msg.content) : false}
+              />
+            ))}
+
+            {/* Contextual shortcuts after last response */}
+            {lastAssistantMsg && !loading && (
+              <div className="ml-11 flex flex-wrap gap-1.5 pt-1">
+                {ATALHOS_POS_RESPOSTA.map((a, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleSend(a)}
+                    className="text-[10px] px-2.5 py-1.5 rounded-full border border-border/30 text-muted-foreground hover:text-foreground hover:border-primary/30 hover:bg-primary/5 transition-all"
+                  >
+                    {a}
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
         )}
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input area */}
       <div className="border-t border-border/20 pt-3 shrink-0">
-        {/* Rate limit warning */}
         {(isRateLimited || cooldownRemaining > 0) && (
           <div className="mb-2 px-3 py-2 rounded-xl bg-warning/8 border border-warning/20 text-center">
             <p className="text-xs text-warning font-medium">
@@ -352,7 +377,7 @@ export default function ChatEleicoes() {
             />
           </div>
           <Button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={loading || !input.trim() || isRateLimited}
             size="icon"
             className="h-[44px] w-[44px] shrink-0 rounded-xl"
