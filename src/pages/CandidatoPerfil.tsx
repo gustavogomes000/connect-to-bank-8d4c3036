@@ -717,9 +717,12 @@ function RedesSociaisSection({ redes }: { redes: AnyRow[] }) {
 // ═══════════════════════════════════════════════════════
 
 export default function CandidatoPerfil() {
-  const { id } = useParams<{ id: string }>();
+  const { id, ano: anoParam } = useParams<{ id: string; ano?: string }>();
   const sq = id || null;
-  const { ano, municipio } = useFilterStore();
+  const { municipio } = useFilterStore();
+
+  // Ano vem da URL, ou tenta encontrar automaticamente
+  const anoFromUrl = anoParam ? Number(anoParam) : null;
 
   const canUseDataset = (dataset: string, year: number) => getAnosDisponiveis(dataset).includes(year);
   const safeTable = (dataset: string, year: number) => {
@@ -727,21 +730,36 @@ export default function CandidatoPerfil() {
     try { return getTableName(dataset, year); } catch { return null; }
   };
 
-  // ── Perfil principal ──
+  // ── Auto-detect: busca o candidato em todos os anos até encontrar ──
   const candidatoQ = useQuery({
-    queryKey: ['md', 'cand', ano, sq],
+    queryKey: ['md', 'cand-auto', sq, anoFromUrl],
     enabled: !!sq,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
-      const rows = await mdQuery(sqlPerfilCandidato(ano, { sq: String(sq) }));
-      return (rows[0] as AnyRow) || null;
+      // Se tem ano na URL, busca direto nesse ano
+      if (anoFromUrl && canUseDataset('candidatos', anoFromUrl)) {
+        const rows = await mdQuery(sqlPerfilCandidato(anoFromUrl, { sq: String(sq) }));
+        if (rows[0]) return { ...(rows[0] as AnyRow), _ano_encontrado: anoFromUrl };
+      }
+      // Senão, tenta todos os anos do mais recente ao mais antigo
+      const anos = [...getAnosDisponiveis('candidatos')].sort((a, b) => b - a);
+      for (const a of anos) {
+        try {
+          const rows = await mdQuery(sqlPerfilCandidato(a, { sq: String(sq) }));
+          if (rows[0]) return { ...(rows[0] as AnyRow), _ano_encontrado: a };
+        } catch { /* continua */ }
+      }
+      return null;
     },
   });
+
+  // Ano efetivo do candidato encontrado
+  const ano = (candidatoQ.data as any)?._ano_encontrado || anoFromUrl || 2024;
 
   // ── Patrimônio ──
   const patrimonioQ = useQuery({
     queryKey: ['md', 'patrimonio', ano, sq],
-    enabled: !!sq && canUseDataset('bens', ano),
+    enabled: !!sq && !!candidatoQ.data && canUseDataset('bens', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const rows = await mdQuery(sqlPatrimonioCandidato(ano, String(sq)));
@@ -751,7 +769,7 @@ export default function CandidatoPerfil() {
 
   const bensQ = useQuery({
     queryKey: ['md', 'bens_lista', ano, sq],
-    enabled: !!sq && canUseDataset('bens', ano),
+    enabled: !!sq && !!candidatoQ.data && canUseDataset('bens', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const rows = await mdQuery(sqlBensCandidato(ano, String(sq)));
@@ -762,7 +780,7 @@ export default function CandidatoPerfil() {
   // ── Receitas ──
   const receitasQ = useQuery({
     queryKey: ['md', 'receitas', ano, sq],
-    enabled: !!sq && canUseDataset('receitas', ano),
+    enabled: !!sq && !!candidatoQ.data && canUseDataset('receitas', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const t = safeTable('receitas', ano);
@@ -775,7 +793,7 @@ export default function CandidatoPerfil() {
   // ── Redes sociais ──
   const redesQ = useQuery({
     queryKey: ['md', 'redes', ano, sq],
-    enabled: !!sq && canUseDataset('rede_social', ano),
+    enabled: !!sq && !!candidatoQ.data && canUseDataset('rede_social', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const t = safeTable('rede_social', ano);
@@ -791,7 +809,7 @@ export default function CandidatoPerfil() {
 
   const composicaoQ = useQuery({
     queryKey: ['md', 'composicao', ano, nrCandidato, mun],
-    enabled: !!nrCandidato && canUseDataset('boletim_urna', ano),
+    enabled: !!nrCandidato && !!candidatoQ.data && canUseDataset('boletim_urna', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun));
