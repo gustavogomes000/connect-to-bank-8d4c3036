@@ -459,10 +459,11 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                       <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
                         Distribuição de votos por zona — {ano}
                       </div>
-                      <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
                         <Table>
                           <TableHeader>
                             <TableRow className="border-border/60">
+                              <TableHead className="text-[10px] text-slate-500 w-[20px]"></TableHead>
                               <TableHead className="text-[10px] text-slate-500">Zona</TableHead>
                               <TableHead className="text-[10px] text-slate-500">Município</TableHead>
                               <TableHead className="text-[10px] text-slate-500 text-right">Votos</TableHead>
@@ -474,18 +475,67 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                             {zonas.map((z, i) => {
                               const zv = Number(z.total_votos || 0);
                               const pct = votos > 0 ? (zv / votos) * 100 : 0;
+                              const zonaKey = `${ano}-${z.zona}`;
+                              const isZonaExpanded = expandedZona === zonaKey;
+                              const locais = locaisData[zonaKey] || [];
                               return (
-                                <TableRow key={i} className="border-border/20">
-                                  <TableCell className="text-xs font-mono text-slate-900">Zona {z.zona}</TableCell>
-                                  <TableCell className="text-xs text-slate-600">{z.municipio}</TableCell>
-                                  <TableCell className="text-xs font-mono font-bold text-slate-900 text-right">{zv.toLocaleString('pt-BR')}</TableCell>
-                                  <TableCell className="text-xs font-mono text-slate-500 text-right">{pct.toFixed(1)}%</TableCell>
-                                  <TableCell>
-                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(pct * 2, 100)}%` }} />
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
+                                <React.Fragment key={i}>
+                                  <TableRow
+                                    className="border-border/20 cursor-pointer hover:bg-muted/40 transition-colors"
+                                    onClick={() => handleExpandZona(ano, Number(z.zona), data?.numero, z.municipio)}
+                                  >
+                                    <TableCell className="px-1">
+                                      {isZonaExpanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
+                                    </TableCell>
+                                    <TableCell className="text-xs font-mono text-slate-900">Zona {z.zona}</TableCell>
+                                    <TableCell className="text-xs text-slate-600">{z.municipio}</TableCell>
+                                    <TableCell className="text-xs font-mono font-bold text-slate-900 text-right">{zv.toLocaleString('pt-BR')}</TableCell>
+                                    <TableCell className="text-xs font-mono text-slate-500 text-right">{pct.toFixed(1)}%</TableCell>
+                                    <TableCell>
+                                      <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(pct * 2, 100)}%` }} />
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                  {isZonaExpanded && (
+                                    <TableRow className="border-0">
+                                      <TableCell colSpan={6} className="p-0">
+                                        <div className="bg-muted/20 border-t border-b border-border/30 px-4 py-2">
+                                          {loadingLocais === zonaKey ? (
+                                            <div className="space-y-1">
+                                              <Skeleton className="h-4 w-full" />
+                                              <Skeleton className="h-4 w-3/4" />
+                                            </div>
+                                          ) : locais.length === 0 ? (
+                                            <p className="text-[10px] text-muted-foreground py-1">Detalhamento por local não disponível para esta zona.</p>
+                                          ) : (
+                                            <div className="space-y-1">
+                                              <div className="text-[9px] font-semibold uppercase tracking-wider text-slate-400 mb-1">
+                                                Locais de votação — Zona {z.zona}
+                                              </div>
+                                              {locais.map((l, li) => {
+                                                const lv = Number(l.total_votos || 0);
+                                                const lpct = zv > 0 ? (lv / zv) * 100 : 0;
+                                                return (
+                                                  <div key={li} className="flex items-center gap-2 text-[11px] py-0.5">
+                                                    <span className="text-slate-400 font-mono w-5 text-right shrink-0">{li + 1}</span>
+                                                    <span className="text-slate-500 w-24 shrink-0 truncate" title={l.bairro}>{l.bairro}</span>
+                                                    <span className="text-slate-900 flex-1 truncate" title={l.local_votacao}>{l.local_votacao}</span>
+                                                    <span className="font-mono font-bold text-slate-900 shrink-0">{lv.toLocaleString('pt-BR')}</span>
+                                                    <span className="font-mono text-slate-400 shrink-0 w-12 text-right">{lpct.toFixed(1)}%</span>
+                                                    <div className="h-1 w-16 bg-slate-100 rounded-full overflow-hidden shrink-0">
+                                                      <div className="h-full rounded-full bg-primary/60" style={{ width: `${Math.min(lpct * 2, 100)}%` }} />
+                                                    </div>
+                                                  </div>
+                                                );
+                                              })}
+                                            </div>
+                                          )}
+                                        </div>
+                                      </TableCell>
+                                    </TableRow>
+                                  )}
+                                </React.Fragment>
                               );
                             })}
                           </TableBody>
