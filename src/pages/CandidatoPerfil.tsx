@@ -613,51 +613,14 @@ export default function CandidatoPerfil() {
         )}
       </section>
 
-      <section className="bg-white rounded-xl border border-border p-4">
-        <div className="flex items-center gap-2">
-          <MapPinned className="w-4 h-4 text-[#C8AA64]" />
-          <h3 className="text-sm font-semibold text-slate-900">Geografia do Voto (Goiânia e Aparecida de Goiânia)</h3>
-          <Badge variant="outline" className="ml-auto text-[10px]">
-            Fonte: <span className="font-mono ml-1">votacao_secao + eleitorado_local</span>
-          </Badge>
-        </div>
-
-        {!geo.byZona.length ? (
-          <div className="mt-3 text-sm text-slate-500">Sem registros de votação por seção para os municípios-alvo.</div>
-        ) : (
-          <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border">
-                Votos por Zona (agregado)
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/60">
-                    <TableHead className="text-[10px] text-slate-500">Município</TableHead>
-                    <TableHead className="text-[10px] text-slate-500">Zona</TableHead>
-                    <TableHead className="text-[10px] text-slate-500 text-right">Votos</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {geo.byZona.slice(0, 50).map((r, i) => (
-                    <TableRow key={i} className="border-border/60">
-                      <TableCell className="text-xs text-slate-500">{r.municipio}</TableCell>
-                      <TableCell className="text-sm text-slate-900 font-mono">{r.zona}</TableCell>
-                      <TableCell className="text-sm text-slate-900 text-right font-mono">{Number(r.total_votos).toLocaleString('pt-BR')}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="overflow-x-auto rounded-lg border border-border">
-              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border">
-                Votos por Zona e Local de Votação (Escolas)
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow className="border-border/60">
-                    <TableHead className="text-[10px] text-slate-500">Município</TableHead>
+      {/* ══════ COMPOSIÇÃO COMPLETA DE VOTOS ══════ */}
+      <VoteCompositionSection
+        composicaoRows={composicaoRows}
+        geoByZona={geo.byZona}
+        isLoadingComposicao={composicaoGoianiaQ.isLoading || composicaoAparecidaQ.isLoading}
+        nrCandidato={nrCandidato}
+        ano={ano}
+      />
                     <TableHead className="text-[10px] text-slate-500">Zona</TableHead>
                     <TableHead className="text-[10px] text-slate-500">Local</TableHead>
                     <TableHead className="text-[10px] text-slate-500 text-right">Votos</TableHead>
