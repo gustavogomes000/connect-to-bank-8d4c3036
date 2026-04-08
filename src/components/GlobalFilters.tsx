@@ -33,9 +33,12 @@ export function GlobalFilters() {
             <SelectValue placeholder="Selecione o ano" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="2024">2024</SelectItem>
-            <SelectItem value="2022">2022</SelectItem>
-            <SelectItem value="2020">2020</SelectItem>
+            <SelectItem value="2024">2024 (Municipal)</SelectItem>
+            <SelectItem value="2022">2022 (Geral)</SelectItem>
+            <SelectItem value="2020">2020 (Municipal)</SelectItem>
+            <SelectItem value="2018">2018 (Geral)</SelectItem>
+            <SelectItem value="2016">2016 (Municipal)</SelectItem>
+            <SelectItem value="2014">2014 (Geral)</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -64,15 +67,26 @@ export function GlobalFilters() {
         <Select 
           value={cargo || "todos"} 
           onValueChange={(val) => setCargo(val === "todos" ? null : val)}
-          disabled={!municipio}
         >
           <SelectTrigger id="cargo">
             <SelectValue placeholder="Todos os Cargos" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="PREFEITO">Prefeito</SelectItem>
-            <SelectItem value="VEREADOR">Vereador</SelectItem>
+            {[2016, 2020, 2024].includes(ano) ? (
+              <>
+                <SelectItem value="PREFEITO">Prefeito</SelectItem>
+                <SelectItem value="VEREADOR">Vereador</SelectItem>
+              </>
+            ) : (
+              <>
+                <SelectItem value="GOVERNADOR">Governador</SelectItem>
+                <SelectItem value="SENADOR">Senador</SelectItem>
+                <SelectItem value="DEPUTADO FEDERAL">Deputado Federal</SelectItem>
+                <SelectItem value="DEPUTADO ESTADUAL">Deputado Estadual</SelectItem>
+                {ano === 2014 && <SelectItem value="PRESIDENTE">Presidente</SelectItem>}
+              </>
+            )}
           </SelectContent>
         </Select>
       </div>

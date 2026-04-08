@@ -110,6 +110,11 @@ interface FiltrosPainel {
   limite?: number;
 }
 
+/** Returns true if this is a general (state/federal) election year */
+export function isEleicaoGeral(ano: number): boolean {
+  return [2014, 2018, 2022].includes(ano);
+}
+
 /** Check if any geo filter (zona/bairro/escola) is active */
 function needsGeoJoin(f: FiltrosPainel): boolean {
   return !!(f.zona || f.bairro || f.escola);
@@ -130,7 +135,9 @@ function buildGeoJoin(f: FiltrosPainel, votAlias = 'v', locAlias = 'loc'): { joi
 
 function buildWhereClause(filtros: FiltrosPainel, campoMunicipio = 'NM_UE'): string {
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`${campoMunicipio} = '${filtros.municipio}'`);
+  const ano = filtros.ano || 2024;
+  // For general elections, don't filter candidate origin by municipality
+  if (filtros.municipio && !isEleicaoGeral(ano)) conds.push(`${campoMunicipio} = '${filtros.municipio}'`);
   if (filtros.cargo) conds.push(`DS_CARGO ILIKE '%${filtros.cargo}%'`);
   if (filtros.partido) conds.push(`SG_PARTIDO = '${filtros.partido}'`);
   if (filtros.turno) conds.push(`NR_TURNO = ${filtros.turno}`);
@@ -150,11 +157,14 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
   const cand = getTableName('candidatos', ano);
   const limit = filtros.limite || 100;
   const geo = needsGeoJoin(filtros);
+  const geral = isEleicaoGeral(ano);
 
   const vot = geo ? getTableName('votacao_secao', ano) : getTableName('votacao', ano);
 
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`c.NM_UE = '${filtros.municipio}'`);
+  // For general elections, filter votes by municipality, not candidates
+  if (filtros.municipio && !geral) conds.push(`c.NM_UE = '${filtros.municipio}'`);
+  if (filtros.municipio && geral) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
   if (filtros.cargo) conds.push(`c.DS_CARGO ILIKE '%${filtros.cargo}%'`);
   if (filtros.partido) conds.push(`c.SG_PARTIDO = '${filtros.partido}'`);
   if (filtros.turno) conds.push(`c.NR_TURNO = ${filtros.turno}`);

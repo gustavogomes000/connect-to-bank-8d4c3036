@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useFilterStore } from '@/stores/filterStore';
-import { mdQuery, getTableName, getAnosDisponiveis } from '@/lib/motherduck';
+import { mdQuery, getTableName, getAnosDisponiveis, isEleicaoGeral } from '@/lib/motherduck';
 
 export interface RankingItem {
   SQ_CANDIDATO: string;
@@ -30,13 +30,23 @@ export const useRankingMD = () => {
     queryKey: ['ranking-md', ano, municipio, cargo, partido, turno, zona, bairro, escola, searchText],
     queryFn: async () => {
       const cand = getTableName('candidatos', ano);
+      const geral = isEleicaoGeral(ano);
       const hasGeo = !!(zona || bairro || escola);
       const vot = hasGeo 
         ? getTableName('votacao_secao', ano) 
         : getTableName('votacao', ano);
 
       const conds: string[] = [];
-      if (municipio) conds.push(`c.NM_UE = '${municipio}'`);
+      
+      // For general elections (2014/2018/2022), NM_UE is state name ("GOIÁS"),
+      // so we filter votes by NM_MUNICIPIO instead of filtering candidates by NM_UE
+      if (municipio && !geral) {
+        conds.push(`c.NM_UE = '${municipio}'`);
+      }
+      if (municipio && geral) {
+        conds.push(`v.NM_MUNICIPIO = '${municipio}'`);
+      }
+      
       if (cargo) conds.push(`c.DS_CARGO ILIKE '%${cargo}%'`);
       if (partido) conds.push(`c.SG_PARTIDO = '${partido}'`);
       if (turno) conds.push(`c.NR_TURNO = ${turno}`);
