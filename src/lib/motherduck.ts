@@ -383,9 +383,10 @@ export function sqlHistoricoCandidato(cpf: string, anosParam?: number[]): string
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
-/** Histórico com votos totais por eleição (por CPF) */
-export function sqlHistoricoComVotos(cpf: string): string {
+/** Histórico com votos totais por eleição (por nome completo do candidato) */
+export function sqlHistoricoComVotos(nomeCompleto: string): string {
   const anos = [2014, 2016, 2018, 2020, 2022, 2024];
+  const nomeSafe = nomeCompleto.replace(/'/g, "''");
   const unions: string[] = [];
   for (const a of anos) {
     const cand = getTableName('candidatos', a);
@@ -402,7 +403,7 @@ export function sqlHistoricoComVotos(cpf: string): string {
       COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos
     FROM ${cand} c
     LEFT JOIN ${vot} v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
-    WHERE c.NR_CPF_CANDIDATO = '${cpf}'
+    WHERE c.NM_CANDIDATO = '${nomeSafe}'
     GROUP BY c.NM_URNA_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO, c.NM_UE, c.DS_SIT_TOT_TURNO, c.SQ_CANDIDATO, c.NR_CANDIDATO`);
   }
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
