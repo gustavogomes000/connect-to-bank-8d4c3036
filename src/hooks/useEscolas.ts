@@ -37,7 +37,7 @@ export const useEscolas = () => {
           NR_ZONA AS zona,
           COUNT(DISTINCT NR_SECAO) AS qtd_secoes,
           STRING_AGG(DISTINCT CAST(NR_SECAO AS VARCHAR), ', ' ORDER BY CAST(NR_SECAO AS VARCHAR)) AS secoes,
-          SUM(QT_ELEITORES_PERFIL) AS eleitores
+          SUM(QT_ELEITOR_SECAO) AS eleitores
         FROM ${loc}
         WHERE SG_UF = 'GO'
           AND NM_MUNICIPIO = '${municipio}'
