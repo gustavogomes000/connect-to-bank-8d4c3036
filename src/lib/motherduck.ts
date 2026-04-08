@@ -30,7 +30,7 @@ const DATASET_MAP: Record<string, {
 }> = {
   // Candidatos
   candidatos:              { prefix: 'consulta_cand',              anos: [2014,2016,2018,2020,2022,2024], sufixo: 'UF' },
-  candidatos_complementar: { prefix: 'consulta_cand_complementar', anos: [2022,2024],                     sufixo: 'UF' },
+  candidatos_complementar: { prefix: 'consulta_cand_complementar', anos: [2020,2022,2024],                sufixo: 'UF' },
   bens:                    { prefix: 'bem_candidato',              anos: [2014,2016,2018,2020,2022,2024], sufixo: 'UF' },
   coligacoes:              { prefix: 'consulta_coligacao',         anos: [2014,2016,2018,2020,2024],      sufixo: 'UF' },
   vagas:                   { prefix: 'consulta_vagas',             anos: [2014,2016,2018,2020,2022,2024], sufixo: 'UF' },
@@ -479,7 +479,7 @@ export function sqlLocaisVotacao(ano: number, municipio: string): string {
       NM_BAIRRO AS bairro,
       DS_ENDERECO AS endereco,
       COUNT(DISTINCT NR_SECAO) AS secoes,
-      SUM(QT_ELEITORES_PERFIL) AS eleitores
+      SUM(QT_ELEITOR_SECAO) AS eleitores
     FROM ${tab}
     WHERE SG_UF = 'GO'
       AND NM_MUNICIPIO = '${municipio}'
@@ -496,7 +496,7 @@ export function sqlSecoesLocal(ano: number, municipio: string, localVotacao: str
     SELECT
       NR_SECAO AS secao,
       NR_ZONA AS zona,
-      SUM(QT_ELEITORES_PERFIL) AS eleitores
+      SUM(QT_ELEITOR_SECAO) AS eleitores
     FROM ${tab}
     WHERE SG_UF = 'GO'
       AND NM_MUNICIPIO = '${municipio}'
@@ -514,7 +514,7 @@ export function sqlEleitoresPorBairro(ano: number, municipio: string): string {
     SELECT
       NM_BAIRRO AS bairro,
       COUNT(DISTINCT NM_LOCAL_VOTACAO) AS locais,
-      SUM(QT_ELEITORES_PERFIL) AS eleitores
+      SUM(QT_ELEITOR_SECAO) AS eleitores
     FROM ${tab}
     WHERE SG_UF = 'GO'
       AND NM_MUNICIPIO = '${municipio}'
