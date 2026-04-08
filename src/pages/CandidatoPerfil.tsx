@@ -281,34 +281,53 @@ export default function CandidatoPerfil() {
           )}
         </TabsContent>
 
-        {/* ── ABA: FORÇA TERRITORIAL ── */}
+        {/* ── ABA: FORÇA TERRITORIAL (com Zona + Bairro + Escola) ── */}
         <TabsContent value="territorial" className="p-0 mt-0">
-          {votacaoZona.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Sem dados de votação por zona.</div>
+          <div className="px-4 py-2 border-b border-border/30">
+            <GeoFilterBadge />
+          </div>
+          {votacaoTerritorial.length === 0 && votacaoZona.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">Sem dados de votação territorial.</div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="hover:bg-transparent border-border/30">
                     <TableHead className="text-[10px] font-semibold text-muted-foreground w-[50px]">#</TableHead>
-                    <TableHead className="text-[10px] font-semibold text-muted-foreground">Zona Eleitoral</TableHead>
-                    <TableHead className="text-[10px] font-semibold text-muted-foreground">Município</TableHead>
+                    <TableHead className="text-[10px] font-semibold text-muted-foreground w-[70px]">Zona</TableHead>
+                    <TableHead className="text-[10px] font-semibold text-muted-foreground">Bairro</TableHead>
+                    <TableHead className="text-[10px] font-semibold text-muted-foreground">Local de Votação (Escola)</TableHead>
                     <TableHead className="text-[10px] font-semibold text-muted-foreground text-right w-[100px]">Votos</TableHead>
                     <TableHead className="text-[10px] font-semibold text-muted-foreground text-right w-[80px]">% do Total</TableHead>
-                    <TableHead className="text-[10px] font-semibold text-muted-foreground w-[160px]">Dominância</TableHead>
+                    <TableHead className="text-[10px] font-semibold text-muted-foreground w-[140px]">Dominância</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {votacaoZona
+                  {(votacaoTerritorial.length > 0 ? votacaoTerritorial : votacaoZona)
                     .sort((a: any, b: any) => Number(b.total_votos) - Number(a.total_votos))
                     .map((z: any, i: number) => {
                       const votos = Number(z.total_votos || 0);
                       const pct = totalVotosZona > 0 ? (votos / totalVotosZona) * 100 : 0;
+                      const hasBairro = z.bairro && z.bairro.trim() !== '';
+                      const hasEscola = z.escola && z.escola.trim() !== '';
                       return (
                         <TableRow key={i} className="border-border/20 hover:bg-muted/30">
                           <TableCell className="text-xs text-muted-foreground font-mono tabular-nums py-1.5">{i + 1}</TableCell>
-                          <TableCell className="text-sm font-medium py-1.5">Zona {z.zona}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground py-1.5">{z.municipio || perfil.municipio}</TableCell>
+                          <TableCell className="text-sm font-medium py-1.5 tabular-nums">
+                            {z.zona}
+                          </TableCell>
+                          <TableCell className="text-xs py-1.5">
+                            {hasBairro
+                              ? <span className="font-medium">{z.bairro}</span>
+                              : <span className="text-muted-foreground text-[10px] italic">Não informado</span>
+                            }
+                          </TableCell>
+                          <TableCell className="text-xs py-1.5 max-w-[220px] truncate">
+                            {hasEscola
+                              ? <span>{z.escola}</span>
+                              : <span className="text-muted-foreground text-[10px] italic">Não informado</span>
+                            }
+                          </TableCell>
                           <TableCell className="text-sm font-bold text-right tabular-nums py-1.5">{formatNumber(votos)}</TableCell>
                           <TableCell className="text-xs text-right tabular-nums text-muted-foreground py-1.5">{formatPercent(pct, 1)}</TableCell>
                           <TableCell className="py-1.5">
