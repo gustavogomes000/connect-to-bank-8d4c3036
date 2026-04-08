@@ -64,8 +64,9 @@ export function usePainelGeral(limite = 100) {
 // ═══════════════════════════════════════════════════════════════
 
 export function useDossieCandidato(sq: string | null, ano?: number) {
-  const { ano: anoStore } = useFilterStore();
-  const anoFinal = ano || anoStore;
+  const f = useFilters();
+  const anoFinal = ano || f.ano;
+  const geoFiltros = toFiltrosPainel(f);
 
   const perfil = useQuery({
     queryKey: ['dossiePerfil', sq, anoFinal],
@@ -89,8 +90,8 @@ export function useDossieCandidato(sq: string | null, ano?: number) {
   });
 
   const votacaoZona = useQuery({
-    queryKey: ['dossieVotacaoZona', sq, anoFinal],
-    queryFn: () => mdQuery(sqlVotacaoPorZona(anoFinal, sq!)),
+    queryKey: ['dossieVotacaoZona', sq, anoFinal, geoFiltros.zona, geoFiltros.bairro, geoFiltros.escola],
+    queryFn: () => mdQuery(sqlVotacaoPorZona(anoFinal, sq!, geoFiltros)),
     enabled: !!sq,
     staleTime: 5 * 60 * 1000,
   });
