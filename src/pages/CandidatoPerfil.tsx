@@ -140,6 +140,248 @@ function aggregateVotos(rows: AnyRow[]) {
 }
 
 // ═══════════════════════════════════════════════════════
+// VOTE COMPOSITION SECTION
+// ═══════════════════════════════════════════════════════
+
+function VoteCompositionSection({
+  composicaoRows,
+  geoByZona,
+  isLoadingComposicao,
+  nrCandidato,
+  ano,
+}: {
+  composicaoRows: AnyRow[];
+  geoByZona: AnyRow[];
+  isLoadingComposicao: boolean;
+  nrCandidato: string | number | null;
+  ano: number;
+}) {
+  const totalGeral = useMemo(
+    () => composicaoRows.reduce((s, r) => s + Number(r.total_votos || 0), 0),
+    [composicaoRows],
+  );
+
+  const porBairro = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of composicaoRows) {
+      const b = String(r.bairro || 'NÃO INFORMADO');
+      map.set(b, (map.get(b) || 0) + Number(r.total_votos || 0));
+    }
+    return [...map.entries()]
+      .map(([bairro, votos]) => ({ bairro, votos }))
+      .sort((a, b) => b.votos - a.votos);
+  }, [composicaoRows]);
+
+  const porZona = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of composicaoRows) {
+      const z = String(r.zona || '');
+      map.set(z, (map.get(z) || 0) + Number(r.total_votos || 0));
+    }
+    return [...map.entries()]
+      .map(([zona, votos]) => ({ zona, votos }))
+      .sort((a, b) => b.votos - a.votos);
+  }, [composicaoRows]);
+
+  const porEscola = useMemo(
+    () =>
+      [...composicaoRows]
+        .sort((a, b) => Number(b.total_votos || 0) - Number(a.total_votos || 0))
+        .slice(0, 100),
+    [composicaoRows],
+  );
+
+  const hasData = composicaoRows.length > 0 || geoByZona.length > 0;
+
+  return (
+    <section className="bg-white rounded-xl border border-border p-4 space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <MapPinned className="w-4 h-4 text-[#C8AA64]" />
+        <h3 className="text-sm font-semibold text-slate-900">Composição de Votos — Onde o Candidato é Forte</h3>
+        <Badge variant="outline" className="text-[10px]">
+          Fonte: boletim_urna + eleitorado_local
+        </Badge>
+        {totalGeral > 0 && (
+          <Badge className="bg-[#EC4899] text-white hover:bg-[#EC4899]/90 text-[10px]">
+            {totalGeral.toLocaleString('pt-BR')} votos totais
+          </Badge>
+        )}
+      </div>
+
+      {isLoadingComposicao ? (
+        <div className="space-y-2">
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
+          <Skeleton className="h-6 w-full" />
+        </div>
+      ) : !hasData ? (
+        <div className="text-sm text-slate-500">
+          {!nrCandidato
+            ? 'Número de urna não encontrado — não é possível buscar composição detalhada.'
+            : `Sem dados de boletim de urna para ${ano}.`}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* KPI cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            <div className="rounded-lg border border-border p-3 bg-slate-50">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Total de Votos</div>
+              <div className="text-lg font-bold text-slate-900">{totalGeral.toLocaleString('pt-BR')}</div>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-slate-50">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Zonas</div>
+              <div className="text-lg font-bold text-slate-900">{porZona.length}</div>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-slate-50">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Bairros</div>
+              <div className="text-lg font-bold text-slate-900">{porBairro.length}</div>
+            </div>
+            <div className="rounded-lg border border-border p-3 bg-slate-50">
+              <div className="text-[10px] uppercase tracking-wider font-semibold text-slate-500">Escolas/Locais</div>
+              <div className="text-lg font-bold text-slate-900">{composicaoRows.length}</div>
+            </div>
+          </div>
+
+          {/* Top Bairros */}
+          {porBairro.length > 0 && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border flex items-center justify-between">
+                <span>Top Bairros</span>
+                <span className="font-mono">{porBairro.length} bairros</span>
+              </div>
+              <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border/60">
+                      <TableHead className="text-[10px] text-slate-500 w-[40px]">#</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Bairro</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right w-[90px]">Votos</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right w-[60px]">%</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 w-[120px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {porBairro.slice(0, 50).map((r, i) => {
+                      const pct = totalGeral > 0 ? (r.votos / totalGeral) * 100 : 0;
+                      return (
+                        <TableRow key={r.bairro} className="border-border/20">
+                          <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
+                          <TableCell className="text-sm font-medium text-slate-900">{r.bairro}</TableCell>
+                          <TableCell className="text-sm font-bold text-right font-mono text-slate-900">{r.votos.toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="text-xs text-right font-mono text-slate-500">{pct.toFixed(1)}%</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-[#EC4899]" style={{ width: `${Math.min(pct * 2, 100)}%` }} />
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {/* Top Zonas */}
+          {porZona.length > 0 && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border flex items-center justify-between">
+                <span>Votos por Zona Eleitoral</span>
+                <span className="font-mono">{porZona.length} zonas</span>
+              </div>
+              <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border/60">
+                      <TableHead className="text-[10px] text-slate-500 w-[40px]">#</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 w-[70px]">Zona</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right w-[90px]">Votos</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right w-[60px]">%</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 w-[120px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {porZona.map((r, i) => {
+                      const pct = totalGeral > 0 ? (r.votos / totalGeral) * 100 : 0;
+                      return (
+                        <TableRow key={r.zona} className="border-border/20">
+                          <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
+                          <TableCell className="text-sm font-semibold font-mono text-slate-900">{r.zona}</TableCell>
+                          <TableCell className="text-sm font-bold text-right font-mono text-slate-900">{r.votos.toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="text-xs text-right font-mono text-slate-500">{pct.toFixed(1)}%</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full bg-[#C8AA64]" style={{ width: `${Math.min(pct * 2, 100)}%` }} />
+                              </div>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+
+          {/* Top Escolas */}
+          {porEscola.length > 0 && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border flex items-center justify-between">
+                <span>Top Escolas / Locais de Votação</span>
+                <span className="font-mono">{porEscola.length} locais</span>
+              </div>
+              <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-border/60">
+                      <TableHead className="text-[10px] text-slate-500 w-[40px]">#</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 w-[60px]">Zona</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Bairro</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Escola</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-center w-[55px]">Seções</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right w-[80px]">Votos</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right w-[50px]">%</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 w-[100px]"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {porEscola.map((r, i) => {
+                      const votos = Number(r.total_votos || 0);
+                      const pct = totalGeral > 0 ? (votos / totalGeral) * 100 : 0;
+                      return (
+                        <TableRow key={i} className="border-border/20">
+                          <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
+                          <TableCell className="text-xs font-mono text-slate-900">{r.zona}</TableCell>
+                          <TableCell className="text-xs text-slate-600">{r.bairro}</TableCell>
+                          <TableCell className="text-xs text-slate-900 max-w-[200px] truncate" title={r.escola}>{r.escola}</TableCell>
+                          <TableCell className="text-xs text-center font-mono text-slate-500">{r.secoes || '—'}</TableCell>
+                          <TableCell className="text-sm font-bold text-right font-mono text-slate-900">{votos.toLocaleString('pt-BR')}</TableCell>
+                          <TableCell className="text-[10px] text-right font-mono text-slate-500">{pct.toFixed(1)}%</TableCell>
+                          <TableCell>
+                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full bg-[#EC4899]/70" style={{ width: `${Math.min(pct * 3, 100)}%` }} />
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ═══════════════════════════════════════════════════════
 // Loading Skeleton
 // ═══════════════════════════════════════════════════════
 
