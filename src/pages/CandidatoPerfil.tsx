@@ -1035,12 +1035,13 @@ function YearDossie({ ano, sqCandidato }: { ano: number; sqCandidato: string }) 
 
   const despesasPagasQ = useQuery({
     queryKey: ['md', 'year', ano, 'despesas_pagas', sqCandidato],
-    enabled: canUseDataset('despesas_pagas', ano),
+    enabled: canUseDataset('despesas_pagas', ano) && canUseDataset('despesas_contratadas', ano),
     staleTime: 10 * 60 * 1000,
     queryFn: async () => {
       const t = safeTable('despesas_pagas', ano);
-      if (!t) return { table: null, rows: [] as AnyRow[] };
-      const rows = await mdQuery(`SELECT * FROM ${t} WHERE SQ_CANDIDATO = '${sqCandidato}'`);
+      const tDesp = safeTable('despesas_contratadas', ano);
+      if (!t || !tDesp) return { table: null, rows: [] as AnyRow[] };
+      const rows = await mdQuery(`SELECT d.* FROM ${t} d WHERE d.SQ_PRESTADOR_CONTAS IN (SELECT DISTINCT SQ_PRESTADOR_CONTAS FROM ${tDesp} WHERE SQ_CANDIDATO = '${sqCandidato}')`);
       return { table: t, rows: (rows as AnyRow[]) || [] };
     },
   });
@@ -1071,14 +1072,14 @@ function YearDossie({ ano, sqCandidato }: { ano: number; sqCandidato: string }) 
 
   const votoGoianiaQ = useQuery({
     queryKey: ['md', 'year', ano, 'voto_territorial_goiania', sqCandidato],
-    enabled: canUseDataset('votacao_secao', ano),
+    enabled: canUseDataset('votacao', ano),
     staleTime: 10 * 60 * 1000,
     queryFn: async () => mdQuery(sqlVotacaoTerritorialDetalhada(ano, sqCandidato, { municipio: 'GOIÂNIA' } as any)),
   });
 
   const votoAparecidaQ = useQuery({
     queryKey: ['md', 'year', ano, 'voto_territorial_aparecida', sqCandidato],
-    enabled: canUseDataset('votacao_secao', ano),
+    enabled: canUseDataset('votacao', ano),
     staleTime: 10 * 60 * 1000,
     queryFn: async () => mdQuery(sqlVotacaoTerritorialDetalhada(ano, sqCandidato, { municipio: 'APARECIDA DE GOIÂNIA' } as any)),
   });
