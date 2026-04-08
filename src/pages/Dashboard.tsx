@@ -4,6 +4,7 @@ import { useFilterStore } from '@/stores/filterStore';
 import { formatNumber, formatPercent, getPartidoCor } from '@/lib/eleicoes';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
 import { GeoFilterBadge } from '@/components/eleicoes/GeoFilterBadge';
+import { VotosRegionalTable } from '@/components/eleicoes/VotosRegionalTable';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -317,6 +318,12 @@ export default function Dashboard() {
           </>
         )}
       </div>
+      {/* ── VOTOS POR REGIÃO ── */}
+      <VotosRegionalTable
+        data={votosRegional || []}
+        isLoading={loadingRegional}
+        title={`Votos por Zona / Bairro / Escola — ${municipio}`}
+      />
     </div>
   );
 }
