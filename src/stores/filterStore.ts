@@ -6,6 +6,7 @@ interface FilterState {
   cargo: string | null;
   turno: number | null;
   partido: string | null;
+  zona: number | null;
   bairro: string | null;
   escola: string | null;
   candidatoSelecionadoId: string | null;
@@ -16,6 +17,7 @@ interface FilterState {
   setCargo: (cargo: string | null) => void;
   setTurno: (turno: number | null) => void;
   setPartido: (partido: string | null) => void;
+  setZona: (zona: number | null) => void;
   setBairro: (bairro: string | null) => void;
   setEscola: (escola: string | null) => void;
   setCandidatoSelecionadoId: (id: string | null) => void;
@@ -30,27 +32,30 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   cargo: null,
   turno: null,
   partido: null,
+  zona: null,
   bairro: null,
   escola: null,
   candidatoSelecionadoId: null,
   searchText: '',
 
   setAno: (ano) => set({ ano }),
-  setMunicipio: (municipio) => set({ municipio, bairro: null, escola: null }),
+  setMunicipio: (municipio) => set({ municipio, zona: null, bairro: null, escola: null }),
   setCargo: (cargo) => set({ cargo }),
   setTurno: (turno) => set({ turno }),
   setPartido: (partido) => set({ partido }),
+  setZona: (zona) => set({ zona, bairro: null, escola: null }),
   setBairro: (bairro) => set({ bairro, escola: null }),
   setEscola: (escola) => set({ escola }),
   setCandidatoSelecionadoId: (id) => set({ candidatoSelecionadoId: id }),
   setSearchText: (searchText) => set({ searchText }),
-  limpar: () => set({ ano: 2024, municipio: 'GOIÂNIA', cargo: null, turno: null, partido: null, bairro: null, escola: null, candidatoSelecionadoId: null, searchText: '' }),
+  limpar: () => set({ ano: 2024, municipio: 'GOIÂNIA', cargo: null, turno: null, partido: null, zona: null, bairro: null, escola: null, candidatoSelecionadoId: null, searchText: '' }),
   activeFiltersCount: () => {
     const s = get();
     let c = 0;
     if (s.cargo) c++;
     if (s.turno) c++;
     if (s.partido) c++;
+    if (s.zona) c++;
     if (s.bairro) c++;
     if (s.escola) c++;
     if (s.searchText) c++;
