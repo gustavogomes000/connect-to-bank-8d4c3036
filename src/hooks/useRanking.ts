@@ -32,9 +32,8 @@ export const useRankingMD = () => {
       const cand = getTableName('candidatos', ano);
       const geral = isEleicaoGeral(ano);
       const hasGeo = !!(zona || bairro || escola);
-      const vot = hasGeo 
-        ? getTableName('votacao_secao', ano) 
-        : getTableName('votacao', ano);
+      // Always use votacao_candidato_munzona — votacao_secao has NO SQ_CANDIDATO
+      const vot = getTableName('votacao', ano);
 
       const conds: string[] = [];
       

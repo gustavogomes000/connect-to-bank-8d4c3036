@@ -156,13 +156,12 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
   const ano = filtros.ano || 2024;
   const cand = getTableName('candidatos', ano);
   const limit = filtros.limite || 100;
-  const geo = needsGeoJoin(filtros);
   const geral = isEleicaoGeral(ano);
 
-  const vot = geo ? getTableName('votacao_secao', ano) : getTableName('votacao', ano);
+  // votacao_candidato_munzona always has SQ_CANDIDATO; votacao_secao does NOT
+  const vot = getTableName('votacao', ano);
 
   const conds: string[] = [];
-  // For general elections, filter votes by municipality, not candidates
   if (filtros.municipio && !geral) conds.push(`c.NM_UE = '${filtros.municipio}'`);
   if (filtros.municipio && geral) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
   if (filtros.cargo) conds.push(`c.DS_CARGO ILIKE '%${filtros.cargo}%'`);
@@ -171,8 +170,8 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
   if (filtros.genero) conds.push(`c.DS_GENERO = '${filtros.genero}'`);
   if (filtros.situacao) conds.push(`c.DS_SIT_TOT_TURNO ILIKE '%${filtros.situacao}%'`);
 
-  const { join: geoJoin, conds: geoConds } = buildGeoJoin(filtros);
-  conds.push(...geoConds);
+  // Geo filters: zone can be applied on votacao_candidato_munzona directly
+  if (filtros.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
 
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
@@ -192,7 +191,6 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
       COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos
     FROM ${cand} c
     LEFT JOIN ${vot} v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
-    ${geoJoin}
     ${where}
     GROUP BY c.NM_URNA_CANDIDATO, c.NM_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO,
              c.NM_UE, c.DS_SIT_TOT_TURNO, c.DS_GENERO, c.DS_GRAU_INSTRUCAO,
@@ -266,14 +264,13 @@ export function sqlPatrimonioCandidato(ano: number, sqCandidato: string): string
   `.trim();
 }
 
-/** Histórico de votação por zona (MunZona) */
+/** Histórico de votação por zona (MunZona) — always uses votacao_candidato_munzona which HAS SQ_CANDIDATO */
 export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: FiltrosPainel): string {
-  const geo = filtros && needsGeoJoin(filtros);
-  const vot = geo ? getTableName('votacao_secao', ano) : getTableName('votacao', ano);
+  const vot = getTableName('votacao', ano);
 
   const conds: string[] = [`v.SQ_CANDIDATO = '${sqCandidato}'`];
-  const { join: geoJoin, conds: geoConds } = filtros ? buildGeoJoin(filtros, 'v') : { join: '', conds: [] as string[] };
-  conds.push(...geoConds);
+  if (filtros?.municipio) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
+  if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
   const where = `WHERE ${conds.join(' AND ')}`;
 
   return `
@@ -282,17 +279,15 @@ export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: Fi
       v.NM_MUNICIPIO AS municipio,
       SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
     FROM ${vot} v
-    ${geoJoin}
     ${where}
     GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
     ORDER BY total_votos DESC
   `.trim();
 }
 
-/** Votação detalhada por zona+bairro+escola (sempre usa votacao_secao + eleitorado_local JOIN) */
+/** Votação detalhada por zona do candidato — uses votacao_candidato_munzona (has SQ_CANDIDATO) */
 export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string, filtros?: FiltrosPainel): string {
-  const vot = getTableName('votacao_secao', ano);
-  const loc = getTableName('eleitorado_local', ano);
+  const vot = getTableName('votacao', ano);
   const municipio = filtros?.municipio || 'GOIÂNIA';
 
   const conds: string[] = [
@@ -300,23 +295,16 @@ export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string,
     `v.NM_MUNICIPIO = '${municipio}'`,
   ];
   if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
-  if (filtros?.bairro) conds.push(`loc.NM_BAIRRO = '${filtros.bairro}'`);
-  if (filtros?.escola) conds.push(`loc.NM_LOCAL_VOTACAO = '${filtros.escola}'`);
-
   const where = `WHERE ${conds.join(' AND ')}`;
 
   return `
     SELECT
       v.NR_ZONA AS zona,
-      COALESCE(loc.NM_BAIRRO, '') AS bairro,
-      COALESCE(loc.NM_LOCAL_VOTACAO, '') AS escola,
+      v.NM_MUNICIPIO AS municipio,
       SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
     FROM ${vot} v
-    INNER JOIN ${loc} loc
-      ON v.NR_ZONA = loc.NR_ZONA AND v.NR_SECAO = loc.NR_SECAO
-      AND loc.SG_UF = 'GO' AND loc.NM_MUNICIPIO = '${municipio}'
     ${where}
-    GROUP BY v.NR_ZONA, loc.NM_BAIRRO, loc.NM_LOCAL_VOTACAO
+    GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
     ORDER BY total_votos DESC
     LIMIT 200
   `.trim();
@@ -620,30 +608,24 @@ export function sqlVotosPorBairro(ano: number, municipio: string): string {
   `.trim();
 }
 
-/** Votos de um candidato por bairro */
+/** Votos de um candidato por zona (votacao_candidato_munzona has SQ_CANDIDATO; votacao_secao does NOT) */
 export function sqlVotosCandidatoPorBairro(ano: number, municipio: string, sqCandidato: string): string {
-  const vot = getTableName('votacao_secao', ano);
-  const loc = getTableName('eleitorado_local', ano);
+  const vot = getTableName('votacao', ano);
 
   return `
     SELECT
-      l.NM_BAIRRO AS bairro,
-      COUNT(DISTINCT l.NM_LOCAL_VOTACAO) AS locais,
-      COUNT(DISTINCT v.NR_SECAO) AS secoes,
+      v.NR_ZONA AS zona,
+      v.NM_MUNICIPIO AS municipio,
       SUM(v.QT_VOTOS_NOMINAIS) AS votos
     FROM ${vot} v
-    JOIN ${loc} l
-      ON v.NR_ZONA = l.NR_ZONA AND v.NR_SECAO = l.NR_SECAO
-      AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
     WHERE v.NM_MUNICIPIO = '${municipio}'
       AND v.SQ_CANDIDATO = '${sqCandidato}'
-      AND l.NM_BAIRRO IS NOT NULL AND l.NM_BAIRRO != ''
-    GROUP BY l.NM_BAIRRO
+    GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
     ORDER BY votos DESC
   `.trim();
 }
 
-/** Escolas de um bairro com votos totais */
+/** Escolas de um bairro com votos totais (aggregate, not per-candidate) */
 export function sqlEscolasPorBairro(ano: number, municipio: string, bairro: string): string {
   const vot = getTableName('votacao_secao', ano);
   const loc = getTableName('eleitorado_local', ano);
@@ -666,28 +648,10 @@ export function sqlEscolasPorBairro(ano: number, municipio: string, bairro: stri
   `.trim();
 }
 
-/** Escolas de um bairro filtradas por candidato */
-export function sqlEscolasCandidatoPorBairro(ano: number, municipio: string, bairro: string, sqCandidato: string): string {
-  const vot = getTableName('votacao_secao', ano);
-  const loc = getTableName('eleitorado_local', ano);
-
-  return `
-    SELECT
-      l.NM_LOCAL_VOTACAO AS local_votacao,
-      l.DS_ENDERECO AS endereco,
-      l.NR_ZONA AS zona,
-      COUNT(DISTINCT v.NR_SECAO) AS secoes,
-      SUM(v.QT_VOTOS_NOMINAIS) AS votos
-    FROM ${vot} v
-    JOIN ${loc} l
-      ON v.NR_ZONA = l.NR_ZONA AND v.NR_SECAO = l.NR_SECAO
-      AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
-    WHERE v.NM_MUNICIPIO = '${municipio}'
-      AND l.NM_BAIRRO = '${bairro}'
-      AND v.SQ_CANDIDATO = '${sqCandidato}'
-    GROUP BY l.NM_LOCAL_VOTACAO, l.DS_ENDERECO, l.NR_ZONA
-    ORDER BY votos DESC
-  `.trim();
+/** Escolas de um bairro - votos totais (votacao_secao has no SQ_CANDIDATO, so per-candidate not possible) */
+export function sqlEscolasCandidatoPorBairro(ano: number, municipio: string, bairro: string, _sqCandidato: string): string {
+  // votacao_secao does NOT have SQ_CANDIDATO. Return aggregate data instead.
+  return sqlEscolasPorBairro(ano, municipio, bairro);
 }
 
 // ═══════════════════════════════════════════════════════════════

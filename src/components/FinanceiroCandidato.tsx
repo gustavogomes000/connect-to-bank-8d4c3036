@@ -18,8 +18,8 @@ export const ListaBens = ({ sqCandidato }: { sqCandidato: string }) => {
     );
   }
 
-  const bens = data?.dados || [];
-  const totalBens = bens.reduce((acc, b) => acc + b.VR_BEM_CANDIDATO, 0);
+  const bens = data?.rows || [];
+  const totalBens = bens.reduce((acc, b) => acc + Number(String(b.VR_BEM_CANDIDATO).replace(',', '.') || 0), 0);
 
   return (
     <div className="space-y-4">
@@ -75,7 +75,7 @@ export const ListaBens = ({ sqCandidato }: { sqCandidato: string }) => {
                     {bem.DS_BEM_CANDIDATO}
                   </TableCell>
                   <TableCell className="text-sm font-bold text-right tabular-nums">
-                    {formatBRL(bem.VR_BEM_CANDIDATO)}
+                    {formatBRL(Number(String(bem.VR_BEM_CANDIDATO).replace(',', '.') || 0))}
                   </TableCell>
                 </TableRow>
               ))}
@@ -98,8 +98,8 @@ export const ResumoReceitas = ({ sqCandidato }: { sqCandidato: string }) => {
     );
   }
 
-  const receitas = data?.dados || [];
-  const totalReceitas = receitas.reduce((sum, r) => sum + r.VR_RECEITA, 0);
+  const receitas = data?.rows || [];
+  const totalReceitas = receitas.reduce((sum, r) => sum + Number(String(r.VR_RECEITA).replace(',', '.') || 0), 0);
   const maioresDoadores = receitas.slice(0, 5); // top 5
 
   return (
@@ -134,7 +134,7 @@ export const ResumoReceitas = ({ sqCandidato }: { sqCandidato: string }) => {
                 <p className="text-[10px] text-muted-foreground truncate">{rec.DS_ORIGEM_RECEITA}</p>
               </div>
               <span className="text-xs font-bold text-primary sm:text-right shrink-0">
-                {formatBRL(rec.VR_RECEITA)}
+                {formatBRL(Number(String(rec.VR_RECEITA).replace(',', '.') || 0))}
               </span>
             </div>
           ))}
