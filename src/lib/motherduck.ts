@@ -104,9 +104,28 @@ interface FiltrosPainel {
   turno?: number;
   genero?: string;
   situacao?: string;
+  zona?: number;
   bairro?: string;
   escola?: string;
   limite?: number;
+}
+
+/** Check if any geo filter (zona/bairro/escola) is active */
+function needsGeoJoin(f: FiltrosPainel): boolean {
+  return !!(f.zona || f.bairro || f.escola);
+}
+
+/** Build the INNER JOIN + WHERE conditions for geographic filtering */
+function buildGeoJoin(f: FiltrosPainel, votAlias = 'v', locAlias = 'loc'): { join: string; conds: string[] } {
+  if (!needsGeoJoin(f)) return { join: '', conds: [] };
+  const ano = f.ano || 2024;
+  const loc = getTableName('eleitorado_local', ano);
+  const join = `INNER JOIN ${loc} ${locAlias} ON ${votAlias}.NR_ZONA = ${locAlias}.NR_ZONA AND ${votAlias}.NR_SECAO = ${locAlias}.NR_SECAO AND ${locAlias}.SG_UF = 'GO' AND ${locAlias}.NM_MUNICIPIO = '${f.municipio}'`;
+  const conds: string[] = [];
+  if (f.zona) conds.push(`${votAlias}.NR_ZONA = ${f.zona}`);
+  if (f.bairro) conds.push(`${locAlias}.NM_BAIRRO = '${f.bairro}'`);
+  if (f.escola) conds.push(`${locAlias}.NM_LOCAL_VOTACAO = '${f.escola}'`);
+  return { join, conds };
 }
 
 function buildWhereClause(filtros: FiltrosPainel, campoMunicipio = 'NM_UE'): string {

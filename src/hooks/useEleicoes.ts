@@ -28,7 +28,7 @@ import {
 
 function useFilters() {
   const s = useFilterStore();
-  return { ano: s.ano, municipio: s.municipio, cargo: s.cargo, turno: s.turno, partido: s.partido, bairro: s.bairro, escola: s.escola, searchText: s.searchText };
+  return { ano: s.ano, municipio: s.municipio, cargo: s.cargo, turno: s.turno, partido: s.partido, zona: s.zona, bairro: s.bairro, escola: s.escola, searchText: s.searchText };
 }
 
 type Filtros = ReturnType<typeof useFilters>;
@@ -40,6 +40,7 @@ function toFiltrosPainel(f: Filtros) {
     cargo: f.cargo || undefined,
     turno: f.turno || undefined,
     partido: f.partido || undefined,
+    zona: f.zona || undefined,
     bairro: f.bairro || undefined,
     escola: f.escola || undefined,
   };
