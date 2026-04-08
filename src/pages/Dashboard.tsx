@@ -3,6 +3,7 @@ import { usePainelGeral, useKPIs, useComparecimento } from '@/hooks/useEleicoes'
 import { useFilterStore } from '@/stores/filterStore';
 import { formatNumber, formatPercent, getPartidoCor } from '@/lib/eleicoes';
 import { SituacaoBadge } from '@/components/eleicoes/SituacaoBadge';
+import { GeoFilterBadge } from '@/components/eleicoes/GeoFilterBadge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
