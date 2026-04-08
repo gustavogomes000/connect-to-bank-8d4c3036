@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
   BarChart3, Trophy, Building2, Target, MapPin, DollarSign, UserCheck, Users,
-  HelpCircle, Sparkles, MessageSquare, Settings, Vote,
+  HelpCircle, Sparkles, MessageSquare, Settings, Vote, School,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -23,7 +23,7 @@ const dimensionItems = [
   { title: 'Bairros', url: '/bairro', icon: MapPin },
   { title: 'Patrimônio', url: '/patrimonio', icon: DollarSign },
   { title: 'Goiânia & Aparecida', url: '/territorial', icon: Vote },
-  { title: 'Inteligência Zonal', url: '/zonal', icon: Target },
+  { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
   { title: 'Perfil Geral', url: '/perfil-candidatos', icon: UserCheck },
 ];
 

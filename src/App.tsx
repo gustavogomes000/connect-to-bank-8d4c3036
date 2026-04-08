@@ -17,15 +17,15 @@ import AnaliseBairro from "./pages/AnaliseBairro";
 import Patrimonio from "./pages/Patrimonio";
 import PerfilCandidatos from "./pages/PerfilCandidatos";
 import InteligenciaTerritorial from "./pages/InteligenciaTerritorial";
-import InteligenciaZonal from "./pages/InteligenciaZonal";
 import DiretorioCandidatos from "./pages/DiretorioCandidatos";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
+import EscolasEleitorais from "./pages/EscolasEleitorais";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const HIDE_FILTERS = ['/ajuda', '/consulta', '/relatorios', '/config', '/territorial', '/zonal'];
+const HIDE_FILTERS = ['/ajuda', '/consulta', '/relatorios', '/config', '/territorial'];
 
 function Layout() {
   const location = useLocation();
@@ -57,9 +57,9 @@ function Layout() {
               <Route path="/partido" element={<PorPartido />} />
               <Route path="/bairro" element={<AnaliseBairro />} />
               <Route path="/territorial" element={<InteligenciaTerritorial />} />
-              <Route path="/zonal" element={<InteligenciaZonal />} />
               <Route path="/patrimonio" element={<Patrimonio />} />
               <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
+              <Route path="/escolas" element={<EscolasEleitorais />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}

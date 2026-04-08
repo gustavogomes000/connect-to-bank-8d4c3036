@@ -371,6 +371,43 @@ export function sqlDistribuicaoEscolaridade(filtros: FiltrosPainel = {}): string
   `.trim();
 }
 
+/** Locais de votação agrupados por escola */
+export function sqlLocaisVotacao(ano: number, municipio: string): string {
+  const tab = getTableName('eleitorado_local', ano);
+  return `
+    SELECT
+      NM_LOCAL_VOTACAO AS local_votacao,
+      NR_ZONA AS zona,
+      NM_BAIRRO AS bairro,
+      DS_ENDERECO AS endereco,
+      COUNT(DISTINCT NR_SECAO) AS secoes,
+      SUM(QT_ELEITORES_PERFIL) AS eleitores
+    FROM ${tab}
+    WHERE SG_UF = 'GO'
+      AND NM_MUNICIPIO = '${municipio}'
+      AND NM_LOCAL_VOTACAO IS NOT NULL AND NM_LOCAL_VOTACAO != ''
+    GROUP BY NM_LOCAL_VOTACAO, NR_ZONA, NM_BAIRRO, DS_ENDERECO
+    ORDER BY eleitores DESC
+  `.trim();
+}
+
+/** Seções de um local de votação específico */
+export function sqlSecoesLocal(ano: number, municipio: string, localVotacao: string): string {
+  const tab = getTableName('eleitorado_local', ano);
+  return `
+    SELECT
+      NR_SECAO AS secao,
+      NR_ZONA AS zona,
+      SUM(QT_ELEITORES_PERFIL) AS eleitores
+    FROM ${tab}
+    WHERE SG_UF = 'GO'
+      AND NM_MUNICIPIO = '${municipio}'
+      AND NM_LOCAL_VOTACAO = '${localVotacao}'
+    GROUP BY NR_SECAO, NR_ZONA
+    ORDER BY NR_SECAO
+  `.trim();
+}
+
 /** Eleitores por bairro (tabela nacional, filtrar GO) */
 export function sqlEleitoresPorBairro(ano: number, municipio: string): string {
   const tab = getTableName('eleitorado_local', ano);
