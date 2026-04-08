@@ -234,12 +234,14 @@ export default function CandidatoPerfil() {
 
   const receitasDoadorOrigQ = useQuery({
     queryKey: ['md', 'receitas_doador_originario', ano, sq],
-    enabled: !!sq && canUseDataset('receitas_doador', ano),
+    enabled: !!sq && canUseDataset('receitas_doador', ano) && canUseDataset('receitas', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const t = safeTable('receitas_doador', ano);
-      if (!t) return { table: null, rows: [] as AnyRow[] };
-      const rows = await mdQuery(`SELECT * FROM ${t} WHERE SQ_CANDIDATO = '${sq}'`);
+      const tRec = safeTable('receitas', ano);
+      if (!t || !tRec) return { table: null, rows: [] as AnyRow[] };
+      // receitas_doador_originario has NO SQ_CANDIDATO — join via SQ_PRESTADOR_CONTAS
+      const rows = await mdQuery(`SELECT d.* FROM ${t} d WHERE d.SQ_PRESTADOR_CONTAS IN (SELECT DISTINCT SQ_PRESTADOR_CONTAS FROM ${tRec} WHERE SQ_CANDIDATO = '${sq}')`);
       return { table: t, rows: (rows as AnyRow[]) || [] };
     },
   });
@@ -282,34 +284,36 @@ export default function CandidatoPerfil() {
 
   const despesasPagasQ = useQuery({
     queryKey: ['md', 'despesas_pagas', ano, sq],
-    enabled: !!sq && canUseDataset('despesas_pagas', ano),
+    enabled: !!sq && canUseDataset('despesas_pagas', ano) && canUseDataset('despesas_contratadas', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const t = safeTable('despesas_pagas', ano);
-      if (!t) return { table: null, rows: [] as AnyRow[] };
-      const rows = await mdQuery(`SELECT * FROM ${t} WHERE SQ_CANDIDATO = '${sq}'`);
+      const tDesp = safeTable('despesas_contratadas', ano);
+      if (!t || !tDesp) return { table: null, rows: [] as AnyRow[] };
+      // despesas_pagas has NO SQ_CANDIDATO — join via SQ_PRESTADOR_CONTAS from despesas_contratadas
+      const rows = await mdQuery(`SELECT d.* FROM ${t} d WHERE d.SQ_PRESTADOR_CONTAS IN (SELECT DISTINCT SQ_PRESTADOR_CONTAS FROM ${tDesp} WHERE SQ_CANDIDATO = '${sq}')`);
       return { table: t, rows: (rows as AnyRow[]) || [] };
     },
   });
 
   const votacaoTerritorialQ = useQuery({
     queryKey: ['md', 'votacao_territorial', ano, sq],
-    enabled: !!sq && canUseDataset('votacao_secao', ano),
+    enabled: !!sq && canUseDataset('votacao', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq), { municipio: 'GOIÂNIA' } as any));
-      // Essa query já JOINa com eleitorado_local e entrega escola/bairro
       return rows as AnyRow[];
     },
   });
 
   const votacaoTerritorialAparecidaQ = useQuery({
     queryKey: ['md', 'votacao_territorial_aparecida', ano, sq],
-    enabled: !!sq && canUseDataset('votacao_secao', ano),
+    enabled: !!sq && canUseDataset('votacao', ano),
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq), { municipio: 'APARECIDA DE GOIÂNIA' } as any));
       return rows as AnyRow[];
+    },
     },
   });
 
