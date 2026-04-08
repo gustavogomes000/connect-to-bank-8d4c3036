@@ -274,34 +274,73 @@ function VoteTable({ title, columns, rows }: { title: string; columns: string[];
 }
 
 // ═══════════════════════════════════════════════════════
-// ELECTORAL HISTORY
+// ELECTORAL HISTORY — FULL TIMELINE WITH ZONE BREAKDOWN
 // ═══════════════════════════════════════════════════════
 
-function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; currentAno: number }) {
-  if (!historico.length) return null;
+const TODOS_ANOS_ELEICAO = [2014, 2016, 2018, 2020, 2022, 2024];
 
-  const partidos = [...new Set(historico.map(h => h.partido))];
+function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; currentAno: number }) {
+  const [expandedYear, setExpandedYear] = useState<number | null>(null);
+  const [zonasData, setZonasData] = useState<Record<number, AnyRow[]>>({});
+  const [loadingZonas, setLoadingZonas] = useState<number | null>(null);
+
+  // Build timeline with all years, filling gaps with "Não candidatou"
+  const timeline = useMemo(() => {
+    const porAno = new Map<number, AnyRow>();
+    for (const h of historico) {
+      const a = Number(h.ano);
+      // Keep the first (or most voted) entry per year
+      if (!porAno.has(a) || Number(h.total_votos || 0) > Number(porAno.get(a)!.total_votos || 0)) {
+        porAno.set(a, h);
+      }
+    }
+    return TODOS_ANOS_ELEICAO.map(ano => ({
+      ano,
+      data: porAno.get(ano) || null,
+      candidatou: porAno.has(ano),
+    }));
+  }, [historico]);
+
+  const partidos = useMemo(() => [...new Set(historico.map(h => h.partido).filter(Boolean))], [historico]);
   const mudouPartido = partidos.length > 1;
+
+  const handleExpandYear = useCallback(async (ano: number, sqCandidato: string | null) => {
+    if (expandedYear === ano) {
+      setExpandedYear(null);
+      return;
+    }
+    setExpandedYear(ano);
+    if (zonasData[ano] || !sqCandidato) return;
+    setLoadingZonas(ano);
+    try {
+      const rows = await mdQuery(sqlVotosHistoricoPorZona(ano, String(sqCandidato)));
+      setZonasData(prev => ({ ...prev, [ano]: rows }));
+    } catch {
+      setZonasData(prev => ({ ...prev, [ano]: [] }));
+    } finally {
+      setLoadingZonas(null);
+    }
+  }, [expandedYear, zonasData]);
 
   return (
     <section className="bg-white rounded-xl border border-border p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
         <Calendar className="w-4 h-4 text-primary" />
-        <h3 className="text-sm font-semibold text-slate-900">Histórico Eleitoral (2014–2024)</h3>
+        <h3 className="text-sm font-semibold text-slate-900">Vida Política Completa</h3>
         {mudouPartido && (
           <Badge variant="outline" className="text-[10px] border-amber-300 text-amber-700">
             Trocou de partido
           </Badge>
         )}
         <Badge variant="outline" className="text-[10px]">
-          {historico.length} {historico.length === 1 ? 'eleição' : 'eleições'}
+          {historico.length} {historico.length === 1 ? 'eleição' : 'eleições'} disputadas
         </Badge>
       </div>
 
       {/* Party evolution */}
       {mudouPartido && (
         <div className="flex items-center gap-1 flex-wrap text-xs">
-          <span className="text-muted-foreground">Partidos:</span>
+          <span className="text-muted-foreground">Evolução partidária:</span>
           {partidos.map((p, i) => (
             <span key={p}>
               <Badge variant="outline" className="text-[9px] h-5">{p}</Badge>
@@ -311,42 +350,123 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
         </div>
       )}
 
-      {/* Timeline */}
+      {/* Timeline - ALL YEARS */}
       <div className="space-y-2">
-        {historico.map((h, i) => {
-          const isCurrentYear = Number(h.ano) === currentAno;
-          const votos = Number(h.total_votos || 0);
+        {timeline.map(({ ano, data, candidatou }) => {
+          const isCurrentYear = ano === currentAno;
+          const isExpanded = expandedYear === ano;
+          const votos = data ? Number(data.total_votos || 0) : 0;
+          const zonas = zonasData[ano] || [];
+
           return (
-            <div
-              key={`${h.ano}-${h.sq_candidato}`}
-              className={cn(
-                "rounded-lg border p-3 transition-colors",
-                isCurrentYear ? "border-primary/30 bg-primary/5" : "border-border"
-              )}
+            <div key={ano} className="rounded-lg border transition-colors overflow-hidden"
+              style={{
+                borderColor: !candidatou ? 'var(--border)' : isCurrentYear ? 'hsl(var(--primary) / 0.3)' : 'var(--border)',
+                backgroundColor: !candidatou ? 'hsl(var(--muted) / 0.3)' : isCurrentYear ? 'hsl(var(--primary) / 0.05)' : 'transparent',
+              }}
             >
-              <div className="flex items-center gap-3 flex-wrap">
-                <span className="font-mono text-sm font-bold text-slate-900 bg-slate-100 px-2 py-1 rounded">{h.ano}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-slate-900">{h.cargo}</span>
-                    <span className="text-xs text-muted-foreground">em {h.municipio}</span>
-                    <Badge variant="outline" className="text-[9px] h-5">{h.partido}</Badge>
-                  </div>
-                </div>
-                <div className="text-right">
-                  {votos > 0 ? (
-                    <div>
-                      <div className="text-sm font-bold text-slate-900 font-mono">{votos.toLocaleString('pt-BR')}</div>
-                      <div className="text-[10px] text-muted-foreground">votos</div>
+              {/* Year row */}
+              <button
+                onClick={() => candidatou ? handleExpandYear(ano, data?.sq_candidato) : null}
+                className={cn(
+                  "flex items-center gap-3 p-3 w-full text-left flex-wrap",
+                  candidatou && "cursor-pointer hover:bg-muted/40",
+                  !candidatou && "cursor-default opacity-60"
+                )}
+              >
+                <span className={cn(
+                  "font-mono text-sm font-bold px-2 py-1 rounded",
+                  candidatou ? "bg-slate-100 text-slate-900" : "bg-muted text-muted-foreground"
+                )}>{ano}</span>
+
+                {candidatou && data ? (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-sm font-semibold text-slate-900">{data.cargo}</span>
+                        <span className="text-xs text-muted-foreground">em {data.municipio}</span>
+                        <Badge variant="outline" className="text-[9px] h-5">{data.partido}</Badge>
+                        {data.numero && <span className="text-[10px] text-muted-foreground font-mono">Nº {data.numero}</span>}
+                      </div>
                     </div>
+                    <div className="text-right">
+                      {votos > 0 ? (
+                        <div>
+                          <div className="text-sm font-bold text-slate-900 font-mono">{votos.toLocaleString('pt-BR')}</div>
+                          <div className="text-[10px] text-muted-foreground">votos</div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">sem dados</span>
+                      )}
+                    </div>
+                    {data.situacao && (
+                      <Badge className={cn("text-[9px] h-5 border", getSitColor(data.situacao))}>{data.situacao}</Badge>
+                    )}
+                    {candidatou && (
+                      isExpanded ? <ChevronUp className="w-4 h-4 text-muted-foreground shrink-0" /> : <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                    )}
+                  </>
+                ) : (
+                  <div className="flex-1">
+                    <span className="text-sm text-muted-foreground italic flex items-center gap-1.5">
+                      <XCircle className="w-3.5 h-3.5" />
+                      Não candidatou nesta eleição
+                    </span>
+                  </div>
+                )}
+              </button>
+
+              {/* Expanded zone breakdown */}
+              {isExpanded && candidatou && (
+                <div className="border-t border-border px-3 pb-3 pt-2">
+                  {loadingZonas === ano ? (
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-5 w-full" />
+                      <Skeleton className="h-5 w-3/4" />
+                    </div>
+                  ) : zonas.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-1">Detalhamento por zona não disponível para esta eleição.</p>
                   ) : (
-                    <span className="text-xs text-muted-foreground">—</span>
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        Distribuição de votos por zona — {ano}
+                      </div>
+                      <div className="overflow-x-auto max-h-[300px] overflow-y-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow className="border-border/60">
+                              <TableHead className="text-[10px] text-slate-500">Zona</TableHead>
+                              <TableHead className="text-[10px] text-slate-500">Município</TableHead>
+                              <TableHead className="text-[10px] text-slate-500 text-right">Votos</TableHead>
+                              <TableHead className="text-[10px] text-slate-500 text-right">%</TableHead>
+                              <TableHead className="text-[10px] text-slate-500 w-[80px]"></TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {zonas.map((z, i) => {
+                              const zv = Number(z.total_votos || 0);
+                              const pct = votos > 0 ? (zv / votos) * 100 : 0;
+                              return (
+                                <TableRow key={i} className="border-border/20">
+                                  <TableCell className="text-xs font-mono text-slate-900">Zona {z.zona}</TableCell>
+                                  <TableCell className="text-xs text-slate-600">{z.municipio}</TableCell>
+                                  <TableCell className="text-xs font-mono font-bold text-slate-900 text-right">{zv.toLocaleString('pt-BR')}</TableCell>
+                                  <TableCell className="text-xs font-mono text-slate-500 text-right">{pct.toFixed(1)}%</TableCell>
+                                  <TableCell>
+                                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(pct * 2, 100)}%` }} />
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            })}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
                   )}
                 </div>
-                {h.situacao && (
-                  <Badge className={cn("text-[9px] h-5 border", getSitColor(h.situacao))}>{h.situacao}</Badge>
-                )}
-              </div>
+              )}
             </div>
           );
         })}
@@ -354,7 +474,6 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     </section>
   );
 }
-
 // ═══════════════════════════════════════════════════════
 // PATRIMONY (COLLAPSIBLE)
 // ═══════════════════════════════════════════════════════
