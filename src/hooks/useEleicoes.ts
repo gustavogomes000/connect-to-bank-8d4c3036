@@ -244,7 +244,19 @@ export function useEvolucaoComparecimento(municipio?: string) {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// 9. RANKING DE PARTIDOS
+// 8b. VOTOS REGIONAIS (zona + bairro + escola) — geral
+// ═══════════════════════════════════════════════════════════════
+
+export function useVotosRegional() {
+  const f = useFilters();
+  return useQuery({
+    queryKey: ['votosRegional', f],
+    queryFn: () => mdQuery(sqlVotosRegional(toFiltrosPainel(f))),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════════
 
 export function useRankingPartidos(limite = 20) {
