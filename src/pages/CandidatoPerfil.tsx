@@ -11,8 +11,10 @@ import {
   sqlBensCandidato,
   sqlHistoricoComVotos,
   sqlVotosHistoricoPorZona,
+  sqlVotosHistoricoPorLocal,
   sqlVotacaoTerritorialDetalhada,
   sqlComposicaoVotosCandidato,
+  getAnosDisponiveis,
 } from '@/lib/motherduck';
 import { useFilterStore } from '@/stores/filterStore';
 import { Button } from '@/components/ui/button';
