@@ -9,6 +9,7 @@ import {
   sqlBensCandidato,
   sqlPatrimonioCandidato,
   sqlVotacaoPorZona,
+  sqlVotacaoTerritorialDetalhada,
   sqlHistoricoCandidato,
   sqlRankingPatrimonio,
   sqlComparecimento,
