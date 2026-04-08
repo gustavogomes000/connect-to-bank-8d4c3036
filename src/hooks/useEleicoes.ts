@@ -9,6 +9,7 @@ import {
   sqlBensCandidato,
   sqlPatrimonioCandidato,
   sqlVotacaoPorZona,
+  sqlVotacaoTerritorialDetalhada,
   sqlHistoricoCandidato,
   sqlRankingPatrimonio,
   sqlComparecimento,
@@ -96,11 +97,19 @@ export function useDossieCandidato(sq: string | null, ano?: number) {
     staleTime: 5 * 60 * 1000,
   });
 
+  const votacaoTerritorial = useQuery({
+    queryKey: ['dossieVotacaoTerritorial', sq, anoFinal, geoFiltros.zona, geoFiltros.bairro, geoFiltros.escola, geoFiltros.municipio],
+    queryFn: () => mdQuery(sqlVotacaoTerritorialDetalhada(anoFinal, sq!, geoFiltros)),
+    enabled: !!sq,
+    staleTime: 5 * 60 * 1000,
+  });
+
   return {
     perfil: perfil.data?.[0] || null,
     bens: bens.data || [],
     patrimonio: patrimonio.data?.[0] || null,
     votacaoZona: votacaoZona.data || [],
+    votacaoTerritorial: votacaoTerritorial.data || [],
     isLoading: perfil.isLoading || bens.isLoading,
     error: perfil.error || bens.error,
   };

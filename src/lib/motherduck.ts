@@ -279,6 +279,39 @@ export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: Fi
   `.trim();
 }
 
+/** Votação detalhada por zona+bairro+escola (sempre usa votacao_secao + eleitorado_local JOIN) */
+export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string, filtros?: FiltrosPainel): string {
+  const vot = getTableName('votacao_secao', ano);
+  const loc = getTableName('eleitorado_local', ano);
+  const municipio = filtros?.municipio || 'GOIÂNIA';
+
+  const conds: string[] = [
+    `v.SQ_CANDIDATO = '${sqCandidato}'`,
+    `v.NM_MUNICIPIO = '${municipio}'`,
+  ];
+  if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
+  if (filtros?.bairro) conds.push(`loc.NM_BAIRRO = '${filtros.bairro}'`);
+  if (filtros?.escola) conds.push(`loc.NM_LOCAL_VOTACAO = '${filtros.escola}'`);
+
+  const where = `WHERE ${conds.join(' AND ')}`;
+
+  return `
+    SELECT
+      v.NR_ZONA AS zona,
+      COALESCE(loc.NM_BAIRRO, '') AS bairro,
+      COALESCE(loc.NM_LOCAL_VOTACAO, '') AS escola,
+      SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
+    FROM ${vot} v
+    INNER JOIN ${loc} loc
+      ON v.NR_ZONA = loc.NR_ZONA AND v.NR_SECAO = loc.NR_SECAO
+      AND loc.SG_UF = 'GO' AND loc.NM_MUNICIPIO = '${municipio}'
+    ${where}
+    GROUP BY v.NR_ZONA, loc.NM_BAIRRO, loc.NM_LOCAL_VOTACAO
+    ORDER BY total_votos DESC
+    LIMIT 200
+  `.trim();
+}
+
 /** Histórico do candidato em múltiplas eleições (por CPF) */
 export function sqlHistoricoCandidato(cpf: string, anosParam?: number[]): string {
   const anos = anosParam || [2014, 2016, 2018, 2020, 2022, 2024];
