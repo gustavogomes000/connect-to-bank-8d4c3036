@@ -51,25 +51,42 @@ export function formatBRLCompact(val: number): string {
   return `R$ ${val.toFixed(0)}`;
 }
 
+/** Traduz situação eleitoral do TSE para linguagem humana */
+export function traduzirSituacao(sit: string | null | undefined): string {
+  if (!sit) return 'Não definido';
+  const s = sit.toUpperCase().trim();
+  if (s.includes('ELEITO') && s.includes('QP')) return 'Eleito por quociente partidário';
+  if (s.includes('ELEITO') && s.includes('MÉDIA')) return 'Eleito por média';
+  if (s.includes('ELEITO') && !s.includes('NÃO')) return 'Eleito';
+  if (s.includes('NÃO ELEIT')) return 'Não eleito';
+  if (s.includes('SUPLENTE')) return 'Suplente';
+  if (s.includes('2º TURNO') || s.includes('2O TURNO')) return '2º turno';
+  if (s.includes('CASSAD')) return 'Cassado';
+  if (s.includes('INDEFERIDO')) return 'Indeferido';
+  if (s.includes('RENÚNCIA') || s.includes('RENUNCIA')) return 'Renunciou';
+  if (s.includes('FALECID')) return 'Falecido';
+  if (s.includes('SUBSTITUÍD') || s.includes('SUBSTITUID')) return 'Substituído';
+  if (s.includes('DEFERIDO')) return 'Deferido';
+  if (s.includes('APTO') || s.includes('APTIDÃO')) return 'Apto';
+  if (s.includes('INAPTO')) return 'Inapto';
+  // Retorna capitalizado se não mapeou
+  return sit.charAt(0).toUpperCase() + sit.slice(1).toLowerCase();
+}
+
 export function getSituacaoBadge(situacao: string | null): { bg: string; text: string; label: string } {
+  const label = traduzirSituacao(situacao);
   const s = (situacao || '').toUpperCase().trim();
-  if (s.includes('ELEITO') && s.includes('QP'))
-    return { bg: 'bg-success/20', text: 'text-success', label: 'ELEITO QP' };
-  if (s.includes('ELEITO') && s.includes('MÉDIA'))
-    return { bg: 'bg-success/20', text: 'text-success', label: 'ELEITO MÉDIA' };
   if (s.includes('ELEITO') && !s.includes('NÃO'))
-    return { bg: 'bg-success/20', text: 'text-success', label: 'ELEITO' };
+    return { bg: 'bg-success/20', text: 'text-success', label };
   if (s.includes('SUPLENTE'))
-    return { bg: 'bg-warning/20', text: 'text-warning', label: 'SUPLENTE' };
-  if (s.includes('2º TURNO'))
-    return { bg: 'bg-[hsl(var(--info))]/20', text: 'text-[hsl(var(--info))]', label: '2º TURNO' };
-  if (s.includes('CASSAD'))
-    return { bg: 'bg-destructive/20', text: 'text-destructive', label: situacao || '' };
-  if (s.includes('INDEFERIDO'))
-    return { bg: 'bg-destructive/20', text: 'text-destructive', label: 'INDEFERIDO' };
-  if (s.includes('RENÚNCIA'))
-    return { bg: 'bg-muted', text: 'text-muted-foreground', label: 'RENÚNCIA' };
-  return { bg: 'bg-muted/50', text: 'text-muted-foreground', label: situacao || 'NÃO ELEITO' };
+    return { bg: 'bg-warning/20', text: 'text-warning', label };
+  if (s.includes('2º TURNO') || s.includes('2O TURNO'))
+    return { bg: 'bg-[hsl(var(--info))]/20', text: 'text-[hsl(var(--info))]', label };
+  if (s.includes('CASSAD') || s.includes('INDEFERIDO'))
+    return { bg: 'bg-destructive/20', text: 'text-destructive', label };
+  if (s.includes('RENÚNCIA') || s.includes('RENUNCIA'))
+    return { bg: 'bg-muted', text: 'text-muted-foreground', label };
+  return { bg: 'bg-muted/50', text: 'text-muted-foreground', label };
 }
 
 export const ANOS_DISPONIVEIS = [2012, 2014, 2016, 2018, 2020, 2022, 2024];
