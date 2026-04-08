@@ -76,12 +76,16 @@ export function GlobalFilters() {
             {[2016, 2020, 2024].includes(ano) ? (
               <>
                 <SelectItem value="PREFEITO">Prefeito</SelectItem>
+                <SelectItem value="VICE-PREFEITO">Vice-Prefeito</SelectItem>
                 <SelectItem value="VEREADOR">Vereador</SelectItem>
               </>
             ) : (
               <>
                 <SelectItem value="GOVERNADOR">Governador</SelectItem>
+                <SelectItem value="VICE-GOVERNADOR">Vice-Governador</SelectItem>
                 <SelectItem value="SENADOR">Senador</SelectItem>
+                <SelectItem value="1º SUPLENTE">1º Suplente</SelectItem>
+                <SelectItem value="2º SUPLENTE">2º Suplente</SelectItem>
                 <SelectItem value="DEPUTADO FEDERAL">Deputado Federal</SelectItem>
                 <SelectItem value="DEPUTADO ESTADUAL">Deputado Estadual</SelectItem>
                 {ano === 2014 && <SelectItem value="PRESIDENTE">Presidente</SelectItem>}
