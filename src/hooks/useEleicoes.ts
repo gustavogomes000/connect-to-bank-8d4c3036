@@ -311,16 +311,33 @@ export function useCargos() {
   });
 }
 
-// ── Filtros geográficos em cascata: Bairros e Escolas ──
+// ── Filtros geográficos em cascata: Zona → Bairro → Escola ──
 
-export function useBairros() {
+export function useZonas() {
   const { ano, municipio } = useFilterStore();
   return useQuery({
-    queryKey: ['bairrosLista', municipio, ano],
+    queryKey: ['zonasLista', municipio, ano],
     queryFn: async () => {
       const loc = getTableName('eleitorado_local', ano);
+      const rows = await mdQuery<{ z: number }>(
+        `SELECT DISTINCT NR_ZONA AS z FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}' ORDER BY z`
+      );
+      return rows.map(r => r.z);
+    },
+    enabled: !!municipio,
+    staleTime: 30 * 60 * 1000,
+  });
+}
+
+export function useBairros() {
+  const { ano, municipio, zona } = useFilterStore();
+  return useQuery({
+    queryKey: ['bairrosLista', municipio, zona, ano],
+    queryFn: async () => {
+      const loc = getTableName('eleitorado_local', ano);
+      const zonaCond = zona ? ` AND NR_ZONA = ${zona}` : '';
       const rows = await mdQuery<{ b: string }>(
-        `SELECT DISTINCT NM_BAIRRO AS b FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}' AND NM_BAIRRO IS NOT NULL AND NM_BAIRRO != '' ORDER BY b`
+        `SELECT DISTINCT NM_BAIRRO AS b FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}'${zonaCond} AND NM_BAIRRO IS NOT NULL AND NM_BAIRRO != '' ORDER BY b`
       );
       return rows.map(r => r.b);
     },
