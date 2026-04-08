@@ -326,7 +326,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     }
   }, [expandedYear, zonasData]);
 
-  const handleExpandZona = useCallback(async (ano: number, zonaNum: number, nrCandidato: string | number, municipio: string) => {
+  const handleExpandZona = useCallback(async (ano: number, zonaNum: number, nrCandidato: string | number | null | undefined, municipio: string) => {
     const key = `${ano}-${zonaNum}`;
     if (expandedZona === key) {
       setExpandedZona(null);
@@ -334,6 +334,10 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     }
     setExpandedZona(key);
     if (locaisData[key]) return;
+    if (!nrCandidato) {
+      setLocaisData(prev => ({ ...prev, [key]: [] }));
+      return;
+    }
     const hasBU = getAnosDisponiveis('boletim_urna').includes(ano);
     if (!hasBU) {
       setLocaisData(prev => ({ ...prev, [key]: [] }));
@@ -343,7 +347,8 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     try {
       const rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio));
       setLocaisData(prev => ({ ...prev, [key]: rows }));
-    } catch {
+    } catch (e) {
+      console.warn('Erro ao buscar locais da zona:', e);
       setLocaisData(prev => ({ ...prev, [key]: [] }));
     } finally {
       setLoadingLocais(null);
