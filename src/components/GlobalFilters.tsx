@@ -1,4 +1,4 @@
-import { useFilterStore } from "@/store/filterStore";
+import { useFilterStore } from "@/stores/filterStore";
 import { Label } from "@/components/ui/label";
 import {
   Select,
