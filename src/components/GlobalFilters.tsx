@@ -17,7 +17,7 @@ export function GlobalFilters() {
     setAno,
     setMunicipio,
     setCargo,
-    resetFilters,
+    limpar: resetFilters,
   } = useFilterStore();
 
   return (
