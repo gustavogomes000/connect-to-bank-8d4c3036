@@ -18,8 +18,8 @@ export const ListaBens = ({ sqCandidato }: { sqCandidato: string }) => {
     );
   }
 
-  const bens = data?.dados || [];
-  const totalBens = bens.reduce((acc, b) => acc + b.VR_BEM_CANDIDATO, 0);
+  const bens = data?.rows || [];
+  const totalBens = bens.reduce((acc, b) => acc + Number(String(b.VR_BEM_CANDIDATO).replace(',', '.') || 0), 0);
 
   return (
     <div className="space-y-4">
@@ -98,8 +98,8 @@ export const ResumoReceitas = ({ sqCandidato }: { sqCandidato: string }) => {
     );
   }
 
-  const receitas = data?.dados || [];
-  const totalReceitas = receitas.reduce((sum, r) => sum + r.VR_RECEITA, 0);
+  const receitas = data?.rows || [];
+  const totalReceitas = receitas.reduce((sum, r) => sum + Number(String(r.VR_RECEITA).replace(',', '.') || 0), 0);
   const maioresDoadores = receitas.slice(0, 5); // top 5
 
   return (
