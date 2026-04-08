@@ -43,6 +43,7 @@ const DATASET_MAP: Record<string, {
   votacao_secao:           { prefix: 'votacao_secao',              anos: [2014,2016,2018,2020,2022,2024], sufixo: 'UF' },
   detalhe_munzona:         { prefix: 'detalhe_votacao_munzona',    anos: [2014,2016,2018,2020,2022,2024], sufixo: 'UF' },
   detalhe_secao:           { prefix: 'detalhe_votacao_secao',      anos: [2014,2016,2020,2022,2024],      sufixo: 'UF' },
+  boletim_urna:            { prefix: 'boletim_urna',               anos: [2014,2018,2020,2022,2024],      sufixo: 'UF' },
 
   // Eleitorado (NACIONAL — filtrar sg_uf='GO')
   eleitorado_local:        { prefix: 'eleitorado_local_votacao',   anos: [2014,2016,2018,2020,2024],      sufixo: 'NACIONAL' },
@@ -307,6 +308,57 @@ export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string,
     GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
     ORDER BY total_votos DESC
     LIMIT 200
+  `.trim();
+}
+
+/**
+ * Composição completa de votos por bairro+escola usando boletim_urna (tem nr_votavel por seção).
+ * JOIN com eleitorado_local para obter NM_BAIRRO e NM_LOCAL_VOTACAO.
+ * @param nrCandidato - Número do candidato na urna (NR_CANDIDATO)
+ */
+export function sqlComposicaoVotosCandidato(
+  ano: number,
+  nrCandidato: number | string,
+  municipio: string,
+): string {
+  const bu = getTableName('boletim_urna', ano);
+  const hasEleitorado = getAnosDisponiveis('eleitorado_local').includes(ano);
+
+  if (hasEleitorado) {
+    const loc = getTableName('eleitorado_local', ano);
+    return `
+      SELECT
+        COALESCE(l.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
+        COALESCE(l.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
+        b.nr_zona AS zona,
+        SUM(b.qt_votos) AS total_votos,
+        COUNT(DISTINCT b.nr_secao) AS secoes
+      FROM ${bu} b
+      LEFT JOIN ${loc} l
+        ON b.nr_zona = l.NR_ZONA AND b.nr_secao = l.NR_SECAO
+        AND l.SG_UF = 'GO' AND l.NM_MUNICIPIO = '${municipio}'
+      WHERE b.nm_municipio = '${municipio}'
+        AND b.nr_votavel = ${nrCandidato}
+        AND b.ds_tipo_votavel = 'Nominal'
+      GROUP BY l.NM_BAIRRO, l.NM_LOCAL_VOTACAO, b.nr_zona
+      ORDER BY total_votos DESC
+    `.trim();
+  }
+
+  // Fallback sem eleitorado_local (sem bairro/escola)
+  return `
+    SELECT
+      'NÃO INFORMADO' AS bairro,
+      'NÃO INFORMADO' AS escola,
+      b.nr_zona AS zona,
+      SUM(b.qt_votos) AS total_votos,
+      COUNT(DISTINCT b.nr_secao) AS secoes
+    FROM ${bu} b
+    WHERE b.nm_municipio = '${municipio}'
+      AND b.nr_votavel = ${nrCandidato}
+      AND b.ds_tipo_votavel = 'Nominal'
+    GROUP BY b.nr_zona
+    ORDER BY total_votos DESC
   `.trim();
 }
 
