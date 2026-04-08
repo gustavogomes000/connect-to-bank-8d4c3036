@@ -215,7 +215,7 @@ function CandidatoCard({ c }: { c: any }) {
   const idade = calcIdade(c.data_nascimento);
 
   return (
-    <Link to={`/candidato/${c.id}`} className="block">
+    <Link to={`/candidato/${c.id}/${c.ano_eleicao}`} className="block">
       <Card className="border-border/50 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer group">
         <CardContent className="p-3">
           <div className="flex items-start gap-3">

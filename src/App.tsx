@@ -49,6 +49,7 @@ function Layout() {
               <Route path="/chat" element={<ChatEleicoes />} />
               <Route path="/relatorios" element={<ChatEleicoes />} />
               <Route path="/candidato/:id" element={<CandidatoPerfil />} />
+              <Route path="/candidato/:id/:ano" element={<CandidatoPerfil />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}
