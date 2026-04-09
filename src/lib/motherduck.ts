@@ -492,6 +492,42 @@ export function sqlComposicaoVotosCandidato(
   }
 
   // Fallback para anos sem boletim_urna disponível
+  // Use votacao_secao which has NR_VOTAVEL, QT_VOTOS, NM_LOCAL_VOTACAO
+  if (getAnosDisponiveis('votacao_secao').includes(ano)) {
+    const vs = getTableName('votacao_secao', ano);
+    if (metadataSubquery) {
+      return `
+        SELECT
+          COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
+          COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
+          vs.NR_ZONA AS zona,
+          SUM(vs.QT_VOTOS) AS total_votos,
+          COUNT(DISTINCT vs.NR_SECAO) AS secoes
+        FROM ${vs} vs
+        LEFT JOIN (${metadataSubquery}) meta
+          ON vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
+        WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
+          AND vs.NR_VOTAVEL = ${nrCandidato}
+        GROUP BY meta.NM_BAIRRO, vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
+        ORDER BY total_votos DESC
+      `.trim();
+    }
+    return `
+      SELECT
+        'NÃO INFORMADO' AS bairro,
+        COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
+        vs.NR_ZONA AS zona,
+        SUM(vs.QT_VOTOS) AS total_votos,
+        COUNT(DISTINCT vs.NR_SECAO) AS secoes
+      FROM ${vs} vs
+      WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
+        AND vs.NR_VOTAVEL = ${nrCandidato}
+      GROUP BY vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
+      ORDER BY total_votos DESC
+    `.trim();
+  }
+
+  // Ultimate fallback: votacao_candidato_munzona (zone-level only)
   const vot = getTableName('votacao', ano);
   return `
     SELECT
@@ -671,7 +707,47 @@ export function sqlVotosHistoricoPorLocal(
   }
 
   // Fallback: no boletim_urna for this year (e.g. 2016)
-  // Use votacao_candidato_munzona which only has zone-level aggregation
+  // Use votacao_secao which has NR_VOTAVEL, QT_VOTOS, NM_LOCAL_VOTACAO per section
+  if (getAnosDisponiveis('votacao_secao').includes(ano)) {
+    const vs = getTableName('votacao_secao', ano);
+    if (metadataSubquery) {
+      return `
+        SELECT
+          COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
+          COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS local_votacao,
+          vs.NR_ZONA AS zona,
+          SUM(vs.QT_VOTOS) AS total_votos,
+          COUNT(DISTINCT vs.NR_SECAO) AS secoes
+        FROM ${vs} vs
+        LEFT JOIN (${metadataSubquery}) meta
+          ON vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
+        WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
+          AND vs.NR_VOTAVEL = ${nrCandidato}
+          AND vs.NR_ZONA = ${zona}
+        GROUP BY
+          COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO'),
+          COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO'),
+          vs.NR_ZONA
+        ORDER BY total_votos DESC
+      `.trim();
+    }
+    return `
+      SELECT
+        'NÃO INFORMADO' AS bairro,
+        COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS local_votacao,
+        vs.NR_ZONA AS zona,
+        SUM(vs.QT_VOTOS) AS total_votos,
+        COUNT(DISTINCT vs.NR_SECAO) AS secoes
+      FROM ${vs} vs
+      WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
+        AND vs.NR_VOTAVEL = ${nrCandidato}
+        AND vs.NR_ZONA = ${zona}
+      GROUP BY vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
+      ORDER BY total_votos DESC
+    `.trim();
+  }
+
+  // Ultimate fallback: votacao_candidato_munzona (zone-level only)
   const vot = getTableName('votacao', ano);
   return `
     SELECT
