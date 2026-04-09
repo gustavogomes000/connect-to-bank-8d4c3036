@@ -308,16 +308,24 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
   const partidos = useMemo(() => [...new Set(historico.map(h => h.partido).filter(Boolean))], [historico]);
   const mudouPartido = partidos.length > 1;
 
-  const handleExpandYear = useCallback(async (ano: number, sqCandidato: string | null) => {
+  const handleExpandYear = useCallback(async (
+    ano: number,
+    sqCandidato: string | null,
+    nrCandidato?: string | number | null,
+    cargo?: string | null,
+    municipio?: string | null,
+  ) => {
     if (expandedYear === ano) {
       setExpandedYear(null);
       return;
     }
     setExpandedYear(ano);
-    if (zonasData[ano] || !sqCandidato) return;
+    if (zonasData[ano] || (!sqCandidato && !nrCandidato)) return;
     setLoadingZonas(ano);
     try {
-      const rows = await mdQuery(sqlVotosHistoricoPorZona(ano, String(sqCandidato)));
+      const rows = await mdQuery(
+        sqlVotosHistoricoPorZona(ano, sqCandidato ? String(sqCandidato) : null, nrCandidato, cargo, municipio)
+      );
       setZonasData(prev => ({ ...prev, [ano]: rows }));
     } catch {
       setZonasData(prev => ({ ...prev, [ano]: [] }));
@@ -332,6 +340,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     nrCandidato: string | number | null | undefined,
     sqCandidato: string | number | null | undefined,
     municipio: string,
+    cargo?: string | null,
   ) => {
     const key = `${ano}-${zonaNum}`;
     if (expandedZona === key) {
@@ -350,14 +359,14 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
 
       if (sqCandidato) {
         try {
-          rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio, sqCandidato));
+          rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio, sqCandidato, cargo));
         } catch {
           rows = [];
         }
       }
 
       if (!rows.length) {
-        rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio));
+        rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio, undefined, cargo));
       }
 
       setLocaisData(prev => ({ ...prev, [key]: rows || [] }));
@@ -414,7 +423,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
             >
               {/* Year row */}
               <button
-                onClick={() => candidatou ? handleExpandYear(ano, data?.sq_candidato) : null}
+                onClick={() => candidatou ? handleExpandYear(ano, data?.sq_candidato, data?.numero, data?.cargo, data?.municipio) : null}
                 className={cn(
                   "flex items-center gap-3 p-3 w-full text-left flex-wrap",
                   candidatou && "cursor-pointer hover:bg-muted/40",
@@ -501,7 +510,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                                 <React.Fragment key={i}>
                                   <TableRow
                                     className="border-border/20 cursor-pointer hover:bg-muted/40 transition-colors"
-                                    onClick={() => handleExpandZona(ano, Number(z.zona), data?.numero, data?.sq_candidato, z.municipio)}
+                                    onClick={() => handleExpandZona(ano, Number(z.zona), data?.numero, data?.sq_candidato, z.municipio, data?.cargo)}
                                   >
                                     <TableCell className="px-1">
                                       {isZonaExpanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
@@ -837,15 +846,19 @@ export default function CandidatoPerfil() {
     },
   });
 
-  // ── Histórico eleitoral (busca por nome completo, sem filtro) ──
+  // ── Histórico eleitoral (prioriza CPF; cai para nome quando necessário) ──
   const candidato = candidatoQ.data;
   const nomeCompletoHist = candidato?.nome_completo || candidato?.NM_CANDIDATO || '';
+  const cpfHist = candidato?.cpf || candidato?.NR_CPF_CANDIDATO || '';
 
   const historicoQ = useQuery({
-    queryKey: ['md', 'historico_votos', nomeCompletoHist],
-    enabled: !!nomeCompletoHist && String(nomeCompletoHist).length >= 3,
+    queryKey: ['md', 'historico_votos', cpfHist, nomeCompletoHist],
+    enabled: !!cpfHist || (!!nomeCompletoHist && String(nomeCompletoHist).length >= 3),
     staleTime: 10 * 60 * 1000,
-    queryFn: async () => mdQuery(sqlHistoricoComVotos(String(nomeCompletoHist))),
+    queryFn: async () => mdQuery(sqlHistoricoComVotos({
+      cpf: cpfHist ? String(cpfHist) : undefined,
+      nomeCompleto: nomeCompletoHist ? String(nomeCompletoHist) : undefined,
+    })),
   });
 
   const isLoading = candidatoQ.isLoading;
