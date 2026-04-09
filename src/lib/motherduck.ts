@@ -409,11 +409,11 @@ interface HistoricoIdentificador {
 }
 
 function buildHistoricoCandidatoFilter(alias: string, identificador: HistoricoIdentificador): string {
+  const nomeSafe = identificador.nomeCompleto?.trim().replace(/'/g, "''");
+  if (nomeSafe) return `UPPER(TRIM(CAST(${alias}.NM_CANDIDATO AS VARCHAR))) = UPPER('${nomeSafe}')`;
+
   const cpfSafe = identificador.cpf?.trim().replace(/'/g, "''");
   if (cpfSafe) return `${alias}.NR_CPF_CANDIDATO = '${cpfSafe}'`;
-
-  const nomeSafe = identificador.nomeCompleto?.trim().replace(/'/g, "''");
-  if (nomeSafe) return `${alias}.NM_CANDIDATO = '${nomeSafe}'`;
 
   throw new Error('Identificador do histórico não informado.');
 }
@@ -529,7 +529,7 @@ export function sqlHistoricoCandidato(cpf: string, anosParam?: number[]): string
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
-/** Histórico com votos totais por eleição (prioriza CPF e cai para nome quando necessário) */
+/** Histórico com votos totais por eleição (prioriza nome completo e cai para CPF quando necessário) */
 export function sqlHistoricoComVotos(identificador: HistoricoIdentificador): string {
   const anos = [2014, 2016, 2018, 2020, 2022, 2024];
   const unions: string[] = [];
