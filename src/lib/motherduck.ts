@@ -365,6 +365,7 @@ function buildBoletimNormalizadoSubquery(ano: number): string | null {
         CAST(column07 AS BIGINT) AS nr_zona,
         CAST(column08 AS BIGINT) AS nr_secao,
         TRIM(CAST(column13 AS VARCHAR)) AS nm_municipio,
+        TRIM(CAST(column06 AS VARCHAR)) AS ds_cargo_pergunta,
         CAST(column21 AS BIGINT) AS nr_votavel,
         CAST(column23 AS BIGINT) AS qt_votos,
         CASE CAST(column24 AS BIGINT)
@@ -382,10 +383,61 @@ function buildBoletimNormalizadoSubquery(ano: number): string | null {
       ${sqlIntValue('nr_zona')} AS nr_zona,
       ${sqlIntValue('nr_secao')} AS nr_secao,
       ${sqlTextValue('nm_municipio')} AS nm_municipio,
+      ${sqlTextValue('ds_cargo_pergunta')} AS ds_cargo_pergunta,
       ${sqlIntValue('nr_votavel')} AS nr_votavel,
       ${sqlIntValue('qt_votos')} AS qt_votos,
       ${sqlTextValue('ds_tipo_votavel')} AS ds_tipo_votavel
     FROM ${bu}
+  `.trim();
+}
+
+function buildBoletimCargoCondition(alias: string, cargo?: string | null): string {
+  if (!cargo) return '';
+  const cargoSafe = cargo.replace(/'/g, "''");
+  return `AND UPPER(COALESCE(${alias}.ds_cargo_pergunta, '')) = UPPER('${cargoSafe}')`;
+}
+
+function buildBoletimMunicipioCondition(alias: string, ano: number, municipio?: string | null): string {
+  if (!municipio || isEleicaoGeral(ano)) return '';
+  const municipioSafe = municipio.replace(/'/g, "''");
+  return `AND ${alias}.nm_municipio = '${municipioSafe}'`;
+}
+
+interface HistoricoIdentificador {
+  cpf?: string;
+  nomeCompleto?: string;
+}
+
+function buildHistoricoCandidatoFilter(alias: string, identificador: HistoricoIdentificador): string {
+  const cpfSafe = identificador.cpf?.trim().replace(/'/g, "''");
+  if (cpfSafe) return `${alias}.NR_CPF_CANDIDATO = '${cpfSafe}'`;
+
+  const nomeSafe = identificador.nomeCompleto?.trim().replace(/'/g, "''");
+  if (nomeSafe) return `${alias}.NM_CANDIDATO = '${nomeSafe}'`;
+
+  throw new Error('Identificador do histórico não informado.');
+}
+
+function buildHistoricoBoletimVotesSubquery(ano: number, identificador: HistoricoIdentificador): string | null {
+  const boletimSubquery = buildBoletimNormalizadoSubquery(ano);
+  if (!boletimSubquery) return null;
+
+  const cand = getTableName('candidatos', ano);
+  const filtro = buildHistoricoCandidatoFilter('c2', identificador);
+
+  return `
+    SELECT
+      c2.SQ_CANDIDATO AS sq_candidato,
+      SUM(b.qt_votos) AS total_votos
+    FROM ${cand} c2
+    JOIN (${boletimSubquery}) b
+      ON b.nr_votavel = c2.NR_CANDIDATO
+     AND b.ds_tipo_votavel = 'Nominal'
+     ${buildBoletimCargoCondition('b', 'c2.DS_CARGO').replace("'c2.DS_CARGO'", 'c2.DS_CARGO')}
+     ${buildBoletimMunicipioCondition('b', ano, undefined).trim()}
+    WHERE ${filtro}
+      ${isEleicaoGeral(ano) ? '' : 'AND b.nm_municipio = c2.NM_UE'}
+    GROUP BY c2.SQ_CANDIDATO
   `.trim();
 }
 
@@ -477,14 +529,17 @@ export function sqlHistoricoCandidato(cpf: string, anosParam?: number[]): string
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
-/** Histórico com votos totais por eleição (por nome completo do candidato) */
-export function sqlHistoricoComVotos(nomeCompleto: string): string {
+/** Histórico com votos totais por eleição (prioriza CPF e cai para nome quando necessário) */
+export function sqlHistoricoComVotos(identificador: HistoricoIdentificador): string {
   const anos = [2014, 2016, 2018, 2020, 2022, 2024];
-  const nomeSafe = nomeCompleto.replace(/'/g, "''");
   const unions: string[] = [];
+
   for (const a of anos) {
     const cand = getTableName('candidatos', a);
     const vot = getTableName('votacao', a);
+    const filtro = buildHistoricoCandidatoFilter('c', identificador);
+    const boletimVotes = buildHistoricoBoletimVotesSubquery(a, identificador);
+
     unions.push(`SELECT
       ${a} AS ano,
       c.NM_URNA_CANDIDATO AS candidato,
@@ -494,25 +549,63 @@ export function sqlHistoricoComVotos(nomeCompleto: string): string {
       c.DS_SIT_TOT_TURNO AS situacao,
       c.SQ_CANDIDATO AS sq_candidato,
       c.NR_CANDIDATO AS numero,
-      COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos
+      COALESCE(NULLIF(v.total_votos, 0), vb.total_votos, 0) AS total_votos
     FROM ${cand} c
-    LEFT JOIN ${vot} v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
-    WHERE c.NM_CANDIDATO = '${nomeSafe}'
-    GROUP BY c.NM_URNA_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO, c.NM_UE, c.DS_SIT_TOT_TURNO, c.SQ_CANDIDATO, c.NR_CANDIDATO`);
+    LEFT JOIN (
+      SELECT SQ_CANDIDATO, SUM(QT_VOTOS_NOMINAIS) AS total_votos
+      FROM ${vot}
+      GROUP BY SQ_CANDIDATO
+    ) v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
+    ${boletimVotes ? `LEFT JOIN (${boletimVotes}) vb ON c.SQ_CANDIDATO = vb.sq_candidato` : 'LEFT JOIN (SELECT NULL AS sq_candidato, NULL AS total_votos) vb ON 1=0'}
+    WHERE ${filtro}`);
   }
+
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
-/** Votos por zona de uma eleição específica (por SQ_CANDIDATO) */
-export function sqlVotosHistoricoPorZona(ano: number, sqCandidato: string): string {
+/** Votos por zona de uma eleição específica. Usa boletim normalizado quando disponível. */
+export function sqlVotosHistoricoPorZona(
+  ano: number,
+  sqCandidato: string | null,
+  nrCandidato?: number | string | null,
+  cargo?: string | null,
+  municipio?: string | null,
+): string {
+  const boletimSubquery = buildBoletimNormalizadoSubquery(ano);
+
+  if (boletimSubquery && nrCandidato) {
+    return `
+      SELECT
+        b.nr_zona AS zona,
+        b.nm_municipio AS municipio,
+        SUM(b.qt_votos) AS total_votos
+      FROM (${boletimSubquery}) b
+      WHERE b.nr_votavel = ${nrCandidato}
+        AND b.ds_tipo_votavel = 'Nominal'
+        ${buildBoletimCargoCondition('b', cargo)}
+        ${buildBoletimMunicipioCondition('b', ano, municipio)}
+      GROUP BY b.nr_zona, b.nm_municipio
+      ORDER BY total_votos DESC
+    `.trim();
+  }
+
   const vot = getTableName('votacao', ano);
+  const conds: string[] = [];
+
+  if (sqCandidato) conds.push(`v.SQ_CANDIDATO = '${sqCandidato}'`);
+  else if (nrCandidato) conds.push(`v.NR_CANDIDATO = ${nrCandidato}`);
+
+  if (municipio && !isEleicaoGeral(ano)) {
+    conds.push(`v.NM_MUNICIPIO = '${municipio.replace(/'/g, "''")}'`);
+  }
+
   return `
     SELECT
       v.NR_ZONA AS zona,
       v.NM_MUNICIPIO AS municipio,
       SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
     FROM ${vot} v
-    WHERE v.SQ_CANDIDATO = '${sqCandidato}'
+    WHERE ${conds.length ? conds.join(' AND ') : '1=0'}
     GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
     ORDER BY total_votos DESC
   `.trim();
@@ -527,6 +620,7 @@ export function sqlVotosHistoricoPorLocal(
   zona: number,
   municipio: string,
   _sqCandidato?: number | string | null,
+  cargo?: string | null,
 ): string {
   const municipioSafe = municipio.replace(/'/g, "''");
   const metadataSubquery = buildSecaoMetadataSubquery(ano, municipio);
@@ -548,6 +642,7 @@ export function sqlVotosHistoricoPorLocal(
         WHERE b.nm_municipio = '${municipioSafe}'
           AND b.nr_votavel = ${nrCandidato}
           AND b.ds_tipo_votavel = 'Nominal'
+          ${buildBoletimCargoCondition('b', cargo)}
           AND b.nr_zona = ${zona}
         GROUP BY
           COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO'),
@@ -568,6 +663,7 @@ export function sqlVotosHistoricoPorLocal(
       WHERE b.nm_municipio = '${municipioSafe}'
         AND b.nr_votavel = ${nrCandidato}
         AND b.ds_tipo_votavel = 'Nominal'
+        ${buildBoletimCargoCondition('b', cargo)}
         AND b.nr_zona = ${zona}
       GROUP BY b.nr_zona
       ORDER BY total_votos DESC
