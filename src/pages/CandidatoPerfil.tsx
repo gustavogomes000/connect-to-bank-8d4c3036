@@ -338,15 +338,23 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
       setLocaisData(prev => ({ ...prev, [key]: [] }));
       return;
     }
-    const hasBU = getAnosDisponiveis('boletim_urna').includes(ano);
+    // Check if boletim_urna exists for this year AND table can be resolved
+    let hasBU = false;
+    try {
+      hasBU = getAnosDisponiveis('boletim_urna').includes(ano);
+      if (hasBU) getTableName('boletim_urna', ano); // validate table name
+    } catch {
+      hasBU = false;
+    }
     if (!hasBU) {
       setLocaisData(prev => ({ ...prev, [key]: [] }));
       return;
     }
     setLoadingLocais(key);
     try {
-      const rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio));
-      setLocaisData(prev => ({ ...prev, [key]: rows }));
+      const sql = sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio);
+      const rows = await mdQuery(sql);
+      setLocaisData(prev => ({ ...prev, [key]: rows || [] }));
     } catch (e) {
       console.warn('Erro ao buscar locais da zona:', e);
       setLocaisData(prev => ({ ...prev, [key]: [] }));
@@ -524,8 +532,8 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                                                 return (
                                                   <div key={li} className="flex items-center gap-2 text-[11px] py-0.5">
                                                     <span className="text-slate-400 font-mono w-5 text-right shrink-0">{li + 1}</span>
-                                                    <span className="text-slate-500 w-24 shrink-0 truncate" title={l.bairro}>{l.bairro}</span>
-                                                    <span className="text-slate-900 flex-1 truncate" title={l.local_votacao}>{l.local_votacao}</span>
+                                                    <span className="text-slate-500 w-24 shrink-0 truncate" title={String(l.bairro || '')}>{String(l.bairro || 'N/I')}</span>
+                                                    <span className="text-slate-900 flex-1 truncate" title={String(l.local_votacao || '')}>{String(l.local_votacao || 'N/I')}</span>
                                                     <span className="font-mono font-bold text-slate-900 shrink-0">{lv.toLocaleString('pt-BR')}</span>
                                                     <span className="font-mono text-slate-400 shrink-0 w-12 text-right">{lpct.toFixed(1)}%</span>
                                                     <div className="h-1 w-16 bg-slate-100 rounded-full overflow-hidden shrink-0">
@@ -811,9 +819,15 @@ export default function CandidatoPerfil() {
     queryKey: ['md', 'composicao', ano, nrCandidato, mun],
     enabled: !!nrCandidato && !!candidatoQ.data && canUseDataset('boletim_urna', ano),
     staleTime: 5 * 60 * 1000,
+    retry: false,
     queryFn: async () => {
-      const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun));
-      return rows as AnyRow[];
+      try {
+        const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun));
+        return (rows || []) as AnyRow[];
+      } catch (e) {
+        console.warn('Erro ao buscar composição de votos:', e);
+        return [] as AnyRow[];
+      }
     },
   });
 
