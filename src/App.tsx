@@ -19,7 +19,7 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios'];
+const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios', '/candidatos'];
 
 function Layout() {
   const location = useLocation();
