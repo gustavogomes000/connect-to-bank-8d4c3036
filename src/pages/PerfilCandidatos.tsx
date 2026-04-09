@@ -1,26 +1,28 @@
 import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useFilterStore } from '@/stores/filterStore';
 import { mdQuery, getTableName, getAnosDisponiveis, isEleicaoGeral } from '@/lib/motherduck';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Search, User, Landmark, GraduationCap, ChevronRight } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { traduzirSituacao } from '@/lib/eleicoes';
 
 /**
  * Busca candidatos de TODOS os anos (2014-2024) via UNION ALL.
- * Para eleições gerais (2014,2018,2022), não filtra por município na tabela de candidatos.
- * Deduplica por nome completo, mantendo a entrada mais recente.
+ * Filtros locais: município, cargo, partido (sem ano).
  */
-function useCandidatos() {
-  const municipio = useFilterStore((s) => s.municipio);
-  const cargo = useFilterStore((s) => s.cargo);
-  const partido = useFilterStore((s) => s.partido);
-
+function useCandidatos(municipio: string, cargo: string | null, partido: string | null) {
   return useQuery({
     queryKey: ['candidatos-md-todos', municipio, cargo, partido],
     queryFn: async () => {
