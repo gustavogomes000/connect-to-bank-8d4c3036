@@ -16,7 +16,17 @@ import Mesarios from "./pages/Mesarios";
 import PerfilCandidatos from "./pages/PerfilCandidatos";
 import NotFound from "./pages/NotFound";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: false,
+      retry: 1,
+    },
+  },
+});
 
 const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios', '/candidatos', '/candidato', '/perfil-candidatos'];
 
