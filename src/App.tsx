@@ -10,7 +10,6 @@ import Ranking from "./pages/Ranking";
 import ZonasEleitorais from "./pages/ZonasEleitorais";
 import EscolasEleitorais from "./pages/EscolasEleitorais";
 import ChatEleicoes from "./pages/ChatEleicoes";
-import CandidatoPerfil from "./pages/CandidatoPerfil";
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
 import Mesarios from "./pages/Mesarios";
@@ -19,11 +18,13 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios', '/candidatos'];
+const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios', '/candidatos', '/candidato', '/perfil-candidatos'];
 
 function Layout() {
   const location = useLocation();
-  const hideFilters = HIDE_FILTERS.includes(location.pathname);
+  const hideFilters = HIDE_FILTERS.some(
+    (path) => location.pathname === path || location.pathname.startsWith(`${path}/`)
+  );
 
   return (
     <SidebarProvider>
@@ -46,10 +47,10 @@ function Layout() {
               <Route path="/escolas" element={<EscolasEleitorais />} />
               <Route path="/mesarios" element={<Mesarios />} />
               <Route path="/candidatos" element={<PerfilCandidatos />} />
+              <Route path="/candidatos/:id" element={<PerfilCandidatos />} />
+              <Route path="/candidatos/:id/:ano" element={<PerfilCandidatos />} />
               <Route path="/chat" element={<ChatEleicoes />} />
               <Route path="/relatorios" element={<ChatEleicoes />} />
-              <Route path="/candidato/:id" element={<CandidatoPerfil />} />
-              <Route path="/candidato/:id/:ano" element={<CandidatoPerfil />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}
@@ -63,7 +64,9 @@ function Layout() {
               <Route path="/territorial" element={<ZonasEleitorais />} />
               <Route path="/patrimonio" element={<Ranking />} />
               <Route path="/geografica" element={<ZonasEleitorais />} />
-              <Route path="/perfil-candidatos" element={<Ranking />} />
+              <Route path="/perfil-candidatos" element={<PerfilCandidatos />} />
+              <Route path="/candidato/:id" element={<PerfilCandidatos />} />
+              <Route path="/candidato/:id/:ano" element={<PerfilCandidatos />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>

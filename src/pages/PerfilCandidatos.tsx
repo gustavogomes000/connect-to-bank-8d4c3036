@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { mdQuery, getTableName, getAnosDisponiveis, isEleicaoGeral } from '@/lib/motherduck';
 import { Input } from '@/components/ui/input';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { traduzirSituacao } from '@/lib/eleicoes';
+import CandidatoPerfil from './CandidatoPerfil';
 
 /**
  * Busca candidatos de TODOS os anos (2014-2024) via UNION ALL.
@@ -26,7 +27,7 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
   return useQuery({
     queryKey: ['candidatos-md-todos', municipio, cargo, partido],
     queryFn: async () => {
-      const anos = getAnosDisponiveis('candidatos'); // [2014,2016,2018,2020,2022,2024]
+      const anos = getAnosDisponiveis('candidatos');
       const unions: string[] = [];
 
       for (const ano of anos) {
@@ -34,7 +35,6 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
         const geral = isEleicaoGeral(ano);
         const conds: string[] = [`SG_UF = 'GO'`];
 
-        // Eleições municipais: filtrar por município. Gerais: não filtrar.
         if (!geral) conds.push(`NM_UE = '${municipio}'`);
         conds.push(`NR_TURNO = 1`);
         if (cargo) conds.push(`DS_CARGO = '${cargo}'`);
@@ -80,7 +80,7 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
   });
 }
 
-export default function PerfilCandidatos() {
+function PerfilCandidatosList() {
   const [municipio, setMunicipio] = useState('APARECIDA DE GOIÂNIA');
   const [cargo, setCargo] = useState<string | null>(null);
   const [partido, setPartido] = useState<string | null>(null);
@@ -154,7 +154,6 @@ export default function PerfilCandidatos() {
         </Badge>
       </div>
 
-      {/* Filtros locais */}
       <div className="bg-card text-card-foreground p-3 rounded-xl border shadow-sm flex flex-col md:flex-row gap-3 items-end">
         <div className="space-y-1 flex-1">
           <Label htmlFor="perfil-municipio" className="text-xs">Município</Label>
@@ -256,7 +255,7 @@ function CandidatoCard({ c }: { c: any }) {
   const idade = calcIdade(c.data_nascimento);
 
   return (
-    <Link to={`/candidato/${c.id}/${c.ano_eleicao}`} className="block">
+    <Link to={`/candidatos/${c.id}/${c.ano_eleicao}`} className="block">
       <Card className="border-border/50 hover:border-primary/30 hover:shadow-sm transition-all cursor-pointer group">
         <CardContent className="p-3">
           <div className="flex items-start gap-3">
@@ -307,4 +306,14 @@ function CandidatoCard({ c }: { c: any }) {
       </Card>
     </Link>
   );
+}
+
+export default function PerfilCandidatos() {
+  const { id } = useParams<{ id?: string }>();
+
+  if (id) {
+    return <CandidatoPerfil />;
+  }
+
+  return <PerfilCandidatosList />;
 }

@@ -46,7 +46,7 @@ function useKPIDrillDown(type: DrillDownType) {
       }
 
       let q = (supabase.from(TABELA_CANDIDATOS) as any)
-        .select('id, nome_urna, nome_completo, sigla_partido, cargo, municipio, ano, genero, grau_instrucao, situacao_final, numero_urna, foto_url');
+        .select('id, sequencial_candidato, nome_urna, nome_completo, sigla_partido, cargo, municipio, ano, genero, grau_instrucao, situacao_final, numero_urna, foto_url');
       if (store.ano) q = q.eq('ano', store.ano);
       if (store.turno) q = q.eq('turno', store.turno);
       if (store.cargo) q = q.ilike('cargo', store.cargo);
@@ -265,7 +265,7 @@ export function KPIDrillDownPanel({ type, title, onClose }: DrillDownPanelProps)
                     <td className="py-1.5 text-muted-foreground text-[10px]">{r.grau_instrucao}</td>
                     <td className="py-1.5"><Badge variant="secondary" className="text-[9px]">{r.situacao_final || '-'}</Badge></td>
                     <td className="py-1.5 text-right">{r.ano}</td>
-                    <td className="py-1.5"><Link to={`/candidato/${r.id}`} className="text-primary text-[10px] hover:underline">Ver →</Link></td>
+                    <td className="py-1.5"><Link to={`/candidatos/${r.sequencial_candidato || r.id}${r.ano ? `/${r.ano}` : ''}`} className="text-primary text-[10px] hover:underline">Ver →</Link></td>
                   </tr>
                 ))}
               </tbody>

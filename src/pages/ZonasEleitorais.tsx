@@ -277,7 +277,7 @@ export default function ZonasEleitorais() {
                                             <TableRow key={i} className="border-border/20">
                                               <TableCell className="text-[10px] text-muted-foreground">{i + 1}</TableCell>
                                               <TableCell>
-                                                <Link to={`/candidato/${c.sq_candidato}`} className="text-xs font-medium hover:text-primary transition-colors">
+                                                <Link to={`/candidatos/${c.sq_candidato}/${ano}`} className="text-xs font-medium hover:text-primary transition-colors">
                                                   {c.candidato}
                                                 </Link>
                                               </TableCell>
@@ -349,7 +349,7 @@ export default function ZonasEleitorais() {
                       <TableRow key={i} className="border-border/20 hover:bg-muted/30">
                         <TableCell className="text-xs text-muted-foreground font-mono">{i + 1}</TableCell>
                         <TableCell>
-                          <Link to={`/candidato/${c.sq_candidato}`}
+                          <Link to={`/candidatos/${c.sq_candidato}/${ano}`}
                             className="text-xs font-medium hover:text-primary transition-colors">
                             {c.candidato}
                           </Link>

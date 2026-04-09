@@ -101,7 +101,7 @@ export default function Ranking() {
                   <TableRow
                     key={item.SQ_CANDIDATO ?? idx}
                     className="border-b border-border/20 hover:bg-primary/5 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/candidato/${item.SQ_CANDIDATO}`)}
+                    onClick={() => navigate(`/candidatos/${item.SQ_CANDIDATO}/${ano}`)}
                   >
                     <TableCell className="px-2 py-1.5 text-muted-foreground font-mono text-xs">{idx + 1}</TableCell>
                     <TableCell className="px-2 py-1.5">
