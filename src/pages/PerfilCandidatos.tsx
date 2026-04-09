@@ -147,21 +147,58 @@ export default function PerfilCandidatos() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg font-bold text-foreground">Painel de Candidatos</h1>
-          <p className="text-xs text-muted-foreground">{municipio} — Todos os anos (2014–2024) • Fonte: TSE / MotherDuck</p>
+          <p className="text-xs text-muted-foreground">{municipio} — 2014 a 2024 • Fonte: TSE / MotherDuck</p>
         </div>
         <Badge variant="secondary" className="text-[10px]">
           {filtered.length} candidatos
         </Badge>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-        <Input
-          placeholder="Buscar por nome, partido, cargo ou número..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="pl-9 h-9 text-sm"
-        />
+      {/* Filtros locais */}
+      <div className="bg-card text-card-foreground p-3 rounded-xl border shadow-sm flex flex-col md:flex-row gap-3 items-end">
+        <div className="space-y-1 flex-1">
+          <Label htmlFor="perfil-municipio" className="text-xs">Município</Label>
+          <Select value={municipio} onValueChange={setMunicipio}>
+            <SelectTrigger id="perfil-municipio" className="h-9 text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="APARECIDA DE GOIÂNIA">Aparecida de Goiânia</SelectItem>
+              <SelectItem value="GOIÂNIA">Goiânia</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 flex-1">
+          <Label htmlFor="perfil-cargo" className="text-xs">Cargo</Label>
+          <Select value={cargo || 'todos'} onValueChange={(v) => setCargo(v === 'todos' ? null : v)}>
+            <SelectTrigger id="perfil-cargo" className="h-9 text-sm">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todos</SelectItem>
+              <SelectItem value="PREFEITO">Prefeito</SelectItem>
+              <SelectItem value="VICE-PREFEITO">Vice-Prefeito</SelectItem>
+              <SelectItem value="VEREADOR">Vereador</SelectItem>
+              <SelectItem value="GOVERNADOR">Governador</SelectItem>
+              <SelectItem value="DEPUTADO FEDERAL">Dep. Federal</SelectItem>
+              <SelectItem value="DEPUTADO ESTADUAL">Dep. Estadual</SelectItem>
+              <SelectItem value="SENADOR">Senador</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1 flex-[2]">
+          <Label htmlFor="perfil-busca" className="text-xs">Buscar candidato</Label>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              id="perfil-busca"
+              placeholder="Nome, partido ou número..."
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              className="pl-9 h-9 text-sm"
+            />
+          </div>
+        </div>
       </div>
 
       {porCargo.length === 0 ? (
