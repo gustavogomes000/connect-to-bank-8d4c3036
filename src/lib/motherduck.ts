@@ -458,56 +458,78 @@ export function sqlVotosHistoricoPorZona(ano: number, sqCandidato: string): stri
   `.trim();
 }
 
-/** Votos por local de votação de uma zona específica em uma eleição (por NR_CANDIDATO + zona) */
+/** Votos por local de votação de uma zona específica em uma eleição.
+ *  Usa boletim_urna (tem nr_votavel + qt_votos por seção) e enriquece com metadados de local.
+ */
 export function sqlVotosHistoricoPorLocal(
   ano: number,
   nrCandidato: number | string,
   zona: number,
   municipio: string,
-  sqCandidato?: number | string | null,
+  _sqCandidato?: number | string | null,
 ): string {
   const municipioSafe = municipio.replace(/'/g, "''");
-  const sqCandidatoSafe = sqCandidato ? String(sqCandidato).replace(/'/g, "''") : null;
   const metadataSubquery = buildSecaoMetadataSubquery(ano, municipio);
-  const vs = getTableName('votacao_secao', ano);
-  const filtroCandidato = sqCandidatoSafe
-    ? `CAST(v.SQ_CANDIDATO AS VARCHAR) = '${sqCandidatoSafe}'`
-    : `v.NR_VOTAVEL = ${nrCandidato}`;
 
-  if (metadataSubquery) {
+  // boletim_urna has nr_votavel + qt_votos per section (candidate-level)
+  if (getAnosDisponiveis('boletim_urna').includes(ano)) {
+    const bu = getTableName('boletim_urna', ano);
+
+    if (metadataSubquery) {
+      return `
+        SELECT
+          COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
+          COALESCE(meta.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS local_votacao,
+          b.nr_zona AS zona,
+          SUM(b.qt_votos) AS total_votos,
+          COUNT(DISTINCT b.nr_secao) AS secoes
+        FROM ${bu} b
+        LEFT JOIN (${metadataSubquery}) meta
+          ON b.nr_zona = meta.NR_ZONA AND b.nr_secao = meta.NR_SECAO
+        WHERE b.nm_municipio = '${municipioSafe}'
+          AND b.nr_votavel = ${nrCandidato}
+          AND b.ds_tipo_votavel = 'Nominal'
+          AND b.nr_zona = ${zona}
+        GROUP BY
+          COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO'),
+          COALESCE(meta.NM_LOCAL_VOTACAO, 'NÃO INFORMADO'),
+          b.nr_zona
+        ORDER BY total_votos DESC
+      `.trim();
+    }
+
     return `
       SELECT
-        COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
-        COALESCE(meta.NM_LOCAL_VOTACAO, v.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS local_votacao,
-        v.NR_ZONA AS zona,
-        SUM(v.QT_VOTOS) AS total_votos,
-        COUNT(DISTINCT v.NR_SECAO) AS secoes
-      FROM ${vs} v
-      LEFT JOIN (${metadataSubquery}) meta
-        ON v.NR_ZONA = meta.NR_ZONA AND v.NR_SECAO = meta.NR_SECAO
-      WHERE v.NM_MUNICIPIO = '${municipioSafe}'
-        AND ${filtroCandidato}
-        AND v.NR_ZONA = ${zona}
-      GROUP BY
-        COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO'),
-        COALESCE(meta.NM_LOCAL_VOTACAO, v.NM_LOCAL_VOTACAO, 'NÃO INFORMADO'),
-        v.NR_ZONA
+        'NÃO INFORMADO' AS bairro,
+        'NÃO INFORMADO' AS local_votacao,
+        b.nr_zona AS zona,
+        SUM(b.qt_votos) AS total_votos,
+        COUNT(DISTINCT b.nr_secao) AS secoes
+      FROM ${bu} b
+      WHERE b.nm_municipio = '${municipioSafe}'
+        AND b.nr_votavel = ${nrCandidato}
+        AND b.ds_tipo_votavel = 'Nominal'
+        AND b.nr_zona = ${zona}
+      GROUP BY b.nr_zona
       ORDER BY total_votos DESC
     `.trim();
   }
 
+  // Fallback: no boletim_urna for this year (e.g. 2016)
+  // Use votacao_candidato_munzona which only has zone-level aggregation
+  const vot = getTableName('votacao', ano);
   return `
     SELECT
       'NÃO INFORMADO' AS bairro,
-      COALESCE(v.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS local_votacao,
+      'Dados por seção não disponíveis' AS local_votacao,
       v.NR_ZONA AS zona,
-      SUM(v.QT_VOTOS) AS total_votos,
-      COUNT(DISTINCT v.NR_SECAO) AS secoes
-    FROM ${vs} v
+      SUM(v.QT_VOTOS_NOMINAIS) AS total_votos,
+      0 AS secoes
+    FROM ${vot} v
     WHERE v.NM_MUNICIPIO = '${municipioSafe}'
-      AND ${filtroCandidato}
       AND v.NR_ZONA = ${zona}
-    GROUP BY COALESCE(v.NM_LOCAL_VOTACAO, 'NÃO INFORMADO'), v.NR_ZONA
+      AND v.NR_CANDIDATO = ${nrCandidato}
+    GROUP BY v.NR_ZONA
     ORDER BY total_votos DESC
   `.trim();
 }
