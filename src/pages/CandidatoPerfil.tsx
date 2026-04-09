@@ -846,15 +846,19 @@ export default function CandidatoPerfil() {
     },
   });
 
-  // ── Histórico eleitoral (busca por nome completo, sem filtro) ──
+  // ── Histórico eleitoral (prioriza CPF; cai para nome quando necessário) ──
   const candidato = candidatoQ.data;
   const nomeCompletoHist = candidato?.nome_completo || candidato?.NM_CANDIDATO || '';
+  const cpfHist = candidato?.cpf || candidato?.NR_CPF_CANDIDATO || '';
 
   const historicoQ = useQuery({
-    queryKey: ['md', 'historico_votos', nomeCompletoHist],
-    enabled: !!nomeCompletoHist && String(nomeCompletoHist).length >= 3,
+    queryKey: ['md', 'historico_votos', cpfHist, nomeCompletoHist],
+    enabled: !!cpfHist || (!!nomeCompletoHist && String(nomeCompletoHist).length >= 3),
     staleTime: 10 * 60 * 1000,
-    queryFn: async () => mdQuery(sqlHistoricoComVotos(String(nomeCompletoHist))),
+    queryFn: async () => mdQuery(sqlHistoricoComVotos({
+      cpf: cpfHist ? String(cpfHist) : undefined,
+      nomeCompleto: nomeCompletoHist ? String(nomeCompletoHist) : undefined,
+    })),
   });
 
   const isLoading = candidatoQ.isLoading;
