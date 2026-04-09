@@ -67,7 +67,7 @@ const PAGE_SIZE = 30;
 
 export default function Dashboard() {
   const { ano, municipio } = useFilterStore();
-  const { data: painel, isLoading: loadingPainel } = usePainelGeral(500);
+  const { data: painel, isLoading: loadingPainel } = usePainelGeral(200);
   const { data: kpis, isLoading: loadingKpis } = useKPIs();
   const { data: comparecimento } = useComparecimento();
   const { data: votosRegional, isLoading: loadingRegional } = useVotosRegional();
