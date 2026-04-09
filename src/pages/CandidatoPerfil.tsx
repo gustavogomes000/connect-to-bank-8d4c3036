@@ -326,7 +326,13 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     }
   }, [expandedYear, zonasData]);
 
-  const handleExpandZona = useCallback(async (ano: number, zonaNum: number, nrCandidato: string | number | null | undefined, municipio: string) => {
+  const handleExpandZona = useCallback(async (
+    ano: number,
+    zonaNum: number,
+    nrCandidato: string | number | null | undefined,
+    sqCandidato: string | number | null | undefined,
+    municipio: string,
+  ) => {
     const key = `${ano}-${zonaNum}`;
     if (expandedZona === key) {
       setExpandedZona(null);
@@ -340,12 +346,20 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
     }
     setLoadingLocais(key);
     try {
-      const sql = sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio);
-      if (!sql) {
-        setLocaisData(prev => ({ ...prev, [key]: [] }));
-        return;
+      let rows: AnyRow[] = [];
+
+      if (sqCandidato) {
+        try {
+          rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio, sqCandidato));
+        } catch {
+          rows = [];
+        }
       }
-      const rows = await mdQuery(sql);
+
+      if (!rows.length) {
+        rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio));
+      }
+
       setLocaisData(prev => ({ ...prev, [key]: rows || [] }));
     } catch (e) {
       console.warn('Erro ao buscar locais da zona:', e);
@@ -487,7 +501,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                                 <React.Fragment key={i}>
                                   <TableRow
                                     className="border-border/20 cursor-pointer hover:bg-muted/40 transition-colors"
-                                    onClick={() => handleExpandZona(ano, Number(z.zona), data?.numero, z.municipio)}
+                                    onClick={() => handleExpandZona(ano, Number(z.zona), data?.numero, data?.sq_candidato, z.municipio)}
                                   >
                                     <TableCell className="px-1">
                                       {isZonaExpanded ? <ChevronUp className="w-3 h-3 text-muted-foreground" /> : <ChevronDown className="w-3 h-3 text-muted-foreground" />}
