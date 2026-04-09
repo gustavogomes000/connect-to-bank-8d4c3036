@@ -335,7 +335,7 @@ function buildSecaoMetadataSubquery(ano: number, municipio: string): string | nu
       SELECT
         NR_ZONA,
         NR_SECAO,
-        MAX(COALESCE(NM_BAIRRO, 'NÃO INFORMADO')) AS NM_BAIRRO,
+        'NÃO INFORMADO' AS NM_BAIRRO,
         MAX(COALESCE(NM_LOCAL_VOTACAO, 'NÃO INFORMADO')) AS NM_LOCAL_VOTACAO
       FROM ${detalheSecao}
       WHERE NM_MUNICIPIO = '${municipioSafe}'
