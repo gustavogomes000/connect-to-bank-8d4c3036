@@ -532,8 +532,8 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                                                 return (
                                                   <div key={li} className="flex items-center gap-2 text-[11px] py-0.5">
                                                     <span className="text-slate-400 font-mono w-5 text-right shrink-0">{li + 1}</span>
-                                                    <span className="text-slate-500 w-24 shrink-0 truncate" title={l.bairro}>{l.bairro}</span>
-                                                    <span className="text-slate-900 flex-1 truncate" title={l.local_votacao}>{l.local_votacao}</span>
+                                                    <span className="text-slate-500 w-24 shrink-0 truncate" title={String(l.bairro || '')}>{String(l.bairro || 'N/I')}</span>
+                                                    <span className="text-slate-900 flex-1 truncate" title={String(l.local_votacao || '')}>{String(l.local_votacao || 'N/I')}</span>
                                                     <span className="font-mono font-bold text-slate-900 shrink-0">{lv.toLocaleString('pt-BR')}</span>
                                                     <span className="font-mono text-slate-400 shrink-0 w-12 text-right">{lpct.toFixed(1)}%</span>
                                                     <div className="h-1 w-16 bg-slate-100 rounded-full overflow-hidden shrink-0">
