@@ -338,15 +338,23 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
       setLocaisData(prev => ({ ...prev, [key]: [] }));
       return;
     }
-    const hasBU = getAnosDisponiveis('boletim_urna').includes(ano);
+    // Check if boletim_urna exists for this year AND table can be resolved
+    let hasBU = false;
+    try {
+      hasBU = getAnosDisponiveis('boletim_urna').includes(ano);
+      if (hasBU) getTableName('boletim_urna', ano); // validate table name
+    } catch {
+      hasBU = false;
+    }
     if (!hasBU) {
       setLocaisData(prev => ({ ...prev, [key]: [] }));
       return;
     }
     setLoadingLocais(key);
     try {
-      const rows = await mdQuery(sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio));
-      setLocaisData(prev => ({ ...prev, [key]: rows }));
+      const sql = sqlVotosHistoricoPorLocal(ano, nrCandidato, zonaNum, municipio);
+      const rows = await mdQuery(sql);
+      setLocaisData(prev => ({ ...prev, [key]: rows || [] }));
     } catch (e) {
       console.warn('Erro ao buscar locais da zona:', e);
       setLocaisData(prev => ({ ...prev, [key]: [] }));
