@@ -103,6 +103,7 @@ function VoteCompositionSection({
     if (!busca) return composicaoRows;
     const q = busca.toLowerCase();
     return composicaoRows.filter(r =>
+      String(r.municipio || '').toLowerCase().includes(q) ||
       String(r.bairro || '').toLowerCase().includes(q) ||
       String(r.escola || '').toLowerCase().includes(q) ||
       String(r.zona || '').includes(q)
@@ -117,6 +118,17 @@ function VoteCompositionSection({
     }
     return [...map.entries()]
       .map(([bairro, votos]) => ({ bairro, votos }))
+      .sort((a, b) => b.votos - a.votos);
+  }, [filtered]);
+
+  const porMunicipio = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of filtered) {
+      const m = String(r.municipio || 'NÃO INFORMADO');
+      map.set(m, (map.get(m) || 0) + Number(r.total_votos || 0));
+    }
+    return [...map.entries()]
+      .map(([municipio, votos]) => ({ municipio, votos }))
       .sort((a, b) => b.votos - a.votos);
   }, [filtered]);
 
@@ -171,12 +183,24 @@ function VoteCompositionSection({
       ) : (
         <div className="space-y-4">
           {/* KPIs */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
             <KpiCard label="Total de Votos" value={totalFiltered.toLocaleString('pt-BR')} />
+            <KpiCard label="Municípios" value={String(porMunicipio.length)} />
             <KpiCard label="Zonas Eleitorais" value={String(porZona.length)} />
             <KpiCard label="Bairros" value={String(porBairro.length)} />
             <KpiCard label="Locais de Votação" value={String(filtered.length)} />
           </div>
+
+          {porMunicipio.length > 0 && (
+            <VoteTable
+              title="Votos por Município"
+              columns={['Município', 'Votos', '%']}
+              rows={porMunicipio.map((r) => {
+                const pct = totalFiltered > 0 ? (r.votos / totalFiltered) * 100 : 0;
+                return [r.municipio, r.votos.toLocaleString('pt-BR'), `${pct.toFixed(1)}%`, pct];
+              })}
+            />
+          )}
 
           {/* Bairros */}
           {porBairro.length > 0 && (
@@ -206,14 +230,14 @@ function VoteCompositionSection({
           {filtered.length > 0 && (
             <VoteTable
               title="Votos por Local de Votação"
-              columns={['Zona', 'Bairro', 'Escola', 'Votos', '%']}
+              columns={['Município', 'Zona', 'Bairro', 'Escola', 'Votos', '%']}
               rows={[...filtered]
                 .sort((a, b) => Number(b.total_votos || 0) - Number(a.total_votos || 0))
                 .slice(0, 50)
                 .map(r => {
                   const v = Number(r.total_votos || 0);
                   const pct = totalFiltered > 0 ? (v / totalFiltered) * 100 : 0;
-                  return [r.zona, r.bairro, r.escola, v.toLocaleString('pt-BR'), `${pct.toFixed(1)}%`, pct];
+                  return [r.municipio, r.zona, r.bairro, r.escola, v.toLocaleString('pt-BR'), `${pct.toFixed(1)}%`, pct];
                 })}
             />
           )}
@@ -828,16 +852,17 @@ export default function CandidatoPerfil() {
 
   // ── Composição de votos ──
   const nrCandidato = candidatoQ.data?.numero || candidatoQ.data?.NR_CANDIDATO || null;
-  const mun = municipio || candidatoQ.data?.municipio || 'GOIÂNIA';
+  const cargoAtual = candidatoQ.data?.cargo || candidatoQ.data?.DS_CARGO || null;
+  const mun = municipio || candidatoQ.data?.municipio || candidatoQ.data?.NM_UE || null;
 
   const composicaoQ = useQuery({
-    queryKey: ['md', 'composicao', ano, nrCandidato, mun],
-    enabled: !!nrCandidato && !!candidatoQ.data && canUseDataset('boletim_urna', ano),
+    queryKey: ['md', 'composicao', ano, nrCandidato, cargoAtual, mun],
+    enabled: !!nrCandidato && !!candidatoQ.data && (canUseDataset('boletim_urna', ano) || canUseDataset('votacao_secao', ano) || canUseDataset('votacao', ano)),
     staleTime: 5 * 60 * 1000,
     retry: false,
     queryFn: async () => {
       try {
-        const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun));
+        const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun ? String(mun) : undefined, cargoAtual ? String(cargoAtual) : undefined));
         return (rows || []) as AnyRow[];
       } catch (e) {
         console.warn('Erro ao buscar composição de votos:', e);

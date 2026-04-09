@@ -270,7 +270,7 @@ export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: Fi
   const vot = getTableName('votacao', ano);
 
   const conds: string[] = [`v.SQ_CANDIDATO = '${sqCandidato}'`];
-  if (filtros?.municipio) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
+  if (filtros?.municipio && !isEleicaoGeral(ano)) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
   if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
   const where = `WHERE ${conds.join(' AND ')}`;
 
@@ -289,12 +289,9 @@ export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: Fi
 /** Votação detalhada por zona do candidato — uses votacao_candidato_munzona (has SQ_CANDIDATO) */
 export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string, filtros?: FiltrosPainel): string {
   const vot = getTableName('votacao', ano);
-  const municipio = filtros?.municipio || 'GOIÂNIA';
 
-  const conds: string[] = [
-    `v.SQ_CANDIDATO = '${sqCandidato}'`,
-    `v.NM_MUNICIPIO = '${municipio}'`,
-  ];
+  const conds: string[] = [`v.SQ_CANDIDATO = '${sqCandidato}'`];
+  if (filtros?.municipio && !isEleicaoGeral(ano)) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
   if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
   const where = `WHERE ${conds.join(' AND ')}`;
 
@@ -311,21 +308,23 @@ export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string,
   `.trim();
 }
 
-function buildSecaoMetadataSubquery(ano: number, municipio: string): string | null {
-  const municipioSafe = municipio.replace(/'/g, "''");
+function buildSecaoMetadataSubquery(ano: number, municipio?: string | null): string | null {
+  const municipioSafe = municipio?.replace(/'/g, "''");
+  const municipioFilter = municipioSafe ? `AND NM_MUNICIPIO = '${municipioSafe}'` : '';
 
   if (getAnosDisponiveis('eleitorado_local').includes(ano)) {
     const loc = getTableName('eleitorado_local', ano);
     return `
       SELECT
+        NM_MUNICIPIO,
         NR_ZONA,
         NR_SECAO,
         MAX(COALESCE(NM_BAIRRO, 'NÃO INFORMADO')) AS NM_BAIRRO,
         MAX(COALESCE(NM_LOCAL_VOTACAO, 'NÃO INFORMADO')) AS NM_LOCAL_VOTACAO
       FROM ${loc}
       WHERE SG_UF = 'GO'
-        AND NM_MUNICIPIO = '${municipioSafe}'
-      GROUP BY NR_ZONA, NR_SECAO
+        ${municipioFilter}
+      GROUP BY NM_MUNICIPIO, NR_ZONA, NR_SECAO
     `.trim();
   }
 
@@ -333,13 +332,15 @@ function buildSecaoMetadataSubquery(ano: number, municipio: string): string | nu
     const detalheSecao = getTableName('detalhe_secao', ano);
     return `
       SELECT
+        NM_MUNICIPIO,
         NR_ZONA,
         NR_SECAO,
         'NÃO INFORMADO' AS NM_BAIRRO,
         MAX(COALESCE(NM_LOCAL_VOTACAO, 'NÃO INFORMADO')) AS NM_LOCAL_VOTACAO
       FROM ${detalheSecao}
-      WHERE NM_MUNICIPIO = '${municipioSafe}'
-      GROUP BY NR_ZONA, NR_SECAO
+      WHERE 1=1
+        ${municipioFilter}
+      GROUP BY NM_MUNICIPIO, NR_ZONA, NR_SECAO
     `.trim();
   }
 
@@ -403,6 +404,18 @@ function buildBoletimMunicipioCondition(alias: string, ano: number, municipio?: 
   return `AND ${alias}.nm_municipio = '${municipioSafe}'`;
 }
 
+function buildMunicipioCondition(alias: string, ano: number, municipio?: string | null): string {
+  if (!municipio || isEleicaoGeral(ano)) return '';
+  const municipioSafe = municipio.replace(/'/g, "''");
+  return `AND ${alias}.NM_MUNICIPIO = '${municipioSafe}'`;
+}
+
+function buildCargoCondition(alias: string, cargo?: string | null): string {
+  if (!cargo) return '';
+  const cargoSafe = cargo.replace(/'/g, "''");
+  return `AND UPPER(COALESCE(${alias}.DS_CARGO, '')) = UPPER('${cargoSafe}')`;
+}
+
 interface HistoricoIdentificador {
   cpf?: string;
   nomeCompleto?: string;
@@ -449,15 +462,16 @@ function buildHistoricoBoletimVotesSubquery(ano: number, identificador: Historic
 export function sqlComposicaoVotosCandidato(
   ano: number,
   nrCandidato: number | string,
-  municipio: string,
+  municipio?: string | null,
+  cargo?: string | null,
 ): string {
-  const municipioSafe = municipio.replace(/'/g, "''");
   const metadataSubquery = buildSecaoMetadataSubquery(ano, municipio);
   const boletimSubquery = buildBoletimNormalizadoSubquery(ano);
 
   if (boletimSubquery && metadataSubquery) {
     return `
       SELECT
+        COALESCE(meta.NM_MUNICIPIO, b.nm_municipio) AS municipio,
         COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
         COALESCE(meta.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
         b.nr_zona AS zona,
@@ -465,11 +479,12 @@ export function sqlComposicaoVotosCandidato(
         COUNT(DISTINCT b.nr_secao) AS secoes
       FROM (${boletimSubquery}) b
       LEFT JOIN (${metadataSubquery}) meta
-        ON b.nr_zona = meta.NR_ZONA AND b.nr_secao = meta.NR_SECAO
-      WHERE b.nm_municipio = '${municipioSafe}'
-        AND b.nr_votavel = ${nrCandidato}
+        ON b.nm_municipio = meta.NM_MUNICIPIO AND b.nr_zona = meta.NR_ZONA AND b.nr_secao = meta.NR_SECAO
+      WHERE b.nr_votavel = ${nrCandidato}
         AND b.ds_tipo_votavel = 'Nominal'
-      GROUP BY meta.NM_BAIRRO, meta.NM_LOCAL_VOTACAO, b.nr_zona
+        ${buildBoletimCargoCondition('b', cargo)}
+        ${buildBoletimMunicipioCondition('b', ano, municipio)}
+      GROUP BY meta.NM_MUNICIPIO, meta.NM_BAIRRO, meta.NM_LOCAL_VOTACAO, b.nm_municipio, b.nr_zona
       ORDER BY total_votos DESC
     `.trim();
   }
@@ -477,16 +492,18 @@ export function sqlComposicaoVotosCandidato(
   if (boletimSubquery) {
     return `
       SELECT
+        b.nm_municipio AS municipio,
         'NÃO INFORMADO' AS bairro,
         'NÃO INFORMADO' AS escola,
         b.nr_zona AS zona,
         SUM(b.qt_votos) AS total_votos,
         COUNT(DISTINCT b.nr_secao) AS secoes
       FROM (${boletimSubquery}) b
-      WHERE b.nm_municipio = '${municipioSafe}'
-        AND b.nr_votavel = ${nrCandidato}
+      WHERE b.nr_votavel = ${nrCandidato}
         AND b.ds_tipo_votavel = 'Nominal'
-      GROUP BY b.nr_zona
+        ${buildBoletimCargoCondition('b', cargo)}
+        ${buildBoletimMunicipioCondition('b', ano, municipio)}
+      GROUP BY b.nm_municipio, b.nr_zona
       ORDER BY total_votos DESC
     `.trim();
   }
@@ -498,6 +515,7 @@ export function sqlComposicaoVotosCandidato(
     if (metadataSubquery) {
       return `
         SELECT
+          COALESCE(meta.NM_MUNICIPIO, vs.NM_MUNICIPIO) AS municipio,
           COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
           COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
           vs.NR_ZONA AS zona,
@@ -505,24 +523,27 @@ export function sqlComposicaoVotosCandidato(
           COUNT(DISTINCT vs.NR_SECAO) AS secoes
         FROM ${vs} vs
         LEFT JOIN (${metadataSubquery}) meta
-          ON vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
-        WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
-          AND vs.NR_VOTAVEL = ${nrCandidato}
-        GROUP BY meta.NM_BAIRRO, vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
+          ON vs.NM_MUNICIPIO = meta.NM_MUNICIPIO AND vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
+        WHERE vs.NR_VOTAVEL = ${nrCandidato}
+          ${buildCargoCondition('vs', cargo)}
+          ${buildMunicipioCondition('vs', ano, municipio)}
+        GROUP BY meta.NM_MUNICIPIO, meta.NM_BAIRRO, vs.NM_LOCAL_VOTACAO, vs.NM_MUNICIPIO, vs.NR_ZONA
         ORDER BY total_votos DESC
       `.trim();
     }
     return `
       SELECT
+        vs.NM_MUNICIPIO AS municipio,
         'NÃO INFORMADO' AS bairro,
         COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
         vs.NR_ZONA AS zona,
         SUM(vs.QT_VOTOS) AS total_votos,
         COUNT(DISTINCT vs.NR_SECAO) AS secoes
       FROM ${vs} vs
-      WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
-        AND vs.NR_VOTAVEL = ${nrCandidato}
-      GROUP BY vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
+      WHERE vs.NR_VOTAVEL = ${nrCandidato}
+        ${buildCargoCondition('vs', cargo)}
+        ${buildMunicipioCondition('vs', ano, municipio)}
+      GROUP BY vs.NM_MUNICIPIO, vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
       ORDER BY total_votos DESC
     `.trim();
   }
@@ -531,15 +552,17 @@ export function sqlComposicaoVotosCandidato(
   const vot = getTableName('votacao', ano);
   return `
     SELECT
+      v.NM_MUNICIPIO AS municipio,
       'NÃO INFORMADO' AS bairro,
       'Dados por seção não disponíveis' AS escola,
       v.NR_ZONA AS zona,
       SUM(v.QT_VOTOS_NOMINAIS) AS total_votos,
       0 AS secoes
     FROM ${vot} v
-    WHERE v.NM_MUNICIPIO = '${municipioSafe}'
-      AND v.NR_CANDIDATO = ${nrCandidato}
-    GROUP BY v.NR_ZONA
+    WHERE v.NR_CANDIDATO = ${nrCandidato}
+      ${buildCargoCondition('v', cargo)}
+      ${buildMunicipioCondition('v', ano, municipio)}
+    GROUP BY v.NM_MUNICIPIO, v.NR_ZONA
     ORDER BY total_votos DESC
   `.trim();
 }
@@ -674,7 +697,7 @@ export function sqlVotosHistoricoPorLocal(
           COUNT(DISTINCT b.nr_secao) AS secoes
         FROM (${boletimSubquery}) b
         LEFT JOIN (${metadataSubquery}) meta
-          ON b.nr_zona = meta.NR_ZONA AND b.nr_secao = meta.NR_SECAO
+          ON b.nm_municipio = meta.NM_MUNICIPIO AND b.nr_zona = meta.NR_ZONA AND b.nr_secao = meta.NR_SECAO
         WHERE b.nm_municipio = '${municipioSafe}'
           AND b.nr_votavel = ${nrCandidato}
           AND b.ds_tipo_votavel = 'Nominal'
@@ -720,7 +743,7 @@ export function sqlVotosHistoricoPorLocal(
           COUNT(DISTINCT vs.NR_SECAO) AS secoes
         FROM ${vs} vs
         LEFT JOIN (${metadataSubquery}) meta
-          ON vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
+          ON vs.NM_MUNICIPIO = meta.NM_MUNICIPIO AND vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
         WHERE vs.NM_MUNICIPIO = '${municipioSafe}'
           AND vs.NR_VOTAVEL = ${nrCandidato}
           AND vs.NR_ZONA = ${zona}
