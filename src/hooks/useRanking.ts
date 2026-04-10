@@ -12,7 +12,10 @@ export interface RankingItem {
   DS_SIT_TOT_TURNO: string;
   DS_GENERO: string;
   total_votos: number;
+  votos_turno1: number;
+  votos_turno2: number;
   patrimonio_total: number;
+  tem_segundo_turno: boolean;
 }
 
 export const useRankingMD = () => {
