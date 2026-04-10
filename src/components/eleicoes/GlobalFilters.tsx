@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { useFilterStore } from '@/stores/filterStore';
 import { useMunicipios, usePartidos, useCargos, useZonas, useBairros, useEscolas } from '@/hooks/useEleicoes';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { X, Filter, Search, MapPin, School, Hash } from 'lucide-react';
+import { X, Filter, Search, MapPin, School, Hash, Check, ChevronsUpDown } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const ANOS = [2024, 2022, 2020, 2018, 2016, 2014];
 
