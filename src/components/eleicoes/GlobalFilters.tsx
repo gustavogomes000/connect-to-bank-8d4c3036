@@ -30,9 +30,9 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
 
   return (
     <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/50">
-      <div className="px-4 py-2">
-        <div className="flex flex-wrap gap-2 items-center max-w-[1800px] mx-auto">
-          <div className="flex items-center gap-1.5 mr-1">
+      <div className="px-2 sm:px-4 py-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center max-w-[1800px] mx-auto">
+          <div className="flex items-center gap-1.5 mr-1 shrink-0">
             <Filter className="w-3.5 h-3.5 text-primary" />
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Filtros</span>
             {activeCount > 0 && (
@@ -43,12 +43,12 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
           </div>
 
           {show('busca') && (
-            <div className="relative flex-1 max-w-[180px]">
+            <div className="relative flex-1 min-w-[120px] max-w-[180px]">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground" />
               <Input
                 value={store.searchText}
                 onChange={e => store.setSearchText(e.target.value)}
-                placeholder="Buscar candidato..."
+                placeholder="Buscar..."
                 className="pl-7 h-7 text-xs bg-muted/50 border-border/50"
               />
             </div>
@@ -56,7 +56,7 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
 
           {show('ano') && (
             <Select value={store.ano.toString()} onValueChange={v => store.setAno(parseInt(v))}>
-              <SelectTrigger className="w-[85px] h-7 text-xs bg-muted/50 border-border/50">
+              <SelectTrigger className="w-[70px] sm:w-[85px] h-7 text-xs bg-muted/50 border-border/50">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -67,7 +67,7 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
 
           {show('municipio') && (
             <Select value={store.municipio} onValueChange={v => store.setMunicipio(v)}>
-              <SelectTrigger className="w-[140px] h-7 text-xs bg-muted/50 border-border/50">
+              <SelectTrigger className="w-[110px] sm:w-[140px] h-7 text-xs bg-muted/50 border-border/50 truncate">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -78,8 +78,8 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
 
           {show('cargo') && (
             <Select value={store.cargo || '_all'} onValueChange={v => store.setCargo(v === '_all' ? null : v)}>
-              <SelectTrigger className="w-[130px] h-7 text-xs bg-muted/50 border-border/50">
-                <SelectValue placeholder="Todos cargos" />
+              <SelectTrigger className="w-[100px] sm:w-[130px] h-7 text-xs bg-muted/50 border-border/50">
+                <SelectValue placeholder="Cargos" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="_all">Todos cargos</SelectItem>
