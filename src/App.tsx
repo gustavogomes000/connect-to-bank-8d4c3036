@@ -30,11 +30,19 @@ const queryClient = new QueryClient({
 
 const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios', '/candidatos', '/candidato', '/perfil-candidatos'];
 
+const ROUTE_FILTERS: Record<string, FilterField[]> = {
+  '/zonas': ['ano', 'municipio', 'cargo', 'turno'],
+};
+
 function Layout() {
   const location = useLocation();
   const hideFilters = HIDE_FILTERS.some(
     (path) => location.pathname === path || location.pathname.startsWith(`${path}/`)
   );
+  const routeFilters = Object.entries(ROUTE_FILTERS).find(
+    ([path]) => location.pathname === path || location.pathname.startsWith(`${path}/`)
+  );
+  const visibleFilters = routeFilters ? routeFilters[1] : undefined;
 
   return (
     <SidebarProvider>
