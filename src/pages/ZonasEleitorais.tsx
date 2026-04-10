@@ -207,8 +207,8 @@ export default function ZonasEleitorais() {
     [selecionados]
   );
 
-  const { data: dadosZona, isLoading: loadingZona } = useComparativoZona(municipio, comparativoItems);
-  const { data: dadosEscola, isLoading: loadingEscola } = useComparativoEscola(municipio, comparativoItems);
+  const { data: dadosZona, isLoading: loadingZona, error: erroZona } = useComparativoZona(municipio, comparativoItems);
+  const { data: dadosEscola, isLoading: loadingEscola, error: erroEscola } = useComparativoEscola(municipio, comparativoItems);
 
   const toggleAno = useCallback((ano: number) => {
     setAnosAtivos(prev => prev.includes(ano) ? prev.filter(a => a !== ano) : [...prev, ano]);
