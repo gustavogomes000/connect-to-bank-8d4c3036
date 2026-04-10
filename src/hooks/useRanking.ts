@@ -12,7 +12,10 @@ export interface RankingItem {
   DS_SIT_TOT_TURNO: string;
   DS_GENERO: string;
   total_votos: number;
+  votos_turno1: number;
+  votos_turno2: number;
   patrimonio_total: number;
+  tem_segundo_turno: boolean;
 }
 
 export const useRankingMD = () => {
@@ -84,6 +87,8 @@ export const useRankingMD = () => {
           c.DS_SIT_TOT_TURNO,
           c.DS_GENERO,
           COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos,
+          COALESCE(SUM(CASE WHEN v.NR_TURNO = 1 THEN v.QT_VOTOS_NOMINAIS ELSE 0 END), 0) AS votos_turno1,
+          COALESCE(SUM(CASE WHEN v.NR_TURNO = 2 THEN v.QT_VOTOS_NOMINAIS ELSE 0 END), 0) AS votos_turno2,
           COALESCE(${hasBens ? 'b.patrimonio_total' : '0'}, 0) AS patrimonio_total
         FROM (
           SELECT *, ROW_NUMBER() OVER (PARTITION BY SQ_CANDIDATO ORDER BY NR_TURNO DESC) AS rn
@@ -110,7 +115,10 @@ export const useRankingMD = () => {
         DS_SIT_TOT_TURNO: r.DS_SIT_TOT_TURNO,
         DS_GENERO: r.DS_GENERO,
         total_votos: Number(r.total_votos || 0),
+        votos_turno1: Number(r.votos_turno1 || 0),
+        votos_turno2: Number(r.votos_turno2 || 0),
         patrimonio_total: Number(r.patrimonio_total || 0),
+        tem_segundo_turno: Number(r.votos_turno2 || 0) > 0,
       }));
     },
     staleTime: 5 * 60 * 1000,
