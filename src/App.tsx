@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/eleicoes/AppSidebar";
-import { GlobalFilters } from "@/components/eleicoes/GlobalFilters";
+import { GlobalFilters, FilterField } from "@/components/eleicoes/GlobalFilters";
 import Ranking from "./pages/Ranking";
 import ZonasEleitorais from "./pages/ZonasEleitorais";
 import EscolasEleitorais from "./pages/EscolasEleitorais";
