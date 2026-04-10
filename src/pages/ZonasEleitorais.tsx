@@ -345,14 +345,15 @@ export default function ZonasEleitorais() {
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="text-[10px] font-semibold w-[80px]">Zona</TableHead>
-                      {selecionados.map((s, i) => (
+                       {selecionados.map((s, i) => (
                         <TableHead key={i} className="text-[10px] font-semibold text-right min-w-[120px]">
                           <div className="flex items-center justify-end gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORES_COMPARATIVO[i] }} />
                             <span className="truncate max-w-[100px]">{s.label}</span>
+                            <span className="opacity-50">{s.ano}</span>
                           </div>
                         </TableHead>
-                      ))}
+                       ))}
                       <TableHead className="text-[10px] font-semibold text-right">Diferença</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -457,14 +458,15 @@ export default function ZonasEleitorais() {
                       <TableHead className="text-[10px] font-semibold">Escola</TableHead>
                       <TableHead className="text-[10px] font-semibold w-[80px]">Zona</TableHead>
                       <TableHead className="text-[10px] font-semibold">Bairro</TableHead>
-                      {selecionados.map((s, i) => (
+                       {selecionados.map((s, i) => (
                         <TableHead key={i} className="text-[10px] font-semibold text-right min-w-[120px]">
                           <div className="flex items-center justify-end gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORES_COMPARATIVO[i] }} />
                             <span className="truncate max-w-[100px]">{s.label}</span>
+                            <span className="opacity-50">{s.ano}</span>
                           </div>
                         </TableHead>
-                      ))}
+                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
