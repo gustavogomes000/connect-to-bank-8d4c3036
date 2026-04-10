@@ -77,7 +77,7 @@ function useBuscarCandidatos(municipio: string, search: string, anosAtivos: numb
 /** Hook: compare votes by zona for selected candidates */
 function useComparativoZona(
   municipio: string,
-  selecionados: { sq: string; ano: number; label: string }[]
+  selecionados: { sq: string; ano: number; label: string; mun?: string }[]
 ) {
   return useQuery({
     queryKey: ['comparativo-zona', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
