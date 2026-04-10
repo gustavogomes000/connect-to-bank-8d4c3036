@@ -312,8 +312,19 @@ function buildSecaoMetadataSubquery(ano: number, municipio?: string | null): str
   const municipioSafe = municipio?.replace(/'/g, "''");
   const municipioFilter = municipioSafe ? `AND NM_MUNICIPIO = '${municipioSafe}'` : '';
 
-  if (getAnosDisponiveis('eleitorado_local').includes(ano)) {
-    const loc = getTableName('eleitorado_local', ano);
+  // Try eleitorado_local for the exact year first
+  const anosLocal = getAnosDisponiveis('eleitorado_local');
+  let anoLocal: number | null = null;
+  if (anosLocal.includes(ano)) {
+    anoLocal = ano;
+  } else {
+    // Fallback: use the closest available year's eleitorado_local (bairros don't change much)
+    const sorted = [...anosLocal].sort((a, b) => Math.abs(a - ano) - Math.abs(b - ano));
+    if (sorted.length > 0) anoLocal = sorted[0];
+  }
+
+  if (anoLocal !== null) {
+    const loc = getTableName('eleitorado_local', anoLocal);
     return `
       SELECT
         NM_MUNICIPIO,
