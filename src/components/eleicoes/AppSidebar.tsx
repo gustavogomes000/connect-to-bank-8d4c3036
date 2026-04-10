@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Trophy, HelpCircle, MessageSquare, Settings, School, Hash, User, Sparkles, Users,
+  Trophy, HelpCircle, Settings, School, Hash, User, Sparkles, Users,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
@@ -14,7 +14,6 @@ const mainItems = [
   { title: 'Zonas Eleitorais', url: '/zonas', icon: Hash },
   { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
   { title: 'Mesários', url: '/mesarios', icon: Users },
-  { title: 'Converse com a IA', url: '/chat', icon: MessageSquare },
 ];
 
 
