@@ -195,6 +195,12 @@ export default function ZonasEleitorais() {
   const [searchCandidato, setSearchCandidato] = useState('');
   const [selecionados, setSelecionados] = useState<{ sq: string; ano: number; label: string; partido: string; cargo: string }[]>([]);
 
+  // Clear selections when year changes
+  useEffect(() => {
+    setSelecionados([]);
+    setSearchCandidato('');
+  }, [ano]);
+
   const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, ano);
 
   const comparativoItems = useMemo(() =>
