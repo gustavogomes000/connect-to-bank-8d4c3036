@@ -28,6 +28,7 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
   const { data: zonas } = useZonas();
   const { data: bairros } = useBairros();
   const { data: escolas } = useEscolas();
+  const [openMunicipio, setOpenMunicipio] = useState(false);
   const activeCount = store.activeFiltersCount();
 
   const show = (field: FilterField) => visibleFilters.includes(field);
