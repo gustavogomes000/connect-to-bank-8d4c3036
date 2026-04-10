@@ -72,6 +72,7 @@ export const useRankingMD = () => {
           ) b ON c.SQ_CANDIDATO = b.SQ_CANDIDATO`
         : '';
 
+      // Deduplicate candidates across turnos: keep the row with the highest turno (final result)
       const sql = `
         SELECT
           c.SQ_CANDIDATO,
@@ -84,11 +85,14 @@ export const useRankingMD = () => {
           c.DS_GENERO,
           COALESCE(SUM(v.QT_VOTOS_NOMINAIS), 0) AS total_votos,
           COALESCE(${hasBens ? 'b.patrimonio_total' : '0'}, 0) AS patrimonio_total
-        FROM ${cand} c
+        FROM (
+          SELECT *, ROW_NUMBER() OVER (PARTITION BY SQ_CANDIDATO ORDER BY NR_TURNO DESC) AS rn
+          FROM ${cand}
+        ) c
         LEFT JOIN ${vot} v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
         ${geoJoin}
         ${bensJoin}
-        ${where}
+        ${where ? where + ' AND c.rn = 1' : 'WHERE c.rn = 1'}
         GROUP BY c.SQ_CANDIDATO, c.NM_CANDIDATO, c.NM_URNA_CANDIDATO, c.SG_PARTIDO,
                  c.DS_CARGO, c.NM_UE, c.DS_SIT_TOT_TURNO, c.DS_GENERO${hasBens ? ', b.patrimonio_total' : ''}
         ORDER BY total_votos DESC
