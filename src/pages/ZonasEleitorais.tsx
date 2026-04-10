@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useFilterStore } from '@/stores/filterStore';
 import { formatNumber, getPartidoCor } from '@/lib/eleicoes';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,8 +16,6 @@ import { mdQuery, getTableName, getAnosDisponiveis } from '@/lib/motherduck';
 import { useQuery } from '@tanstack/react-query';
 
 const fmt = (n: number | string) => Number(n || 0).toLocaleString('pt-BR');
-
-const TODOS_ANOS = [2024, 2022, 2020, 2018, 2016, 2014] as const;
 
 interface CandidatoOption {
   sq_candidato: string;
@@ -37,39 +35,37 @@ interface ComparativoRow {
   [key: string]: any; // votos_CANDIDATO_ANO
 }
 
-/** Hook: search candidates across selected years */
-function useBuscarCandidatos(municipio: string, search: string, anosAtivos: number[]) {
+/** Hook: search candidates for a single year */
+function useBuscarCandidatos(municipio: string, search: string, ano: number) {
   return useQuery({
-    queryKey: ['busca-candidatos-comparativo', municipio, search, anosAtivos],
+    queryKey: ['busca-candidatos-comparativo', municipio, search, ano],
     queryFn: async () => {
-      if (!search || search.length < 3 || anosAtivos.length === 0) return [];
+      if (!search || search.length < 3) return [];
+      if (!getAnosDisponiveis('candidatos').includes(ano)) return [];
       const searchUpper = search.toUpperCase().replace(/'/g, "''");
-      const queries = anosAtivos.map((ano, idx) => {
-        if (!getAnosDisponiveis('candidatos').includes(ano)) return null;
-        const cand = getTableName('candidatos', ano);
-        const isGeral = [2014, 2018, 2022].includes(ano);
-        const munFilter = isGeral ? '' : `AND c.NM_UE = '${municipio}'`;
-        return `
-          SELECT DISTINCT
-            CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
-            c.NM_URNA_CANDIDATO AS candidato,
-            c.NM_CANDIDATO AS nome_completo,
-            c.SG_PARTIDO AS partido,
-            c.DS_CARGO AS cargo,
-            c.NR_CANDIDATO AS numero,
-            ${ano} AS ano,
-            c.NM_UE AS municipio
-          FROM ${cand} c
-          WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
-              OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
-            ${munFilter}
-        `;
-      }).filter(Boolean);
-      if (queries.length === 0) return [];
-      const sql = 'SELECT * FROM (\n' + queries.join('\nUNION ALL\n') + '\n) sub\nORDER BY candidato, ano DESC\nLIMIT 50';
+      const cand = getTableName('candidatos', ano);
+      const isGeral = [2014, 2018, 2022].includes(ano);
+      const munFilter = isGeral ? '' : `AND c.NM_UE = '${municipio}'`;
+      const sql = `
+        SELECT DISTINCT
+          CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
+          c.NM_URNA_CANDIDATO AS candidato,
+          c.NM_CANDIDATO AS nome_completo,
+          c.SG_PARTIDO AS partido,
+          c.DS_CARGO AS cargo,
+          c.NR_CANDIDATO AS numero,
+          ${ano} AS ano,
+          c.NM_UE AS municipio
+        FROM ${cand} c
+        WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
+            OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
+          ${munFilter}
+        ORDER BY c.NM_URNA_CANDIDATO
+        LIMIT 50
+      `;
       return await mdQuery<CandidatoOption>(sql);
     },
-    enabled: !!municipio && search.length >= 3 && anosAtivos.length > 0,
+    enabled: !!municipio && search.length >= 3,
     staleTime: 60_000,
   });
 }
@@ -195,12 +191,17 @@ const CORES_COMPARATIVO = [
 ];
 
 export default function ZonasEleitorais() {
-  const { municipio } = useFilterStore();
-  const [anosAtivos, setAnosAtivos] = useState<number[]>([2024]);
+  const { municipio, ano } = useFilterStore();
   const [searchCandidato, setSearchCandidato] = useState('');
   const [selecionados, setSelecionados] = useState<{ sq: string; ano: number; label: string; partido: string; cargo: string }[]>([]);
 
-  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, anosAtivos);
+  // Clear selections when year changes
+  useEffect(() => {
+    setSelecionados([]);
+    setSearchCandidato('');
+  }, [ano]);
+
+  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, ano);
 
   const comparativoItems = useMemo(() =>
     selecionados.map(s => ({ sq: s.sq, ano: s.ano, label: s.label })),
@@ -210,10 +211,6 @@ export default function ZonasEleitorais() {
   const { data: dadosZona, isLoading: loadingZona, error: erroZona } = useComparativoZona(municipio, comparativoItems);
   const { data: dadosEscola, isLoading: loadingEscola, error: erroEscola } = useComparativoEscola(municipio, comparativoItems);
 
-  const toggleAno = useCallback((ano: number) => {
-    setAnosAtivos(prev => prev.includes(ano) ? prev.filter(a => a !== ano) : [...prev, ano]);
-  }, []);
-
   const adicionarCandidato = useCallback((c: CandidatoOption) => {
     const key = `${c.sq_candidato}_${c.ano}`;
     if (selecionados.some(s => `${s.sq}_${s.ano}` === key)) return;
@@ -221,7 +218,7 @@ export default function ZonasEleitorais() {
     setSelecionados(prev => [...prev, {
       sq: c.sq_candidato,
       ano: c.ano,
-      label: `${c.candidato} (${c.ano})`,
+      label: c.candidato,
       partido: c.partido,
       cargo: c.cargo,
     }]);
@@ -250,37 +247,15 @@ export default function ZonasEleitorais() {
           Comparativo Eleitoral por Zona e Escola
         </h1>
         <p className="text-xs text-muted-foreground">
-          {municipio} — Compare candidatos entre diferentes anos, zonas eleitorais e escolas
+          {municipio} — {ano} — Compare candidatos da mesma eleição por zonas e escolas
         </p>
       </div>
-
-      {/* Seleção de anos */}
-      <Card className="border-border/50">
-        <CardContent className="p-4">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            1. Selecione os anos para busca
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {TODOS_ANOS.map(ano => (
-              <Button
-                key={ano}
-                variant={anosAtivos.includes(ano) ? 'default' : 'outline'}
-                size="sm"
-                className="text-xs h-8"
-                onClick={() => toggleAno(ano)}
-              >
-                {ano}
-              </Button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Busca e seleção de candidatos */}
       <Card className="border-border/50">
         <CardContent className="p-4">
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
-            2. Busque e adicione candidatos para comparar (máx. 8)
+            Busque e adicione candidatos para comparar (máx. 8)
           </p>
 
           <div className="relative max-w-md">
@@ -324,7 +299,7 @@ export default function ZonasEleitorais() {
                           {c.partido}
                         </span>
                       </div>
-                      <Badge variant="secondary" className="text-[10px] h-5">{c.ano}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-5">{c.numero}</Badge>
                     </div>
                   );
                 })
