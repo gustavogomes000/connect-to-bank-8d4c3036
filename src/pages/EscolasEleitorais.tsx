@@ -10,7 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
 import { Progress } from '@/components/ui/progress';
 import {
   Building2, MapPin, Search, Users, School, Hash, Vote, ChevronDown, ChevronRight,
@@ -336,7 +336,6 @@ export default function EscolasEleitorais() {
   const { data: comparecimento } = useComparecimento();
   const { municipio, ano } = useFilterStore();
   const [busca, setBusca] = useState('');
-  const [tab, setTab] = useState('cards');
   const [expandedEscola, setExpandedEscola] = useState<string | null>(null);
 
   const { data: locaisSupa } = useLocaisVotacaoSupa(ano, municipio);
