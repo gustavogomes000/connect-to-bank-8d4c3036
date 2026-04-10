@@ -398,6 +398,12 @@ export default function ZonasEleitorais() {
                           ))}
                         </TableRow>
                       ))
+                    ) : erroZona ? (
+                      <TableRow>
+                        <TableCell colSpan={selecionados.length + 2} className="text-center text-destructive text-sm py-8">
+                          Erro ao carregar dados: {erroZona.message}
+                        </TableCell>
+                      </TableRow>
                     ) : !dadosZona?.length ? (
                       <TableRow>
                         <TableCell colSpan={selecionados.length + 2} className="text-center text-muted-foreground text-sm py-8">
