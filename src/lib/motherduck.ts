@@ -465,7 +465,7 @@ function buildHistoricoBoletimVotesSubquery(ano: number, identificador: Historic
     JOIN (${boletimSubquery}) b
       ON b.nr_votavel = c2.NR_CANDIDATO
      AND b.ds_tipo_votavel = 'Nominal'
-     ${buildBoletimCargoCondition('b', 'c2.DS_CARGO').replace("'c2.DS_CARGO'", 'c2.DS_CARGO')}
+     AND (UPPER(COALESCE(b.ds_cargo_pergunta, '')) = UPPER(c2.DS_CARGO) OR UPPER(COALESCE(b.ds_cargo_pergunta, '')) = UPPER(REPLACE(REPLACE(c2.DS_CARGO, 'VICE-', ''), 'VICE ', '')))
      ${buildBoletimMunicipioCondition('b', ano, undefined).trim()}
     WHERE ${filtro}
       ${isEleicaoGeral(ano) ? '' : 'AND b.nm_municipio = c2.NM_UE'}
