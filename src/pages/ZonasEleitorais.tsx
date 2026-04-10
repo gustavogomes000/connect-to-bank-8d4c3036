@@ -87,7 +87,7 @@ function useComparativoZona(
             '${s.label.replace(/'/g, "''")}' AS candidato_label,
             ${i} AS idx
           FROM ${vot} v
-          WHERE v.SQ_CANDIDATO = '${s.sq}'
+          WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${s.sq}'
             AND v.NM_MUNICIPIO = '${municipio}'
           GROUP BY v.NR_ZONA
         `;
