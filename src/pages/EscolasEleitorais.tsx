@@ -1,19 +1,18 @@
 import { useState, useMemo } from 'react';
-import { useEscolas, EscolaItem } from '@/hooks/useEscolas';
+import { useEscolas } from '@/hooks/useEscolas';
 import { useFilterStore } from '@/stores/filterStore';
 import { useComparecimento } from '@/hooks/useEleicoes';
 import { supabase } from '@/integrations/supabase/client';
 import { useQuery } from '@tanstack/react-query';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import {
   Building2, MapPin, Search, Users, School, Hash, Vote,
 } from 'lucide-react';
 import { formatNumber, formatPercent } from '@/lib/eleicoes';
-import { cn } from '@/lib/utils';
+import { LoadingKPIs, LoadingCards } from '@/components/eleicoes/LoadingSection';
 
 const fmt = (n: number | string) => Number(n || 0).toLocaleString('pt-BR');
 
@@ -34,7 +33,6 @@ function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; valu
   );
 }
 
-/** Hook: locais de votação do Supabase para complementar dados */
 function useLocaisVotacaoSupa(ano: number, municipio: string) {
   return useQuery({
     queryKey: ['locais-votacao-supa', ano, municipio],
@@ -49,7 +47,7 @@ function useLocaisVotacaoSupa(ano: number, municipio: string) {
       return data || [];
     },
     enabled: !!municipio,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   });
 }
 
@@ -58,12 +56,10 @@ export default function EscolasEleitorais() {
   const { data: comparecimento } = useComparecimento();
   const { municipio, ano } = useFilterStore();
   const [busca, setBusca] = useState('');
-
   const { data: locaisSupa } = useLocaisVotacaoSupa(ano, municipio);
 
   const escolas = data?.dados || [];
 
-  // Enrich escolas with endereco from Supabase locais
   const escolasEnriquecidas = useMemo(() => {
     if (!locaisSupa || locaisSupa.length === 0) return escolas;
     const enderecoMap = new Map<string, string>();
@@ -114,14 +110,18 @@ export default function EscolasEleitorais() {
         <p className="text-xs text-muted-foreground">{municipio} · {ano} — Locais de votação, seções e eleitores</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-        <KPI icon={School} label="Escolas" value={isLoading ? '...' : fmt(totalEscolas)} />
-        <KPI icon={Hash} label="Zonas" value={isLoading ? '...' : fmt(totalZonas)} />
-        <KPI icon={Building2} label="Seções" value={isLoading ? '...' : fmt(totalSecoes)} />
-        <KPI icon={Users} label="Eleitores" value={isLoading ? '...' : fmt(totalEleitores)} />
-        <KPI icon={Vote} label="Comparecimento" value={comp ? formatPercent(Number(comp.taxa_comparecimento)) : '—'}
-          sub={comp ? `${fmt(Number(comp.comparecimento))} presentes` : undefined} />
-      </div>
+      {isLoading ? (
+        <LoadingKPIs count={5} />
+      ) : (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <KPI icon={School} label="Escolas" value={fmt(totalEscolas)} />
+          <KPI icon={Hash} label="Zonas" value={fmt(totalZonas)} />
+          <KPI icon={Building2} label="Seções" value={fmt(totalSecoes)} />
+          <KPI icon={Users} label="Eleitores" value={fmt(totalEleitores)} />
+          <KPI icon={Vote} label="Comparecimento" value={comp ? formatPercent(Number(comp.taxa_comparecimento)) : '—'}
+            sub={comp ? `${fmt(Number(comp.comparecimento))} presentes` : undefined} />
+        </div>
+      )}
 
       <div className="relative max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -141,15 +141,7 @@ export default function EscolasEleitorais() {
       )}
 
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="bg-card rounded-xl border border-border/50 p-4 h-32 flex flex-col justify-between">
-              <Skeleton className="h-5 w-3/4" />
-              <Skeleton className="h-4 w-1/2" />
-              <Skeleton className="h-4 w-1/3" />
-            </div>
-          ))}
-        </div>
+        <LoadingCards count={6} />
       ) : filtered.length === 0 ? (
         <div className="p-8 text-center text-muted-foreground bg-card rounded-xl border border-border/50">
           Nenhuma escola encontrada.
@@ -159,7 +151,7 @@ export default function EscolasEleitorais() {
           {filtered.map((escola, idx) => {
             const pct = totalEleitores > 0 ? (escola.eleitores / totalEleitores) * 100 : 0;
             return (
-              <div key={idx} className="bg-card rounded-xl border border-border/50 shadow-sm p-4">
+              <div key={idx} className="bg-card rounded-xl border border-border/50 shadow-sm p-4 animate-fade-in" style={{ animationDelay: `${Math.min(idx * 30, 300)}ms` }}>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold leading-tight uppercase text-foreground">{escola.escola}</h3>
                   <div className="flex items-center gap-1.5 mt-1 text-xs text-muted-foreground">

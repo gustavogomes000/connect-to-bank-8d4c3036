@@ -2,13 +2,13 @@ import { useNavigate } from 'react-router-dom';
 import { useRankingMD } from '@/hooks/useRanking';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { formatNumber, formatBRLCompact, getPartidoCor, getSituacaoBadge } from '@/lib/eleicoes';
 import { Trophy, TrendingUp, Users, Landmark } from 'lucide-react';
 import { useFilterStore } from '@/stores/filterStore';
 import { Card, CardContent } from '@/components/ui/card';
 import { useMemo } from 'react';
+import { LoadingKPIs, LoadingTable } from '@/components/eleicoes/LoadingSection';
 
 function KPI({ icon: Icon, label, value, sub }: { icon: any; label: string; value: string; sub?: string }) {
   return (
@@ -44,14 +44,6 @@ export default function Ranking() {
     return { totalVotos, totalPatrimonio, partidos, eleitos, total: data.length };
   }, [data]);
 
-  const renderSkeletonRow = (key: number) => (
-    <TableRow key={key} className="border-b border-border/20">
-      {Array.from({ length: 8 }).map((_, j) => (
-        <TableCell key={j} className="px-2 py-1.5"><Skeleton className="h-4 w-full" /></TableCell>
-      ))}
-    </TableRow>
-  );
-
   return (
     <div className="space-y-4 max-w-[1800px] mx-auto">
       <div>
@@ -62,7 +54,9 @@ export default function Ranking() {
         <p className="text-xs text-muted-foreground">{municipio} · {ano} — Ranking por votos com patrimônio e situação</p>
       </div>
 
-      {stats && (
+      {isLoading ? (
+        <LoadingKPIs count={4} />
+      ) : stats && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <KPI icon={Users} label="Candidatos" value={formatNumber(stats.total)} sub={`${stats.partidos} partidos`} />
           <KPI icon={TrendingUp} label="Total de Votos" value={formatNumber(stats.totalVotos)} />
@@ -78,82 +72,85 @@ export default function Ranking() {
         </Alert>
       )}
 
-      <div className="bg-card rounded-lg border border-border/50 overflow-hidden">
-        <div className="overflow-x-auto">
-          <Table className="w-full text-sm table-auto">
-            <TableHeader>
-              <TableRow className="bg-muted/30 border-b border-border/30 text-left">
-                <TableHead className="px-2 py-2 w-8 text-[10px] uppercase tracking-wider">#</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Candidato</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Partido</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Cargo</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Município</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Situação</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right">Patrimônio</TableHead>
-                <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right">Votos</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && Array.from({ length: 15 }).map((_, i) => renderSkeletonRow(i))}
-              {data && data.map((item, idx) => {
-                const sit = getSituacaoBadge(item.DS_SIT_TOT_TURNO);
-                return (
-                  <TableRow
-                    key={item.SQ_CANDIDATO ?? idx}
-                    className="border-b border-border/20 hover:bg-primary/5 cursor-pointer transition-colors"
-                    onClick={() => navigate(`/candidatos/${item.SQ_CANDIDATO}/${ano}`)}
-                  >
-                    <TableCell className="px-2 py-1.5 text-muted-foreground font-mono text-xs">{idx + 1}</TableCell>
-                    <TableCell className="px-2 py-1.5">
-                      <div>
-                        <span className="font-semibold text-foreground">{item.NM_URNA_CANDIDATO}</span>
-                        <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">{item.NM_CANDIDATO}</p>
-                        {item.tem_segundo_turno && (
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 font-medium">
-                              1º T: {formatNumber(item.votos_turno1)}
-                            </span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">
-                              2º T: {formatNumber(item.votos_turno2)}
-                            </span>
-                            <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">
-                              Total: {formatNumber(item.total_votos)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell className="px-2 py-1.5">
-                      <span className="text-xs font-bold px-1.5 py-0.5 rounded"
-                        style={{ backgroundColor: getPartidoCor(item.SG_PARTIDO) + '20', color: getPartidoCor(item.SG_PARTIDO) }}>
-                        {item.SG_PARTIDO}
-                      </span>
-                    </TableCell>
-                    <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{item.DS_CARGO}</TableCell>
-                    <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{item.NM_UE}</TableCell>
-                    <TableCell className="px-2 py-1.5">
-                      <Badge className={`text-[9px] ${sit.bg} ${sit.text} border-0`}>{sit.label}</Badge>
-                    </TableCell>
-                    <TableCell className="px-2 py-1.5 text-right text-xs font-mono text-muted-foreground">
-                      {item.patrimonio_total > 0 ? formatBRLCompact(item.patrimonio_total) : '—'}
-                    </TableCell>
-                    <TableCell className="px-2 py-1.5 text-right font-bold text-primary">
-                      {formatNumber(item.total_votos)}
+      {isLoading ? (
+        <LoadingTable rows={15} cols={8} />
+      ) : (
+        <div className="bg-card rounded-lg border border-border/50 overflow-hidden animate-fade-in">
+          <div className="overflow-x-auto">
+            <Table className="w-full text-sm table-auto">
+              <TableHeader>
+                <TableRow className="bg-muted/30 border-b border-border/30 text-left">
+                  <TableHead className="px-2 py-2 w-8 text-[10px] uppercase tracking-wider">#</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Candidato</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Partido</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Cargo</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Município</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Situação</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right">Patrimônio</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right">Votos</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {data && data.map((item, idx) => {
+                  const sit = getSituacaoBadge(item.DS_SIT_TOT_TURNO);
+                  return (
+                    <TableRow
+                      key={item.SQ_CANDIDATO ?? idx}
+                      className="border-b border-border/20 hover:bg-primary/5 cursor-pointer transition-colors"
+                      onClick={() => navigate(`/candidatos/${item.SQ_CANDIDATO}/${ano}`)}
+                    >
+                      <TableCell className="px-2 py-1.5 text-muted-foreground font-mono text-xs">{idx + 1}</TableCell>
+                      <TableCell className="px-2 py-1.5">
+                        <div>
+                          <span className="font-semibold text-foreground">{item.NM_URNA_CANDIDATO}</span>
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">{item.NM_CANDIDATO}</p>
+                          {item.tem_segundo_turno && (
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 font-medium">
+                                1º T: {formatNumber(item.votos_turno1)}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-medium">
+                                2º T: {formatNumber(item.votos_turno2)}
+                              </span>
+                              <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 font-medium">
+                                Total: {formatNumber(item.total_votos)}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5">
+                        <span className="text-xs font-bold px-1.5 py-0.5 rounded"
+                          style={{ backgroundColor: getPartidoCor(item.SG_PARTIDO) + '20', color: getPartidoCor(item.SG_PARTIDO) }}>
+                          {item.SG_PARTIDO}
+                        </span>
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{item.DS_CARGO}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{item.NM_UE}</TableCell>
+                      <TableCell className="px-2 py-1.5">
+                        <Badge className={`text-[9px] ${sit.bg} ${sit.text} border-0`}>{sit.label}</Badge>
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5 text-right text-xs font-mono text-muted-foreground">
+                        {item.patrimonio_total > 0 ? formatBRLCompact(item.patrimonio_total) : '—'}
+                      </TableCell>
+                      <TableCell className="px-2 py-1.5 text-right font-bold text-primary">
+                        {formatNumber(item.total_votos)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                {data && data.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      Nenhum candidato encontrado com os filtros atuais.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-              {data && data.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                    Nenhum candidato encontrado com os filtros atuais.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
-      </div>
+      )}
 
       {data && data.length > 0 && (
         <p className="text-[10px] text-muted-foreground text-right">
