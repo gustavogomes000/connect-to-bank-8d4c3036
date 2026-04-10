@@ -521,45 +521,10 @@ export function sqlComposicaoVotosCandidato(
     `.trim();
   }
 
-  // Fallback para anos sem boletim_urna disponível
-  // Use votacao_secao which has NR_VOTAVEL, QT_VOTOS, NM_LOCAL_VOTACAO
-  if (getAnosDisponiveis('votacao_secao').includes(ano)) {
-    const vs = getTableName('votacao_secao', ano);
-    if (metadataSubquery) {
-      return `
-        SELECT
-          COALESCE(meta.NM_MUNICIPIO, vs.NM_MUNICIPIO) AS municipio,
-          COALESCE(meta.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
-          COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
-          vs.NR_ZONA AS zona,
-          SUM(vs.QT_VOTOS) AS total_votos,
-          COUNT(DISTINCT vs.NR_SECAO) AS secoes
-        FROM ${vs} vs
-        LEFT JOIN (${metadataSubquery}) meta
-          ON vs.NM_MUNICIPIO = meta.NM_MUNICIPIO AND vs.NR_ZONA = meta.NR_ZONA AND vs.NR_SECAO = meta.NR_SECAO
-        WHERE vs.NR_VOTAVEL = ${nrCandidato}
-          ${buildCargoCondition('vs', cargo)}
-          ${buildMunicipioCondition('vs', ano, municipio)}
-        GROUP BY meta.NM_MUNICIPIO, meta.NM_BAIRRO, vs.NM_LOCAL_VOTACAO, vs.NM_MUNICIPIO, vs.NR_ZONA
-        ORDER BY total_votos DESC
-      `.trim();
-    }
-    return `
-      SELECT
-        vs.NM_MUNICIPIO AS municipio,
-        'NÃO INFORMADO' AS bairro,
-        COALESCE(vs.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
-        vs.NR_ZONA AS zona,
-        SUM(vs.QT_VOTOS) AS total_votos,
-        COUNT(DISTINCT vs.NR_SECAO) AS secoes
-      FROM ${vs} vs
-      WHERE vs.NR_VOTAVEL = ${nrCandidato}
-        ${buildCargoCondition('vs', cargo)}
-        ${buildMunicipioCondition('vs', ano, municipio)}
-      GROUP BY vs.NM_MUNICIPIO, vs.NM_LOCAL_VOTACAO, vs.NR_ZONA
-      ORDER BY total_votos DESC
-    `.trim();
-  }
+  // Fallback para anos sem boletim_urna disponível.
+  // A tabela votacao_secao NÃO tem identificador do candidato,
+  // então não permite composição real por escola/bairro.
+  // Nesses casos, caímos para o agregado por zona.
 
   // Ultimate fallback: votacao_candidato_munzona (zone-level only)
   const vot = getTableName('votacao', ano);
