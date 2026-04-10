@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useFilterStore } from '@/stores/filterStore';
 import { formatNumber, getPartidoCor } from '@/lib/eleicoes';
 import { Card, CardContent } from '@/components/ui/card';
