@@ -402,8 +402,9 @@ export default function ZonasEleitorais() {
                       <>
                         {dadosZona.map((row: any) => {
                           const votos = selecionados.map((_, i) => Number(row[`votos_${i}`] || 0));
-                          const max = Math.max(...votos);
-                          const min = Math.min(...votos.filter(v => v > 0));
+                          const max = votos.length > 0 ? Math.max(...votos) : 0;
+                          const positivos = votos.filter(v => v > 0);
+                          const min = positivos.length > 0 ? Math.min(...positivos) : 0;
                           const diff = selecionados.length === 2 ? votos[0] - votos[1] : max - min;
                           return (
                             <TableRow key={row.zona} className="border-border/20 hover:bg-muted/20">
