@@ -141,9 +141,9 @@ function useComparativoEscola(
             WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}'
             GROUP BY NM_MUNICIPIO, NR_ZONA, NR_SECAO
           ) loc ON vs.NR_ZONA = loc.NR_ZONA AND vs.NR_SECAO = loc.NR_SECAO
-          WHERE vs.NR_CANDIDATO = (
+          WHERE vs.NR_VOTAVEL = (
             SELECT NR_CANDIDATO FROM ${getTableName('candidatos', s.ano)}
-            WHERE SQ_CANDIDATO = '${s.sq}' LIMIT 1
+            WHERE CAST(SQ_CANDIDATO AS VARCHAR) = '${s.sq}' LIMIT 1
           )
             AND vs.NM_MUNICIPIO = '${municipio}'
           GROUP BY loc.NM_LOCAL_VOTACAO, loc.NM_BAIRRO, vs.NR_ZONA
