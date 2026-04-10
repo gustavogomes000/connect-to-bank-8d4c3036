@@ -125,11 +125,21 @@
   letter-spacing: -0.02em;
 }
 
+/* Mobile: hide non-essential table columns */
+@media (max-width: 639px) {
+  .hide-mobile { display: none !important; }
+}
+
+/* Touch-friendly tap targets */
+@media (pointer: coarse) {
+  .touch-target { min-height: 44px; }
+}
+
 /* Glass morphism card */
 .glass-card {
   background: hsl(0 0% 100% / 0.7);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border: 1px solid hsl(var(--border));
-  box-shadow: 0 4px 20px -2px hsl(0 0% 0% / 0.05); /* Sombras suaves estilo linkedin */
+  box-shadow: 0 4px 20px -2px hsl(0 0% 0% / 0.05);
 }
