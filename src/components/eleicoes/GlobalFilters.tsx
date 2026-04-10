@@ -71,14 +71,43 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
           )}
 
           {show('municipio') && (
-            <Select value={store.municipio} onValueChange={v => store.setMunicipio(v)}>
-              <SelectTrigger className="w-[110px] sm:w-[140px] h-7 text-xs bg-muted/50 border-border/50 truncate">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(municipios || ['GOIÂNIA']).map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <Popover open={openMunicipio} onOpenChange={setOpenMunicipio}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={openMunicipio}
+                  className="w-[110px] sm:w-[160px] h-7 text-xs bg-muted/50 border-border/50 justify-between font-normal px-2 truncate"
+                >
+                  <span className="truncate">{store.municipio}</span>
+                  <ChevronsUpDown className="ml-1 h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[220px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Digitar cidade..." className="h-8 text-xs" />
+                  <CommandList>
+                    <CommandEmpty>Nenhuma cidade encontrada.</CommandEmpty>
+                    <CommandGroup>
+                      {(municipios || ['APARECIDA DE GOIÂNIA', 'GOIÂNIA']).map(m => (
+                        <CommandItem
+                          key={m}
+                          value={m}
+                          onSelect={() => {
+                            store.setMunicipio(m);
+                            setOpenMunicipio(false);
+                          }}
+                          className="text-xs"
+                        >
+                          <Check className={cn("mr-1.5 h-3 w-3", store.municipio === m ? "opacity-100" : "opacity-0")} />
+                          {m}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           )}
 
           {show('cargo') && (
