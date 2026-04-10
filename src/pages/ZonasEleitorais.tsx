@@ -507,7 +507,7 @@ export default function ZonasEleitorais() {
                       <>
                         {dadosEscola.map((row: any, ri: number) => {
                           const votos = selecionados.map((_, i) => Number(row[`votos_${i}`] || 0));
-                          const max = Math.max(...votos);
+                          const max = votos.length > 0 ? Math.max(...votos) : 0;
                           return (
                             <TableRow key={ri} className="border-border/20 hover:bg-muted/20">
                               <TableCell className="text-xs font-medium max-w-[250px] truncate">{row.escola}</TableCell>
