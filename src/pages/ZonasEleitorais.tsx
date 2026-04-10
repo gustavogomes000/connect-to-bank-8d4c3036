@@ -509,6 +509,12 @@ export default function ZonasEleitorais() {
                           ))}
                         </TableRow>
                       ))
+                    ) : erroEscola ? (
+                      <TableRow>
+                        <TableCell colSpan={selecionados.length + 3} className="text-center text-destructive text-sm py-8">
+                          Erro ao carregar dados: {erroEscola.message}
+                        </TableCell>
+                      </TableRow>
                     ) : !dadosEscola?.length ? (
                       <TableRow>
                         <TableCell colSpan={selecionados.length + 3} className="text-center text-muted-foreground text-sm py-8">
