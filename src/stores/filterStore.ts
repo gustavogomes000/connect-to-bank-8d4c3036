@@ -28,7 +28,7 @@ interface FilterState {
 
 export const useFilterStore = create<FilterState>((set, get) => ({
   ano: 2024,
-  municipio: 'GOIÂNIA',
+  municipio: 'APARECIDA DE GOIÂNIA',
   cargo: null,
   turno: null,
   partido: null,
@@ -48,7 +48,7 @@ export const useFilterStore = create<FilterState>((set, get) => ({
   setEscola: (escola) => set({ escola }),
   setCandidatoSelecionadoId: (id) => set({ candidatoSelecionadoId: id }),
   setSearchText: (searchText) => set({ searchText }),
-  limpar: () => set({ ano: 2024, municipio: 'GOIÂNIA', cargo: null, turno: null, partido: null, zona: null, bairro: null, escola: null, candidatoSelecionadoId: null, searchText: '' }),
+  limpar: () => set({ ano: 2024, municipio: 'APARECIDA DE GOIÂNIA', cargo: null, turno: null, partido: null, zona: null, bairro: null, escola: null, candidatoSelecionadoId: null, searchText: '' }),
   activeFiltersCount: () => {
     const s = get();
     let c = 0;
