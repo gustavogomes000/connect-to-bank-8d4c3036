@@ -11,7 +11,6 @@ import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Progress } from '@/components/ui/progress';
-import { Progress } from '@/components/ui/progress';
 import {
   Building2, MapPin, Search, Users, School, Hash, Vote, ChevronDown, ChevronRight,
   UserCheck, Shield, Phone, Mail, Eye, EyeOff,
