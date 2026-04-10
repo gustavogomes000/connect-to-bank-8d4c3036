@@ -238,7 +238,7 @@ export default function ZonasEleitorais() {
           Comparativo Eleitoral por Zona e Escola
         </h1>
         <p className="text-xs text-muted-foreground">
-          {municipio} — {ano} — Compare candidatos da mesma eleição por zonas e escolas
+          {municipio} — Compare candidatos do mesmo cargo em eleições diferentes (mesma cidade)
         </p>
       </div>
 
@@ -284,6 +284,7 @@ export default function ZonasEleitorais() {
                       <div className="flex items-center gap-2">
                         <Plus className="w-3.5 h-3.5 text-primary" />
                         <span className="text-xs font-medium">{c.candidato}</span>
+                        <Badge variant="secondary" className="text-[9px] h-5">{c.ano}</Badge>
                         <Badge variant="outline" className="text-[9px] h-5">{c.cargo}</Badge>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                           style={{ backgroundColor: getPartidoCor(c.partido) + '20', color: getPartidoCor(c.partido) }}>
@@ -310,8 +311,8 @@ export default function ZonasEleitorais() {
                   onClick={() => removerCandidato(i)}
                 >
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORES_COMPARATIVO[i] }} />
-                  {s.label}
-                  <span className="text-[9px] opacity-60">{s.partido}</span>
+                   {s.label}
+                   <span className="text-[9px] opacity-60">{s.ano} · {s.partido}</span>
                   <X className="w-3 h-3 ml-1" />
                 </Badge>
               ))}
