@@ -64,18 +64,12 @@ export const useEscolas = () => {
   });
 };
 
-/** Pessoal (lideranças/fiscais) por zona+seção — Supabase */
-export const useEscolaPessoal = (zona: string | number, secao: string) => {
-  const ano = useFilterStore((state) => state.ano);
-
+/** Pessoal (lideranças/fiscais) por zona+seção — desativado (sem backend) */
+export const useEscolaPessoal = (_zona: string | number, _secao: string) => {
   return useQuery<{ status: string; total: number; dados: PessoalItem[] }, Error>({
-    queryKey: ['escola-pessoal', ano, zona, secao],
-    queryFn: async () => {
-      const resp = await fetch(`/api/dados/escolas/pessoal?ano=${ano}&zona=${zona}&secao=${secao}`);
-      if (!resp.ok) throw new Error('Falha ao carregar pessoal da escola');
-      return resp.json();
-    },
-    staleTime: 5 * 60 * 1000,
-    enabled: !!zona && !!secao,
+    queryKey: ['escola-pessoal', _zona, _secao],
+    queryFn: async () => ({ status: 'ok', total: 0, dados: [] }),
+    staleTime: Infinity,
+    enabled: false,
   });
 };
