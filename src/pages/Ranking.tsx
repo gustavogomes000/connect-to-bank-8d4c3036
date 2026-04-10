@@ -101,9 +101,13 @@ export default function Ranking() {
                     >
                       <TableCell className="px-2 py-1.5 text-muted-foreground font-mono text-xs">{idx + 1}</TableCell>
                       <TableCell className="px-2 py-1.5">
-                        <div>
-                          <span className="font-semibold text-foreground">{item.NM_URNA_CANDIDATO}</span>
-                          <p className="text-[10px] text-muted-foreground truncate max-w-[200px]">{item.NM_CANDIDATO}</p>
+                        <div className="min-w-0">
+                          <span className="font-semibold text-foreground text-xs sm:text-sm">{item.NM_URNA_CANDIDATO}</span>
+                          <p className="text-[10px] text-muted-foreground truncate max-w-[140px] sm:max-w-[200px]">{item.NM_CANDIDATO}</p>
+                          <div className="sm:hidden flex items-center gap-1 mt-0.5">
+                            <span className="text-[9px] text-muted-foreground">{item.DS_CARGO}</span>
+                            <Badge className={`text-[8px] px-1 py-0 ${sit.bg} ${sit.text} border-0`}>{sit.label}</Badge>
+                          </div>
                           {item.tem_segundo_turno && (
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/15 text-blue-400 font-medium">
