@@ -310,104 +310,131 @@ export default function Mesarios() {
 
 function Detalhe({ escola }: { escola: EscolaCard }) {
   const { mesariosRaw: mesarios, funcoesRaw: funcoes } = escola;
-  const [tab, setTab] = useState<'mesarios' | 'funcoes'>('mesarios');
+
+  // Separar por turno
+  const turnos = useMemo(() => {
+    const map = new Map<number, any[]>();
+    for (const m of mesarios) {
+      const t = m.turno || 0;
+      if (!map.has(t)) map.set(t, []);
+      map.get(t)!.push(m);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  }, [mesarios]);
+
+  const turnosFuncoes = useMemo(() => {
+    const map = new Map<number, any[]>();
+    for (const f of funcoes) {
+      const t = f.turno || 0;
+      if (!map.has(t)) map.set(t, []);
+      map.get(t)!.push(f);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]);
+  }, [funcoes]);
+
+  function resumoTurno(rows: any[]) {
+    const total = rows.reduce((s, r) => s + (r.qt_convocados || 0), 0);
+    const vol = rows.filter(r => r.voluntario === 'S' || r.voluntario === 'SIM').reduce((s, r) => s + (r.qt_convocados || 0), 0);
+    const comp = rows.filter(r => r.comparecimento === 'S' || r.comparecimento === 'SIM').reduce((s, r) => s + (r.qt_convocados || 0), 0);
+    return { total, vol, comp, pctVol: total > 0 ? Math.round((vol / total) * 100) : 0, pctComp: total > 0 ? Math.round((comp / total) * 100) : 0 };
+  }
 
   return (
-    <div className="bg-muted/10 border-t border-border/30 p-4 space-y-3">
-      {/* Tabs */}
-      <div className="flex gap-1">
-        <button
-          onClick={() => setTab('mesarios')}
-          className={cn("px-3 py-1 rounded-md text-[10px] font-medium transition-colors",
-            tab === 'mesarios' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-          )}
-        >
-          Mesários ({mesarios.length})
-        </button>
-        {funcoes.length > 0 && (
-          <button
-            onClick={() => setTab('funcoes')}
-            className={cn("px-3 py-1 rounded-md text-[10px] font-medium transition-colors",
-              tab === 'funcoes' ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/80"
-            )}
-          >
-            Funções Especiais ({funcoes.length})
-          </button>
-        )}
-      </div>
-
-      {tab === 'mesarios' && mesarios.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-border/30 max-h-[400px] overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead className="text-[10px]">Turno</TableHead>
-                <TableHead className="text-[10px]">Tipo</TableHead>
-                <TableHead className="text-[10px]">Atividade</TableHead>
-                <TableHead className="text-[10px]">Gênero</TableHead>
-                <TableHead className="text-[10px]">Faixa Etária</TableHead>
-                <TableHead className="text-[10px]">Instrução</TableHead>
-                <TableHead className="text-[10px]">Cor/Raça</TableHead>
-                <TableHead className="text-[10px]">Voluntário</TableHead>
-                <TableHead className="text-[10px]">Compareceu</TableHead>
-                <TableHead className="text-[10px] text-right">Qtd</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mesarios.map((m: any, i: number) => (
-                <TableRow key={i} className="border-border/20">
-                  <TableCell className="text-xs">{m.turno || '-'}</TableCell>
-                  <TableCell className="text-xs">{m.tipo_mesario || '-'}</TableCell>
-                  <TableCell className="text-xs max-w-[140px] truncate">{m.atividade_eleitoral || '-'}</TableCell>
-                  <TableCell className="text-xs">{m.genero || '-'}</TableCell>
-                  <TableCell className="text-xs">{m.faixa_etaria || '-'}</TableCell>
-                  <TableCell className="text-xs max-w-[110px] truncate">{m.grau_instrucao || '-'}</TableCell>
-                  <TableCell className="text-xs">{m.cor_raca || '-'}</TableCell>
-                  <TableCell className="text-xs"><SimNao val={m.voluntario} /></TableCell>
-                  <TableCell className="text-xs"><SimNao val={m.comparecimento} /></TableCell>
-                  <TableCell className="text-xs text-right font-bold">{fmt(m.qt_convocados || 0)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {tab === 'funcoes' && funcoes.length > 0 && (
-        <div className="overflow-x-auto rounded-lg border border-border/30 max-h-[400px] overflow-y-auto">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-muted/30 hover:bg-muted/30">
-                <TableHead className="text-[10px]">Função</TableHead>
-                <TableHead className="text-[10px]">Turno</TableHead>
-                <TableHead className="text-[10px]">Gênero</TableHead>
-                <TableHead className="text-[10px]">Faixa Etária</TableHead>
-                <TableHead className="text-[10px]">Instrução</TableHead>
-                <TableHead className="text-[10px]">Voluntário</TableHead>
-                <TableHead className="text-[10px]">Compareceu</TableHead>
-                <TableHead className="text-[10px] text-right">Qtd</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {funcoes.map((f: any, i: number) => (
-                <TableRow key={i} className="border-border/20">
-                  <TableCell className="text-xs font-medium">{f.funcao_especial || '-'}</TableCell>
-                  <TableCell className="text-xs">{f.turno || '-'}</TableCell>
-                  <TableCell className="text-xs">{f.genero || '-'}</TableCell>
-                  <TableCell className="text-xs">{f.faixa_etaria || '-'}</TableCell>
-                  <TableCell className="text-xs max-w-[110px] truncate">{f.grau_instrucao || '-'}</TableCell>
-                  <TableCell className="text-xs"><SimNao val={f.voluntario} /></TableCell>
-                  <TableCell className="text-xs"><SimNao val={f.comparecimento} /></TableCell>
-                  <TableCell className="text-xs text-right font-bold">{fmt(f.qt_convocados || 0)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
-
-      {mesarios.length === 0 && (
+    <div className="bg-muted/10 border-t border-border/30 p-4 space-y-4">
+      {mesarios.length === 0 ? (
         <p className="text-xs text-muted-foreground">Sem dados de mesários para esta zona.</p>
+      ) : (
+        turnos.map(([turno, rows]) => {
+          const r = resumoTurno(rows);
+          return (
+            <div key={turno} className="space-y-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <Badge className="text-[10px]">
+                  {turno === 0 ? 'Turno não informado' : `${turno}º Turno`}
+                </Badge>
+                <span className="text-[10px] text-muted-foreground">
+                  <strong>{fmt(r.total)}</strong> convocados •
+                  <span className="text-green-600 font-medium"> {fmt(r.vol)} voluntários ({r.pctVol}%)</span> •
+                  <span className="text-primary font-medium"> {fmt(r.comp)} compareceram ({r.pctComp}%)</span>
+                </span>
+              </div>
+              <div className="overflow-x-auto rounded-lg border border-border/30 max-h-[350px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="text-[10px]">Tipo</TableHead>
+                      <TableHead className="text-[10px]">Atividade</TableHead>
+                      <TableHead className="text-[10px]">Gênero</TableHead>
+                      <TableHead className="text-[10px]">Faixa Etária</TableHead>
+                      <TableHead className="text-[10px]">Instrução</TableHead>
+                      <TableHead className="text-[10px]">Cor/Raça</TableHead>
+                      <TableHead className="text-[10px]">Voluntário</TableHead>
+                      <TableHead className="text-[10px]">Compareceu</TableHead>
+                      <TableHead className="text-[10px] text-right">Qtd</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((m: any, i: number) => (
+                      <TableRow key={i} className="border-border/20">
+                        <TableCell className="text-xs">{m.tipo_mesario || '-'}</TableCell>
+                        <TableCell className="text-xs max-w-[140px] truncate">{m.atividade_eleitoral || '-'}</TableCell>
+                        <TableCell className="text-xs">{m.genero || '-'}</TableCell>
+                        <TableCell className="text-xs">{m.faixa_etaria || '-'}</TableCell>
+                        <TableCell className="text-xs max-w-[110px] truncate">{m.grau_instrucao || '-'}</TableCell>
+                        <TableCell className="text-xs">{m.cor_raca || '-'}</TableCell>
+                        <TableCell className="text-xs"><SimNao val={m.voluntario} /></TableCell>
+                        <TableCell className="text-xs"><SimNao val={m.comparecimento} /></TableCell>
+                        <TableCell className="text-xs text-right font-bold">{fmt(m.qt_convocados || 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          );
+        })
+      )}
+
+      {/* Funções Especiais separadas por turno */}
+      {turnosFuncoes.length > 0 && (
+        <div className="space-y-3 pt-2 border-t border-border/20">
+          <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">⭐ Funções Especiais</p>
+          {turnosFuncoes.map(([turno, rows]) => (
+            <div key={turno} className="space-y-2">
+              <Badge variant="outline" className="text-[10px]">
+                {turno === 0 ? 'Turno não informado' : `${turno}º Turno`} — {fmt(rows.reduce((s, r) => s + (r.qt_convocados || 0), 0))} convocados
+              </Badge>
+              <div className="overflow-x-auto rounded-lg border border-border/30 max-h-[300px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/30 hover:bg-muted/30">
+                      <TableHead className="text-[10px]">Função</TableHead>
+                      <TableHead className="text-[10px]">Gênero</TableHead>
+                      <TableHead className="text-[10px]">Faixa Etária</TableHead>
+                      <TableHead className="text-[10px]">Instrução</TableHead>
+                      <TableHead className="text-[10px]">Voluntário</TableHead>
+                      <TableHead className="text-[10px]">Compareceu</TableHead>
+                      <TableHead className="text-[10px] text-right">Qtd</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((f: any, i: number) => (
+                      <TableRow key={i} className="border-border/20">
+                        <TableCell className="text-xs font-medium">{f.funcao_especial || '-'}</TableCell>
+                        <TableCell className="text-xs">{f.genero || '-'}</TableCell>
+                        <TableCell className="text-xs">{f.faixa_etaria || '-'}</TableCell>
+                        <TableCell className="text-xs max-w-[110px] truncate">{f.grau_instrucao || '-'}</TableCell>
+                        <TableCell className="text-xs"><SimNao val={f.voluntario} /></TableCell>
+                        <TableCell className="text-xs"><SimNao val={f.comparecimento} /></TableCell>
+                        <TableCell className="text-xs text-right font-bold">{fmt(f.qt_convocados || 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
