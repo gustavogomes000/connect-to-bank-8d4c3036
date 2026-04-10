@@ -28,7 +28,7 @@ const queryClient = new QueryClient({
   },
 });
 
-const HIDE_FILTERS = ['/ajuda', '/config', '/chat', '/relatorios', '/candidatos', '/candidato', '/perfil-candidatos'];
+const HIDE_FILTERS = ['/ajuda', '/config', '/candidatos', '/candidato', '/perfil-candidatos'];
 
 const ROUTE_FILTERS: Record<string, FilterField[]> = {
   '/zonas': ['ano', 'municipio', 'cargo', 'turno'],

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Trophy, HelpCircle, MessageSquare, Settings, School, Hash, User, Sparkles, Users,
+  Trophy, HelpCircle, Settings, School, Hash, User, Sparkles, Users,
 } from 'lucide-react';
 import {
   Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel,
