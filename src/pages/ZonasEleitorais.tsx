@@ -216,6 +216,7 @@ export default function ZonasEleitorais() {
       label: `${c.candidato} (${c.ano})`,
       partido: c.partido,
       cargo: c.cargo,
+      mun: c.municipio || municipio,
     }]);
     setSearchCandidato('');
   }, [selecionados]);
