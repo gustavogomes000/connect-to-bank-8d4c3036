@@ -9,7 +9,7 @@ import { GlobalFilters, FilterField } from "@/components/eleicoes/GlobalFilters"
 import Ranking from "./pages/Ranking";
 import ZonasEleitorais from "./pages/ZonasEleitorais";
 import EscolasEleitorais from "./pages/EscolasEleitorais";
-import ChatEleicoes from "./pages/ChatEleicoes";
+
 import Configuracoes from "./pages/Configuracoes";
 import Ajuda from "./pages/Ajuda";
 import Mesarios from "./pages/Mesarios";
@@ -67,12 +67,10 @@ function Layout() {
               <Route path="/candidatos" element={<PerfilCandidatos />} />
               <Route path="/candidatos/:id" element={<PerfilCandidatos />} />
               <Route path="/candidatos/:id/:ano" element={<PerfilCandidatos />} />
-              <Route path="/chat" element={<ChatEleicoes />} />
-              <Route path="/relatorios" element={<ChatEleicoes />} />
               <Route path="/config" element={<Configuracoes />} />
               <Route path="/ajuda" element={<Ajuda />} />
               {/* Legacy redirects */}
-              <Route path="/consulta" element={<ChatEleicoes />} />
+              
               <Route path="/resultado" element={<Ranking />} />
               <Route path="/explorador" element={<Ranking />} />
               <Route path="/diretorio" element={<Ranking />} />
