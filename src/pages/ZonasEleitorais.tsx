@@ -293,7 +293,7 @@ export default function ZonasEleitorais() {
                           {c.partido}
                         </span>
                       </div>
-                      <Badge variant="secondary" className="text-[10px] h-5">{c.ano}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-5">{c.numero}</Badge>
                     </div>
                   );
                 })
