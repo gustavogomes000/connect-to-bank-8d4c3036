@@ -27,6 +27,7 @@ interface CandidatoOption {
   cargo: string;
   numero: number;
   ano: number;
+  municipio: string;
 }
 
 interface ComparativoRow {
@@ -43,9 +44,11 @@ function useBuscarCandidatos(municipio: string, search: string, anosAtivos: numb
     queryFn: async () => {
       if (!search || search.length < 3 || anosAtivos.length === 0) return [];
       const searchUpper = search.toUpperCase().replace(/'/g, "''");
-      const queries = anosAtivos.map(ano => {
+      const queries = anosAtivos.map((ano, idx) => {
         if (!getAnosDisponiveis('candidatos').includes(ano)) return null;
         const cand = getTableName('candidatos', ano);
+        const isGeral = [2014, 2018, 2022].includes(ano);
+        const munFilter = isGeral ? '' : `AND c.NM_UE = '${municipio}'`;
         return `
           SELECT DISTINCT
             CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
@@ -54,14 +57,16 @@ function useBuscarCandidatos(municipio: string, search: string, anosAtivos: numb
             c.SG_PARTIDO AS partido,
             c.DS_CARGO AS cargo,
             c.NR_CANDIDATO AS numero,
-            ${ano} AS ano
+            ${ano} AS ano,
+            c.NM_UE AS municipio
           FROM ${cand} c
-          WHERE UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
-          LIMIT 15
+          WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
+              OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
+            ${munFilter}
         `;
       }).filter(Boolean);
       if (queries.length === 0) return [];
-      const sql = queries.join('\nUNION ALL\n') + '\nORDER BY candidato, ano DESC\nLIMIT 50';
+      const sql = 'SELECT * FROM (\n' + queries.join('\nUNION ALL\n') + '\n) sub\nORDER BY candidato, ano DESC\nLIMIT 50';
       return await mdQuery<CandidatoOption>(sql);
     },
     enabled: !!municipio && search.length >= 3 && anosAtivos.length > 0,
@@ -72,7 +77,7 @@ function useBuscarCandidatos(municipio: string, search: string, anosAtivos: numb
 /** Hook: compare votes by zona for selected candidates */
 function useComparativoZona(
   municipio: string,
-  selecionados: { sq: string; ano: number; label: string }[]
+  selecionados: { sq: string; ano: number; label: string; mun?: string }[]
 ) {
   return useQuery({
     queryKey: ['comparativo-zona', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
@@ -87,8 +92,7 @@ function useComparativoZona(
             '${s.label.replace(/'/g, "''")}' AS candidato_label,
             ${i} AS idx
           FROM ${vot} v
-          WHERE v.SQ_CANDIDATO = '${s.sq}'
-            AND v.NM_MUNICIPIO = '${municipio}'
+          WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${s.sq}'
           GROUP BY v.NR_ZONA
         `;
       });
@@ -112,7 +116,7 @@ function useComparativoZona(
 /** Hook: compare votes by escola for selected candidates */
 function useComparativoEscola(
   municipio: string,
-  selecionados: { sq: string; ano: number; label: string }[]
+  selecionados: { sq: string; ano: number; label: string; mun?: string }[]
 ) {
   return useQuery({
     queryKey: ['comparativo-escola', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
@@ -124,6 +128,7 @@ function useComparativoEscola(
         const sorted = [...anosLocal].sort((a, b) => Math.abs(a - s.ano) - Math.abs(b - s.ano));
         const anoLocal = sorted[0] || 2024;
         const loc = getTableName('eleitorado_local', anoLocal);
+        const mun = s.mun || municipio;
         return `
           SELECT
             COALESCE(loc.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
@@ -138,14 +143,14 @@ function useComparativoEscola(
               MAX(NM_BAIRRO) AS NM_BAIRRO,
               MAX(NM_LOCAL_VOTACAO) AS NM_LOCAL_VOTACAO
             FROM ${loc}
-            WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}'
+            WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${mun}'
             GROUP BY NM_MUNICIPIO, NR_ZONA, NR_SECAO
           ) loc ON vs.NR_ZONA = loc.NR_ZONA AND vs.NR_SECAO = loc.NR_SECAO
-          WHERE vs.NR_CANDIDATO = (
+          WHERE vs.NR_VOTAVEL = (
             SELECT NR_CANDIDATO FROM ${getTableName('candidatos', s.ano)}
-            WHERE SQ_CANDIDATO = '${s.sq}' LIMIT 1
+            WHERE CAST(SQ_CANDIDATO AS VARCHAR) = '${s.sq}' LIMIT 1
           )
-            AND vs.NM_MUNICIPIO = '${municipio}'
+            AND vs.NM_MUNICIPIO = '${mun}'
           GROUP BY loc.NM_LOCAL_VOTACAO, loc.NM_BAIRRO, vs.NR_ZONA
         `;
       });
@@ -186,12 +191,12 @@ export default function ZonasEleitorais() {
   const { municipio } = useFilterStore();
   const [anosAtivos, setAnosAtivos] = useState<number[]>([2024]);
   const [searchCandidato, setSearchCandidato] = useState('');
-  const [selecionados, setSelecionados] = useState<{ sq: string; ano: number; label: string; partido: string; cargo: string }[]>([]);
+  const [selecionados, setSelecionados] = useState<{ sq: string; ano: number; label: string; partido: string; cargo: string; mun: string }[]>([]);
 
   const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, anosAtivos);
 
   const comparativoItems = useMemo(() =>
-    selecionados.map(s => ({ sq: s.sq, ano: s.ano, label: s.label })),
+    selecionados.map(s => ({ sq: s.sq, ano: s.ano, label: s.label, mun: s.mun })),
     [selecionados]
   );
 
@@ -212,6 +217,7 @@ export default function ZonasEleitorais() {
       label: `${c.candidato} (${c.ano})`,
       partido: c.partido,
       cargo: c.cargo,
+      mun: c.municipio || municipio,
     }]);
     setSearchCandidato('');
   }, [selecionados]);
