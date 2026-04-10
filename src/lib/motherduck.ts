@@ -441,11 +441,12 @@ interface HistoricoIdentificador {
 }
 
 function buildHistoricoCandidatoFilter(alias: string, identificador: HistoricoIdentificador): string {
+  // Prioriza CPF (mais confiável — nome pode variar entre eleições)
+  const cpfSafe = identificador.cpf?.trim().replace(/'/g, "''");
+  if (cpfSafe && cpfSafe.length >= 11) return `${alias}.NR_CPF_CANDIDATO = '${cpfSafe}'`;
+
   const nomeSafe = identificador.nomeCompleto?.trim().replace(/'/g, "''");
   if (nomeSafe) return `UPPER(TRIM(CAST(${alias}.NM_CANDIDATO AS VARCHAR))) = UPPER('${nomeSafe}')`;
-
-  const cpfSafe = identificador.cpf?.trim().replace(/'/g, "''");
-  if (cpfSafe) return `${alias}.NR_CPF_CANDIDATO = '${cpfSafe}'`;
 
   throw new Error('Identificador do histórico não informado.');
 }
@@ -605,10 +606,10 @@ export function sqlHistoricoComVotos(identificador: HistoricoIdentificador): str
       GROUP BY SQ_CANDIDATO
     ) v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
     LEFT JOIN (
-      SELECT NR_CANDIDATO, NM_MUNICIPIO, SUM(QT_VOTOS_NOMINAIS) AS total_votos
+      SELECT NR_CANDIDATO, NM_MUNICIPIO, DS_CARGO, SUM(QT_VOTOS_NOMINAIS) AS total_votos
       FROM ${vot}
-      GROUP BY NR_CANDIDATO, NM_MUNICIPIO
-    ) vn ON c.NR_CANDIDATO = vn.NR_CANDIDATO AND c.NM_UE = vn.NM_MUNICIPIO AND v.total_votos IS NULL
+      GROUP BY NR_CANDIDATO, NM_MUNICIPIO, DS_CARGO
+    ) vn ON c.NR_CANDIDATO = vn.NR_CANDIDATO AND c.NM_UE = vn.NM_MUNICIPIO AND UPPER(c.DS_CARGO) = UPPER(vn.DS_CARGO) AND COALESCE(v.total_votos, 0) = 0
     ${boletimVotes ? `LEFT JOIN (${boletimVotes}) vb ON c.SQ_CANDIDATO = vb.sq_candidato` : 'LEFT JOIN (SELECT NULL AS sq_candidato, NULL AS total_votos) vb ON 1=0'}
     WHERE ${filtro}`);
   }
