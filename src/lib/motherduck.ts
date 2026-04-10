@@ -125,7 +125,9 @@ function needsGeoJoin(f: FiltrosPainel): boolean {
 function buildGeoJoin(f: FiltrosPainel, votAlias = 'v', locAlias = 'loc'): { join: string; conds: string[] } {
   if (!needsGeoJoin(f)) return { join: '', conds: [] };
   const ano = f.ano || 2024;
-  const loc = getTableName('eleitorado_local', ano);
+  const anosLocal = getAnosDisponiveis('eleitorado_local');
+  const anoLocal = anosLocal.includes(ano) ? ano : [...anosLocal].sort((a, b) => Math.abs(a - ano) - Math.abs(b - ano))[0] || 2024;
+  const loc = getTableName('eleitorado_local', anoLocal);
   const join = `INNER JOIN ${loc} ${locAlias} ON ${votAlias}.NR_ZONA = ${locAlias}.NR_ZONA AND ${votAlias}.NR_SECAO = ${locAlias}.NR_SECAO AND ${locAlias}.SG_UF = 'GO' AND ${locAlias}.NM_MUNICIPIO = '${f.municipio}'`;
   const conds: string[] = [];
   if (f.zona) conds.push(`${votAlias}.NR_ZONA = ${f.zona}`);
