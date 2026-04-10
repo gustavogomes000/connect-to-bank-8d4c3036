@@ -408,6 +408,12 @@ function buildBoletimNormalizadoSubquery(ano: number): string | null {
 function buildBoletimCargoCondition(alias: string, cargo?: string | null): string {
   if (!cargo) return '';
   const cargoSafe = cargo.replace(/'/g, "''");
+  // Vice-prefeito/vice-governador shares the same ballot entry as the titular
+  const upper = cargoSafe.toUpperCase();
+  if (upper.startsWith('VICE-') || upper.startsWith('VICE ')) {
+    const titularCargo = cargoSafe.replace(/^VICE[- ]/i, '');
+    return `AND (UPPER(COALESCE(${alias}.ds_cargo_pergunta, '')) = UPPER('${cargoSafe}') OR UPPER(COALESCE(${alias}.ds_cargo_pergunta, '')) = UPPER('${titularCargo}'))`;
+  }
   return `AND UPPER(COALESCE(${alias}.ds_cargo_pergunta, '')) = UPPER('${cargoSafe}')`;
 }
 
@@ -586,13 +592,23 @@ export function sqlHistoricoComVotos(identificador: HistoricoIdentificador): str
       c.DS_SIT_TOT_TURNO AS situacao,
       c.SQ_CANDIDATO AS sq_candidato,
       c.NR_CANDIDATO AS numero,
-      COALESCE(NULLIF(v.total_votos, 0), vb.total_votos, 0) AS total_votos
+      COALESCE(
+        NULLIF(v.total_votos, 0),
+        vn.total_votos,
+        vb.total_votos,
+        0
+      ) AS total_votos
     FROM ${cand} c
     LEFT JOIN (
       SELECT SQ_CANDIDATO, SUM(QT_VOTOS_NOMINAIS) AS total_votos
       FROM ${vot}
       GROUP BY SQ_CANDIDATO
     ) v ON c.SQ_CANDIDATO = v.SQ_CANDIDATO
+    LEFT JOIN (
+      SELECT NR_CANDIDATO, NM_MUNICIPIO, SUM(QT_VOTOS_NOMINAIS) AS total_votos
+      FROM ${vot}
+      GROUP BY NR_CANDIDATO, NM_MUNICIPIO
+    ) vn ON c.NR_CANDIDATO = vn.NR_CANDIDATO AND c.NM_UE = vn.NM_MUNICIPIO AND v.total_votos IS NULL
     ${boletimVotes ? `LEFT JOIN (${boletimVotes}) vb ON c.SQ_CANDIDATO = vb.sq_candidato` : 'LEFT JOIN (SELECT NULL AS sq_candidato, NULL AS total_votos) vb ON 1=0'}
     WHERE ${filtro}`);
   }
@@ -632,11 +648,17 @@ export function sqlVotosHistoricoPorZona(
   if (sqCandidato) conds.push(`v.SQ_CANDIDATO = '${sqCandidato}'`);
   else if (nrCandidato) conds.push(`v.NR_CANDIDATO = ${nrCandidato}`);
 
-  if (municipio && !isEleicaoGeral(ano)) {
+  if (municipio) {
     conds.push(`v.NM_MUNICIPIO = '${municipio.replace(/'/g, "''")}'`);
   }
 
-  return `
+  // First try with SQ_CANDIDATO, if no results fallback will happen at the component level
+  // For vice-candidates, also try NR_CANDIDATO as they share the ticket number
+  const fallbackConds: string[] = [];
+  if (nrCandidato) fallbackConds.push(`v.NR_CANDIDATO = ${nrCandidato}`);
+  if (municipio) fallbackConds.push(`v.NM_MUNICIPIO = '${municipio.replace(/'/g, "''")}'`);
+
+  const primaryQuery = `
     SELECT
       v.NR_ZONA AS zona,
       v.NM_MUNICIPIO AS municipio,
@@ -646,6 +668,27 @@ export function sqlVotosHistoricoPorZona(
     GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
     ORDER BY total_votos DESC
   `.trim();
+
+  // If we have both sqCandidato AND nrCandidato, provide a UNION fallback
+  if (sqCandidato && nrCandidato && fallbackConds.length) {
+    return `
+      WITH primary_result AS (${primaryQuery})
+      SELECT * FROM primary_result
+      WHERE (SELECT COUNT(*) FROM primary_result) > 0
+      UNION ALL
+      SELECT
+        v.NR_ZONA AS zona,
+        v.NM_MUNICIPIO AS municipio,
+        SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
+      FROM ${vot} v
+      WHERE ${fallbackConds.join(' AND ')}
+        AND (SELECT COUNT(*) FROM primary_result) = 0
+      GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
+      ORDER BY total_votos DESC
+    `.trim();
+  }
+
+  return primaryQuery;
 }
 
 /** Votos por local de votação de uma zona específica em uma eleição.
