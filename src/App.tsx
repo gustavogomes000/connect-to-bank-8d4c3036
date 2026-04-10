@@ -56,7 +56,7 @@ function Layout() {
               <span className="text-[10px] text-muted-foreground">Inteligência Eleitoral</span>
             </div>
           </header>
-          {!hideFilters && <GlobalFilters />}
+          {!hideFilters && <GlobalFilters visibleFilters={visibleFilters} />}
           <main className="flex-1 p-3 md:p-4 overflow-auto">
             <Routes>
               <Route path="/" element={<Ranking />} />
