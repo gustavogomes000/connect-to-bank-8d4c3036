@@ -83,10 +83,10 @@ export default function Ranking() {
                   <TableHead className="px-2 py-2 w-8 text-[10px] uppercase tracking-wider">#</TableHead>
                   <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Candidato</TableHead>
                   <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Partido</TableHead>
-                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Cargo</TableHead>
-                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Município</TableHead>
-                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider">Situação</TableHead>
-                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right">Patrimônio</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider hide-mobile">Cargo</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider hide-mobile">Município</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider hide-mobile">Situação</TableHead>
+                  <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right hide-mobile">Patrimônio</TableHead>
                   <TableHead className="px-2 py-2 text-[10px] uppercase tracking-wider text-right">Votos</TableHead>
                 </TableRow>
               </TableHeader>
@@ -125,12 +125,12 @@ export default function Ranking() {
                           {item.SG_PARTIDO}
                         </span>
                       </TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{item.DS_CARGO}</TableCell>
-                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground">{item.NM_UE}</TableCell>
-                      <TableCell className="px-2 py-1.5">
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hide-mobile">{item.DS_CARGO}</TableCell>
+                      <TableCell className="px-2 py-1.5 text-xs text-muted-foreground hide-mobile">{item.NM_UE}</TableCell>
+                      <TableCell className="px-2 py-1.5 hide-mobile">
                         <Badge className={`text-[9px] ${sit.bg} ${sit.text} border-0`}>{sit.label}</Badge>
                       </TableCell>
-                      <TableCell className="px-2 py-1.5 text-right text-xs font-mono text-muted-foreground">
+                      <TableCell className="px-2 py-1.5 text-right text-xs font-mono text-muted-foreground hide-mobile">
                         {item.patrimonio_total > 0 ? formatBRLCompact(item.patrimonio_total) : '—'}
                       </TableCell>
                       <TableCell className="px-2 py-1.5 text-right font-bold text-primary">
