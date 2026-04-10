@@ -152,7 +152,7 @@ function PerfilCandidatosList() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg font-bold text-foreground">Painel de Candidatos</h1>
-          <p className="text-xs text-muted-foreground">{municipio} — 2014 a 2024 • Fonte: TSE / MotherDuck</p>
+          <p className="text-xs text-muted-foreground">{municipio === '_todos' ? 'Goiás (todos)' : municipio} — 2014 a 2024 • Fonte: TSE / MotherDuck</p>
         </div>
         <Badge variant="secondary" className="text-[10px]">
           {filtered.length} candidatos
