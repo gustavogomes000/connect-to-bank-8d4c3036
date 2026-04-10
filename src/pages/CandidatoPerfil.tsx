@@ -856,21 +856,6 @@ export default function CandidatoPerfil() {
   const cargoAtual = candidatoQ.data?.cargo || candidatoQ.data?.DS_CARGO || null;
   const mun = municipio || candidatoQ.data?.municipio || candidatoQ.data?.NM_UE || null;
 
-  const composicaoQ = useQuery({
-    queryKey: ['md', 'composicao', ano, nrCandidato, cargoAtual, mun],
-    enabled: !!nrCandidato && !!candidatoQ.data && (canUseDataset('boletim_urna', ano) || canUseDataset('votacao_secao', ano) || canUseDataset('votacao', ano)),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-    queryFn: async () => {
-      try {
-        const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun ? String(mun) : undefined, cargoAtual ? String(cargoAtual) : undefined));
-        return (rows || []) as AnyRow[];
-      } catch (e) {
-        console.warn('Erro ao buscar composição de votos:', e);
-        return [] as AnyRow[];
-      }
-    },
-  });
 
   // ── Histórico eleitoral (usa nome completo) ──
   const candidato = candidatoQ.data;
@@ -892,7 +877,7 @@ export default function CandidatoPerfil() {
   const receitas = receitasQ.data || [];
   const redes = redesQ.data || [];
   const historico = (historicoQ.data || []) as AnyRow[];
-  const composicao = composicaoQ.data || [];
+  
 
   const idade = calcIdade(candidato?.data_nascimento || candidato?.DT_NASCIMENTO);
 
@@ -983,13 +968,6 @@ export default function CandidatoPerfil() {
         </div>
       </section>
 
-      {/* ══════ COMPOSIÇÃO DE VOTOS ══════ */}
-      <VoteCompositionSection
-        composicaoRows={composicao}
-        isLoading={composicaoQ.isLoading}
-        nrCandidato={nrCandidato}
-        ano={ano}
-      />
 
       {/* ══════ HISTÓRICO ELEITORAL ══════ */}
       <HistoricoEleitoral historico={historico} currentAno={ano} />
