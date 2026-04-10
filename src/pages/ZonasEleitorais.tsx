@@ -47,34 +47,38 @@ interface CandidatoSelecionado extends ComparativoCandidato {
   partido: string;
 }
 
-/** Hook: search candidates for a single year */
-function useBuscarCandidatos(municipio: string, search: string, ano: number) {
+/** Hook: search candidates across ALL available years */
+function useBuscarCandidatos(municipio: string, search: string) {
+  const anosDisponiveis = getAnosDisponiveis('candidatos');
   return useQuery({
-    queryKey: ['busca-candidatos-comparativo', municipio, search, ano],
+    queryKey: ['busca-candidatos-comparativo-multi', municipio, search],
     queryFn: async () => {
       if (!search || search.length < 3) return [];
-      if (!getAnosDisponiveis('candidatos').includes(ano)) return [];
       const searchUpper = search.toUpperCase().replace(/'/g, "''");
-      const cand = getTableName('candidatos', ano);
-      const isGeral = [2014, 2018, 2022].includes(ano);
-      const munFilter = isGeral ? '' : `AND c.NM_UE = '${municipio}'`;
-      const sql = `
-        SELECT DISTINCT
-          CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
-          c.NM_URNA_CANDIDATO AS candidato,
-          c.NM_CANDIDATO AS nome_completo,
-          c.SG_PARTIDO AS partido,
-          c.DS_CARGO AS cargo,
-          c.NR_CANDIDATO AS numero,
-          ${ano} AS ano,
-          c.NM_UE AS municipio
-        FROM ${cand} c
-        WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
-            OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
-          ${munFilter}
-        ORDER BY c.NM_URNA_CANDIDATO
-        LIMIT 50
-      `;
+      const munSafe = municipio.replace(/'/g, "''");
+
+      const subqueries = anosDisponiveis.map(a => {
+        const cand = getTableName('candidatos', a);
+        const isGeral = [2014, 2018, 2022].includes(a);
+        const munFilter = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
+        return `
+          SELECT DISTINCT
+            CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
+            c.NM_URNA_CANDIDATO AS candidato,
+            c.NM_CANDIDATO AS nome_completo,
+            c.SG_PARTIDO AS partido,
+            c.DS_CARGO AS cargo,
+            c.NR_CANDIDATO AS numero,
+            ${a} AS ano,
+            c.NM_UE AS municipio
+          FROM ${cand} c
+          WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
+              OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
+            ${munFilter}
+        `;
+      });
+
+      const sql = subqueries.join('\nUNION ALL\n') + '\nORDER BY candidato, ano DESC\nLIMIT 80';
       return await mdQuery<CandidatoOption>(sql);
     },
     enabled: !!municipio && search.length >= 3,
@@ -181,13 +185,7 @@ export default function ZonasEleitorais() {
   const [searchCandidato, setSearchCandidato] = useState('');
   const [selecionados, setSelecionados] = useState<CandidatoSelecionado[]>([]);
 
-  // Clear selections when year changes
-  useEffect(() => {
-    setSelecionados([]);
-    setSearchCandidato('');
-  }, [ano]);
-
-  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, ano);
+  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato);
 
   const comparativoItems = useMemo(() =>
     selecionados.map(s => ({
