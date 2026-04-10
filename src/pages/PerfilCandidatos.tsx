@@ -80,7 +80,7 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
 }
 
 function PerfilCandidatosList() {
-  const [municipio, setMunicipio] = useState('APARECIDA DE GOIÂNIA');
+  const [municipio, setMunicipio] = useState('_todos');
   const [cargo, setCargo] = useState<string | null>(null);
   const [partido, setPartido] = useState<string | null>(null);
   const { data: candidatos, isLoading, isError } = useCandidatos(municipio, cargo, partido);
@@ -167,6 +167,7 @@ function PerfilCandidatosList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="_todos">Todos de Goiás</SelectItem>
               <SelectItem value="APARECIDA DE GOIÂNIA">Aparecida de Goiânia</SelectItem>
               <SelectItem value="GOIÂNIA">Goiânia</SelectItem>
             </SelectContent>
