@@ -8,9 +8,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
-  Hash, Search, Users, School, X, BarChart3, GitCompareArrows, Vote, Plus,
+  Hash, Search, School, X, GitCompareArrows, Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mdQuery, getTableName, getAnosDisponiveis } from '@/lib/motherduck';
