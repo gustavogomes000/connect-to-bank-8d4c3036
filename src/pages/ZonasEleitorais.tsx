@@ -77,14 +77,16 @@ function useBuscarCandidatos(municipio: string, search: string, anosAtivos: numb
 /** Hook: compare votes by zona for selected candidates */
 function useComparativoZona(
   municipio: string,
-  selecionados: { sq: string; ano: number; label: string; mun?: string }[]
+  selecionados: { sq: string; ano: number; label: string }[]
 ) {
   return useQuery({
     queryKey: ['comparativo-zona', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
     queryFn: async () => {
       if (selecionados.length === 0) return [];
+      const municipioSafe = municipio.replace(/'/g, "''");
       const subqueries = selecionados.map((s, i) => {
         const vot = getTableName('votacao', s.ano);
+        const sqSafe = s.sq.replace(/'/g, "''");
         return `
           SELECT
             v.NR_ZONA AS zona,
@@ -92,7 +94,8 @@ function useComparativoZona(
             '${s.label.replace(/'/g, "''")}' AS candidato_label,
             ${i} AS idx
           FROM ${vot} v
-          WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${s.sq}'
+          WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${sqSafe}'
+            AND v.NM_MUNICIPIO = '${municipioSafe}'
           GROUP BY v.NR_ZONA
         `;
       });
@@ -116,25 +119,26 @@ function useComparativoZona(
 /** Hook: compare votes by escola for selected candidates */
 function useComparativoEscola(
   municipio: string,
-  selecionados: { sq: string; ano: number; label: string; mun?: string }[]
+  selecionados: { sq: string; ano: number; label: string }[]
 ) {
   return useQuery({
     queryKey: ['comparativo-escola', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
     queryFn: async () => {
       if (selecionados.length === 0) return [];
+      const municipioSafe = municipio.replace(/'/g, "''");
       const subqueries = selecionados.map((s, i) => {
         const votSecao = getTableName('votacao_secao', s.ano);
         const anosLocal = getAnosDisponiveis('eleitorado_local');
         const sorted = [...anosLocal].sort((a, b) => Math.abs(a - s.ano) - Math.abs(b - s.ano));
         const anoLocal = sorted[0] || 2024;
         const loc = getTableName('eleitorado_local', anoLocal);
-        const mun = s.mun || municipio;
+        const sqSafe = s.sq.replace(/'/g, "''");
         return `
           SELECT
             COALESCE(loc.NM_LOCAL_VOTACAO, 'NÃO INFORMADO') AS escola,
             COALESCE(loc.NM_BAIRRO, 'NÃO INFORMADO') AS bairro,
             vs.NR_ZONA AS zona,
-            SUM(vs.QT_VOTOS_NOMINAIS) AS votos,
+            SUM(vs.QT_VOTOS) AS votos,
             '${s.label.replace(/'/g, "''")}' AS candidato_label,
             ${i} AS idx
           FROM ${votSecao} vs
@@ -143,14 +147,17 @@ function useComparativoEscola(
               MAX(NM_BAIRRO) AS NM_BAIRRO,
               MAX(NM_LOCAL_VOTACAO) AS NM_LOCAL_VOTACAO
             FROM ${loc}
-            WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${mun}'
+            WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipioSafe}'
             GROUP BY NM_MUNICIPIO, NR_ZONA, NR_SECAO
           ) loc ON vs.NR_ZONA = loc.NR_ZONA AND vs.NR_SECAO = loc.NR_SECAO
           WHERE vs.NR_VOTAVEL = (
-            SELECT NR_CANDIDATO FROM ${getTableName('candidatos', s.ano)}
-            WHERE CAST(SQ_CANDIDATO AS VARCHAR) = '${s.sq}' LIMIT 1
+            SELECT NR_CANDIDATO
+            FROM ${getTableName('candidatos', s.ano)}
+            WHERE CAST(SQ_CANDIDATO AS VARCHAR) = '${sqSafe}'
+            ORDER BY COALESCE(NR_TURNO, 0) DESC
+            LIMIT 1
           )
-            AND vs.NM_MUNICIPIO = '${mun}'
+            AND vs.NM_MUNICIPIO = '${municipioSafe}'
           GROUP BY loc.NM_LOCAL_VOTACAO, loc.NM_BAIRRO, vs.NR_ZONA
         `;
       });
@@ -191,12 +198,12 @@ export default function ZonasEleitorais() {
   const { municipio } = useFilterStore();
   const [anosAtivos, setAnosAtivos] = useState<number[]>([2024]);
   const [searchCandidato, setSearchCandidato] = useState('');
-  const [selecionados, setSelecionados] = useState<{ sq: string; ano: number; label: string; partido: string; cargo: string; mun: string }[]>([]);
+  const [selecionados, setSelecionados] = useState<{ sq: string; ano: number; label: string; partido: string; cargo: string }[]>([]);
 
   const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, anosAtivos);
 
   const comparativoItems = useMemo(() =>
-    selecionados.map(s => ({ sq: s.sq, ano: s.ano, label: s.label, mun: s.mun })),
+    selecionados.map(s => ({ sq: s.sq, ano: s.ano, label: s.label })),
     [selecionados]
   );
 
@@ -217,7 +224,6 @@ export default function ZonasEleitorais() {
       label: `${c.candidato} (${c.ano})`,
       partido: c.partido,
       cargo: c.cargo,
-      mun: c.municipio || municipio,
     }]);
     setSearchCandidato('');
   }, [selecionados]);
