@@ -689,15 +689,22 @@ export default function CandidatoPerfil() {
   const mun = municipio || candidatoQ.data?.municipio || candidatoQ.data?.NM_UE || null;
 
 
-  // ── Histórico eleitoral (usa nome completo) ──
+  // ── Histórico eleitoral (prioriza CPF, fallback para nome completo) ──
   const candidato = candidatoQ.data;
+  const cpfHist = String(candidato?.cpf || candidato?.NR_CPF_CANDIDATO || '').trim();
   const nomeCompletoHist = String(candidato?.nome_completo || candidato?.NM_CANDIDATO || '').trim();
+  // CPF é mais confiável que nome (nomes podem variar entre eleições)
+  const historicoIdentificador = cpfHist.length >= 11
+    ? { cpf: cpfHist }
+    : nomeCompletoHist.length >= 3
+      ? { nomeCompleto: nomeCompletoHist }
+      : null;
 
   const historicoQ = useQuery({
-    queryKey: ['md', 'historico_votos', nomeCompletoHist],
-    enabled: nomeCompletoHist.length >= 3,
+    queryKey: ['md', 'historico_votos', cpfHist || nomeCompletoHist],
+    enabled: !!historicoIdentificador,
     staleTime: 10 * 60 * 1000,
-    queryFn: async () => mdQuery(sqlHistoricoComVotos({ nomeCompleto: nomeCompletoHist })),
+    queryFn: async () => mdQuery(sqlHistoricoComVotos(historicoIdentificador!)),
   });
 
   const isLoading = candidatoQ.isLoading;
