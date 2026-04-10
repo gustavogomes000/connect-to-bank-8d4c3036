@@ -93,8 +93,8 @@ export const CentralInteligencia = ({ sqCandidato }: { sqCandidato: string }) =>
             ) : (
               dadosFiltrados.map((item, idx) => (
                 <tr key={`${item.zona}-${item.secao}`} className="hover:bg-primary/5 transition-colors cursor-default">
-                  <td className="px-3 py-1.5 text-xs font-bold uppercase text-accent truncate max-w-[150px]" title={item.setor}>
-                    {item.setor || 'NÃO INFORMADO'}
+                  <td className="px-3 py-1.5 text-xs font-bold uppercase text-accent truncate max-w-[150px]" title={item.setor || item.escola}>
+                    {item.setor || item.escola}
                   </td>
                   <td className="px-3 py-1.5 text-xs font-bold uppercase text-foreground truncate max-w-[300px]" title={item.escola}>
                     {item.escola}
