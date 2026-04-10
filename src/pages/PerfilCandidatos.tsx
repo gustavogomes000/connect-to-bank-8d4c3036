@@ -35,7 +35,8 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
         const geral = isEleicaoGeral(ano);
         const conds: string[] = [`SG_UF = 'GO'`];
 
-        if (!geral) conds.push(`NM_UE = '${municipio}'`);
+        // Municipal elections: filter by municipality. General elections: show ALL from GO state
+        if (!geral && municipio !== '_todos') conds.push(`NM_UE = '${municipio}'`);
         conds.push(`NR_TURNO = 1`);
         if (cargo) conds.push(`DS_CARGO = '${cargo}'`);
         if (partido) conds.push(`SG_PARTIDO = '${partido}'`);
@@ -62,11 +63,9 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
       }
 
       const sql = `
-        WITH todos AS (${unions.join(' UNION ALL ')})
-        SELECT DISTINCT ON (nome_completo) *
-        FROM (
+        SELECT * FROM (
           SELECT *, ROW_NUMBER() OVER (PARTITION BY nome_completo ORDER BY ano_eleicao DESC) AS rn
-          FROM todos
+          FROM (${unions.join(' UNION ALL ')})
         )
         WHERE rn = 1
         ORDER BY nome_urna
@@ -81,7 +80,7 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
 }
 
 function PerfilCandidatosList() {
-  const [municipio, setMunicipio] = useState('APARECIDA DE GOIÂNIA');
+  const [municipio, setMunicipio] = useState('_todos');
   const [cargo, setCargo] = useState<string | null>(null);
   const [partido, setPartido] = useState<string | null>(null);
   const { data: candidatos, isLoading, isError } = useCandidatos(municipio, cargo, partido);
@@ -153,7 +152,7 @@ function PerfilCandidatosList() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg font-bold text-foreground">Painel de Candidatos</h1>
-          <p className="text-xs text-muted-foreground">{municipio} — 2014 a 2024 • Fonte: TSE / MotherDuck</p>
+          <p className="text-xs text-muted-foreground">{municipio === '_todos' ? 'Goiás (todos)' : municipio} — 2014 a 2024 • Fonte: TSE / MotherDuck</p>
         </div>
         <Badge variant="secondary" className="text-[10px]">
           {filtered.length} candidatos
@@ -168,6 +167,7 @@ function PerfilCandidatosList() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="_todos">Todos de Goiás</SelectItem>
               <SelectItem value="APARECIDA DE GOIÂNIA">Aparecida de Goiânia</SelectItem>
               <SelectItem value="GOIÂNIA">Goiânia</SelectItem>
             </SelectContent>
