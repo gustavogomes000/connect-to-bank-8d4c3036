@@ -93,7 +93,6 @@ function useComparativoZona(
             ${i} AS idx
           FROM ${vot} v
           WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${s.sq}'
-            AND v.NM_MUNICIPIO = '${municipio}'
           GROUP BY v.NR_ZONA
         `;
       });
