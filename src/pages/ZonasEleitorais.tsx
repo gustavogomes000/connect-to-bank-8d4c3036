@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useFilterStore } from '@/stores/filterStore';
 import { formatNumber, getPartidoCor } from '@/lib/eleicoes';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,34 +47,38 @@ interface CandidatoSelecionado extends ComparativoCandidato {
   partido: string;
 }
 
-/** Hook: search candidates for a single year */
-function useBuscarCandidatos(municipio: string, search: string, ano: number) {
+/** Hook: search candidates across ALL available years */
+function useBuscarCandidatos(municipio: string, search: string) {
+  const anosDisponiveis = getAnosDisponiveis('candidatos');
   return useQuery({
-    queryKey: ['busca-candidatos-comparativo', municipio, search, ano],
+    queryKey: ['busca-candidatos-comparativo-multi', municipio, search],
     queryFn: async () => {
       if (!search || search.length < 3) return [];
-      if (!getAnosDisponiveis('candidatos').includes(ano)) return [];
       const searchUpper = search.toUpperCase().replace(/'/g, "''");
-      const cand = getTableName('candidatos', ano);
-      const isGeral = [2014, 2018, 2022].includes(ano);
-      const munFilter = isGeral ? '' : `AND c.NM_UE = '${municipio}'`;
-      const sql = `
-        SELECT DISTINCT
-          CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
-          c.NM_URNA_CANDIDATO AS candidato,
-          c.NM_CANDIDATO AS nome_completo,
-          c.SG_PARTIDO AS partido,
-          c.DS_CARGO AS cargo,
-          c.NR_CANDIDATO AS numero,
-          ${ano} AS ano,
-          c.NM_UE AS municipio
-        FROM ${cand} c
-        WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
-            OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
-          ${munFilter}
-        ORDER BY c.NM_URNA_CANDIDATO
-        LIMIT 50
-      `;
+      const munSafe = municipio.replace(/'/g, "''");
+
+      const subqueries = anosDisponiveis.map(a => {
+        const cand = getTableName('candidatos', a);
+        const isGeral = [2014, 2018, 2022].includes(a);
+        const munFilter = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
+        return `
+          SELECT DISTINCT
+            CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
+            c.NM_URNA_CANDIDATO AS candidato,
+            c.NM_CANDIDATO AS nome_completo,
+            c.SG_PARTIDO AS partido,
+            c.DS_CARGO AS cargo,
+            c.NR_CANDIDATO AS numero,
+            ${a} AS ano,
+            c.NM_UE AS municipio
+          FROM ${cand} c
+          WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
+              OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
+            ${munFilter}
+        `;
+      });
+
+      const sql = subqueries.join('\nUNION ALL\n') + '\nORDER BY candidato, ano DESC\nLIMIT 80';
       return await mdQuery<CandidatoOption>(sql);
     },
     enabled: !!municipio && search.length >= 3,
@@ -181,13 +185,7 @@ export default function ZonasEleitorais() {
   const [searchCandidato, setSearchCandidato] = useState('');
   const [selecionados, setSelecionados] = useState<CandidatoSelecionado[]>([]);
 
-  // Clear selections when year changes
-  useEffect(() => {
-    setSelecionados([]);
-    setSearchCandidato('');
-  }, [ano]);
-
-  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato, ano);
+  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato);
 
   const comparativoItems = useMemo(() =>
     selecionados.map(s => ({
@@ -240,7 +238,7 @@ export default function ZonasEleitorais() {
           Comparativo Eleitoral por Zona e Escola
         </h1>
         <p className="text-xs text-muted-foreground">
-          {municipio} — {ano} — Compare candidatos da mesma eleição por zonas e escolas
+          {municipio} — Compare candidatos do mesmo cargo em eleições diferentes (mesma cidade)
         </p>
       </div>
 
@@ -286,6 +284,7 @@ export default function ZonasEleitorais() {
                       <div className="flex items-center gap-2">
                         <Plus className="w-3.5 h-3.5 text-primary" />
                         <span className="text-xs font-medium">{c.candidato}</span>
+                        <Badge variant="secondary" className="text-[9px] h-5">{c.ano}</Badge>
                         <Badge variant="outline" className="text-[9px] h-5">{c.cargo}</Badge>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                           style={{ backgroundColor: getPartidoCor(c.partido) + '20', color: getPartidoCor(c.partido) }}>
@@ -312,8 +311,8 @@ export default function ZonasEleitorais() {
                   onClick={() => removerCandidato(i)}
                 >
                   <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORES_COMPARATIVO[i] }} />
-                  {s.label}
-                  <span className="text-[9px] opacity-60">{s.partido}</span>
+                   {s.label}
+                   <span className="text-[9px] opacity-60">{s.ano} · {s.partido}</span>
                   <X className="w-3 h-3 ml-1" />
                 </Badge>
               ))}
@@ -346,14 +345,15 @@ export default function ZonasEleitorais() {
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
                       <TableHead className="text-[10px] font-semibold w-[80px]">Zona</TableHead>
-                      {selecionados.map((s, i) => (
+                       {selecionados.map((s, i) => (
                         <TableHead key={i} className="text-[10px] font-semibold text-right min-w-[120px]">
                           <div className="flex items-center justify-end gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORES_COMPARATIVO[i] }} />
                             <span className="truncate max-w-[100px]">{s.label}</span>
+                            <span className="opacity-50">{s.ano}</span>
                           </div>
                         </TableHead>
-                      ))}
+                       ))}
                       <TableHead className="text-[10px] font-semibold text-right">Diferença</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -458,14 +458,15 @@ export default function ZonasEleitorais() {
                       <TableHead className="text-[10px] font-semibold">Escola</TableHead>
                       <TableHead className="text-[10px] font-semibold w-[80px]">Zona</TableHead>
                       <TableHead className="text-[10px] font-semibold">Bairro</TableHead>
-                      {selecionados.map((s, i) => (
+                       {selecionados.map((s, i) => (
                         <TableHead key={i} className="text-[10px] font-semibold text-right min-w-[120px]">
                           <div className="flex items-center justify-end gap-1.5">
                             <span className="w-2 h-2 rounded-full" style={{ backgroundColor: CORES_COMPARATIVO[i] }} />
                             <span className="truncate max-w-[100px]">{s.label}</span>
+                            <span className="opacity-50">{s.ano}</span>
                           </div>
                         </TableHead>
-                      ))}
+                       ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
