@@ -35,7 +35,8 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
         const geral = isEleicaoGeral(ano);
         const conds: string[] = [`SG_UF = 'GO'`];
 
-        if (!geral) conds.push(`NM_UE = '${municipio}'`);
+        // Municipal elections: filter by municipality. General elections: show ALL from GO state
+        if (!geral && municipio !== '_todos') conds.push(`NM_UE = '${municipio}'`);
         conds.push(`NR_TURNO = 1`);
         if (cargo) conds.push(`DS_CARGO = '${cargo}'`);
         if (partido) conds.push(`SG_PARTIDO = '${partido}'`);
@@ -62,11 +63,9 @@ function useCandidatos(municipio: string, cargo: string | null, partido: string 
       }
 
       const sql = `
-        WITH todos AS (${unions.join(' UNION ALL ')})
-        SELECT DISTINCT ON (nome_completo) *
-        FROM (
+        SELECT * FROM (
           SELECT *, ROW_NUMBER() OVER (PARTITION BY nome_completo ORDER BY ano_eleicao DESC) AS rn
-          FROM todos
+          FROM (${unions.join(' UNION ALL ')})
         )
         WHERE rn = 1
         ORDER BY nome_urna
