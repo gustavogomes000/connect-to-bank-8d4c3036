@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useFilterStore } from "@/stores/filterStore";
 import { Label } from "@/components/ui/label";
 import {
@@ -7,7 +8,27 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Button } from "@/components/ui/button";
+import { Check, ChevronsUpDown } from "lucide-react";
+import { cn } from "@/lib/utils";
+
+const MUNICIPIOS = [
+  { value: "APARECIDA DE GOIÂNIA", label: "Aparecida de Goiânia" },
+  { value: "GOIÂNIA", label: "Goiânia" },
+];
 
 export function GlobalFilters() {
   const {
@@ -19,6 +40,10 @@ export function GlobalFilters() {
     setCargo,
     limpar: resetFilters,
   } = useFilterStore();
+
+  const [openMunicipio, setOpenMunicipio] = useState(false);
+
+  const municipioLabel = MUNICIPIOS.find((m) => m.value === municipio)?.label || municipio;
 
   return (
     <div className="bg-card text-card-foreground p-4 rounded-xl border shadow-sm flex flex-col md:flex-row gap-4 items-end mb-6">
@@ -43,22 +68,50 @@ export function GlobalFilters() {
         </Select>
       </div>
 
-      {/* Município */}
+      {/* Município - Searchable */}
       <div className="space-y-2 flex-1">
-        <Label htmlFor="municipio">Município</Label>
-        <Select 
-          value={municipio || "todos"} 
-          onValueChange={(val) => setMunicipio(val === "todos" ? "GOIÂNIA" : val)}
-        >
-          <SelectTrigger id="municipio">
-            <SelectValue placeholder="Todos os Municípios" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos</SelectItem>
-            <SelectItem value="GOIÂNIA">Goiânia</SelectItem>
-            <SelectItem value="APARECIDA DE GOIÂNIA">Aparecida de Goiânia</SelectItem>
-          </SelectContent>
-        </Select>
+        <Label>Município</Label>
+        <Popover open={openMunicipio} onOpenChange={setOpenMunicipio}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={openMunicipio}
+              className="w-full justify-between font-normal"
+            >
+              {municipioLabel}
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[280px] p-0" align="start">
+            <Command>
+              <CommandInput placeholder="Buscar município..." />
+              <CommandList>
+                <CommandEmpty>Nenhum município encontrado.</CommandEmpty>
+                <CommandGroup>
+                  {MUNICIPIOS.map((m) => (
+                    <CommandItem
+                      key={m.value}
+                      value={m.label}
+                      onSelect={() => {
+                        setMunicipio(m.value);
+                        setOpenMunicipio(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          municipio === m.value ? "opacity-100" : "opacity-0"
+                        )}
+                      />
+                      {m.label}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       {/* Cargo */}
