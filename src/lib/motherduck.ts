@@ -276,9 +276,9 @@ export function sqlPatrimonioCandidato(ano: number, sqCandidato: string): string
 export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: FiltrosPainel): string {
   const vot = getTableName('votacao', ano);
 
-  const conds: string[] = [`v.SQ_CANDIDATO = '${sqCandidato}'`];
-  if (filtros?.municipio && !isEleicaoGeral(ano)) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
-  if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
+  const conds: string[] = [`v.SQ_CANDIDATO = '${sqlSafe(sqCandidato)}'`];
+  if (filtros?.municipio && !isEleicaoGeral(ano)) conds.push(`v.NM_MUNICIPIO = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros?.zona) conds.push(`v.NR_ZONA = ${Number(filtros.zona)}`);
   const where = `WHERE ${conds.join(' AND ')}`;
 
   return `
@@ -297,9 +297,9 @@ export function sqlVotacaoPorZona(ano: number, sqCandidato: string, filtros?: Fi
 export function sqlVotacaoTerritorialDetalhada(ano: number, sqCandidato: string, filtros?: FiltrosPainel): string {
   const vot = getTableName('votacao', ano);
 
-  const conds: string[] = [`v.SQ_CANDIDATO = '${sqCandidato}'`];
-  if (filtros?.municipio && !isEleicaoGeral(ano)) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
-  if (filtros?.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
+  const conds: string[] = [`v.SQ_CANDIDATO = '${sqlSafe(sqCandidato)}'`];
+  if (filtros?.municipio && !isEleicaoGeral(ano)) conds.push(`v.NM_MUNICIPIO = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros?.zona) conds.push(`v.NR_ZONA = ${Number(filtros.zona)}`);
   const where = `WHERE ${conds.join(' AND ')}`;
 
   return `
