@@ -317,19 +317,21 @@ function removeAccents(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
+// Generate ILIKE condition that works with or without accents
+function ilike(field: string, value: string): string {
+  const safe = sqlSafe(value);
+  const noAcc = sqlSafe(removeAccents(value));
+  if (safe === noAcc) return `${field} ILIKE '%${safe}%'`;
+  return `(${field} ILIKE '%${safe}%' OR ${field} ILIKE '%${noAcc}%')`;
+}
+
+function nameSearch(nome: string, candField = "c.NM_URNA_CANDIDATO", fullField = "c.NM_CANDIDATO"): string {
+  return `(${ilike(candField, nome)} OR ${ilike(fullField, nome)})`;
+}
+
 function buildNameCondition(nomes: string[], candidateField = "c.NM_URNA_CANDIDATO", fullNameField = "c.NM_CANDIDATO"): string {
   if (nomes.length === 0) return '';
-  const conds = nomes.map(n => {
-    const safe = sqlSafe(n);
-    const noAccent = sqlSafe(removeAccents(n));
-    // Search both with and without accents for robustness
-    const parts = [`${candidateField} ILIKE '%${safe}%'`, `${fullNameField} ILIKE '%${safe}%'`];
-    if (safe !== noAccent) {
-      parts.push(`${candidateField} ILIKE '%${noAccent}%'`);
-      parts.push(`${fullNameField} ILIKE '%${noAccent}%'`);
-    }
-    return `(${parts.join(' OR ')})`;
-  });
+  const conds = nomes.map(n => nameSearch(n, candidateField, fullNameField));
   return `(${conds.join(' OR ')})`;
 }
 
