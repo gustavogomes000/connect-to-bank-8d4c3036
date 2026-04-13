@@ -336,51 +336,65 @@ export function useCargos() {
 
 // ── Filtros geográficos em cascata: Zona → Bairro → Escola ──
 
+/** Safe fallback: find closest year with eleitorado_local data */
+function getEleitoradoLocalAno(ano: number): number | null {
+  const anos = getAnosDisponiveis('eleitorado_local');
+  if (anos.includes(ano)) return ano;
+  if (anos.length === 0) return null;
+  return [...anos].sort((a, b) => Math.abs(a - ano) - Math.abs(b - ano))[0];
+}
+
 export function useZonas() {
   const { ano, municipio } = useFilterStore();
+  const anoLocal = getEleitoradoLocalAno(ano);
   return useQuery({
-    queryKey: ['zonasLista', municipio, ano],
+    queryKey: ['zonasLista', municipio, anoLocal],
     queryFn: async () => {
-      const loc = getTableName('eleitorado_local', ano);
+      if (!anoLocal) return [];
+      const loc = getTableName('eleitorado_local', anoLocal);
       const rows = await mdQuery<{ z: number }>(
         `SELECT DISTINCT NR_ZONA AS z FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}' ORDER BY z`
       );
       return rows.map(r => r.z);
     },
-    enabled: !!municipio,
+    enabled: !!municipio && !!anoLocal,
     staleTime: 30 * 60 * 1000,
   });
 }
 
 export function useBairros() {
   const { ano, municipio, zona } = useFilterStore();
+  const anoLocal = getEleitoradoLocalAno(ano);
   return useQuery({
-    queryKey: ['bairrosLista', municipio, zona, ano],
+    queryKey: ['bairrosLista', municipio, zona, anoLocal],
     queryFn: async () => {
-      const loc = getTableName('eleitorado_local', ano);
+      if (!anoLocal) return [];
+      const loc = getTableName('eleitorado_local', anoLocal);
       const zonaCond = zona ? ` AND NR_ZONA = ${zona}` : '';
       const rows = await mdQuery<{ b: string }>(
         `SELECT DISTINCT NM_BAIRRO AS b FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}'${zonaCond} AND NM_BAIRRO IS NOT NULL AND NM_BAIRRO != '' ORDER BY b`
       );
       return rows.map(r => r.b);
     },
-    enabled: !!municipio,
+    enabled: !!municipio && !!anoLocal,
     staleTime: 30 * 60 * 1000,
   });
 }
 
 export function useEscolas() {
   const { ano, municipio, bairro } = useFilterStore();
+  const anoLocal = getEleitoradoLocalAno(ano);
   return useQuery({
-    queryKey: ['escolasLista', municipio, bairro, ano],
+    queryKey: ['escolasLista', municipio, bairro, anoLocal],
     queryFn: async () => {
-      const loc = getTableName('eleitorado_local', ano);
+      if (!anoLocal) return [];
+      const loc = getTableName('eleitorado_local', anoLocal);
       const rows = await mdQuery<{ e: string }>(
         `SELECT DISTINCT NM_LOCAL_VOTACAO AS e FROM ${loc} WHERE SG_UF = 'GO' AND NM_MUNICIPIO = '${municipio}' AND NM_BAIRRO = '${bairro}' AND NM_LOCAL_VOTACAO IS NOT NULL ORDER BY e`
       );
       return rows.map(r => r.e);
     },
-    enabled: !!municipio && !!bairro,
+    enabled: !!municipio && !!bairro && !!anoLocal,
     staleTime: 30 * 60 * 1000,
   });
 }

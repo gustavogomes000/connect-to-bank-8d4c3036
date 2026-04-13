@@ -39,7 +39,7 @@ async function getPool() {
     },
     max: 3,
     idle_timeout: 55,
-    connect_timeout: 15,
+    connect_timeout: 30,
   });
 
   lastActivity = now;

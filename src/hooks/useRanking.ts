@@ -57,7 +57,11 @@ export const useRankingMD = () => {
 
       let geoJoin = '';
       if (hasGeo && (bairro || escola)) {
-        const loc = getTableName('eleitorado_local', ano);
+        // Find closest year with eleitorado_local data
+        const anosLocal = getAnosDisponiveis('eleitorado_local');
+        const anoLocal = anosLocal.includes(ano) ? ano : ([...anosLocal].sort((a, b) => Math.abs(a - ano) - Math.abs(b - ano))[0] || null);
+        if (!anoLocal) return []; // No eleitorado_local data available
+        const loc = getTableName('eleitorado_local', anoLocal);
         geoJoin = `INNER JOIN ${loc} loc ON v.NR_ZONA = loc.NR_ZONA AND v.NR_SECAO = loc.NR_SECAO AND loc.SG_UF = 'GO' AND loc.NM_MUNICIPIO = '${municipio}'`;
         if (bairro) conds.push(`loc.NM_BAIRRO = '${bairro}'`);
         if (escola) conds.push(`loc.NM_LOCAL_VOTACAO = '${escola}'`);
