@@ -688,6 +688,17 @@ export default function CandidatoPerfil() {
   const cargoAtual = candidatoQ.data?.cargo || candidatoQ.data?.DS_CARGO || null;
   const mun = municipio || candidatoQ.data?.municipio || candidatoQ.data?.NM_UE || null;
 
+  // ── Votação territorial da eleição atual ──
+  const votacaoTerritorialQ = useQuery({
+    queryKey: ['md', 'votacao_territorial', ano, sq],
+    enabled: !!sq && !!candidatoQ.data,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
+      return rows as AnyRow[];
+    },
+  });
+
 
   // ── Histórico eleitoral (prioriza CPF, fallback para nome completo) ──
   const candidato = candidatoQ.data;
@@ -716,7 +727,7 @@ export default function CandidatoPerfil() {
   const receitas = receitasQ.data || [];
   const redes = redesQ.data || [];
   const historico = (historicoQ.data || []) as AnyRow[];
-  
+  const votacaoTerritorial = votacaoTerritorialQ.data || [];
 
   const idade = calcIdade(candidato?.data_nascimento || candidato?.DT_NASCIMENTO);
 
@@ -807,6 +818,60 @@ export default function CandidatoPerfil() {
         </div>
       </section>
 
+
+      {/* ══════ VOTAÇÃO TERRITORIAL (ELEIÇÃO ATUAL) ══════ */}
+      {votacaoTerritorialQ.isLoading ? (
+        <section className="bg-white rounded-xl border border-border p-4 space-y-3">
+          <Skeleton className="h-5 w-48 mb-3" />
+          <Skeleton className="h-[200px] w-full" />
+        </section>
+      ) : votacaoTerritorial.length > 0 ? (
+        <section className="bg-white rounded-xl border border-border p-4 space-y-3">
+          <div className="flex items-center gap-2 flex-wrap">
+            <MapPinned className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-semibold text-slate-900">Votação por Zona — {ano}</h3>
+            <Badge variant="outline" className="text-[10px]">{votacaoTerritorial.length} zonas</Badge>
+            <Badge className="bg-primary/10 text-primary text-[10px]">
+              {votacaoTerritorial.reduce((s: number, r: AnyRow) => s + Number(r.total_votos || 0), 0).toLocaleString('pt-BR')} votos
+            </Badge>
+          </div>
+          <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+            <Table>
+              <TableHeader>
+                <TableRow className="border-border/60">
+                  <TableHead className="text-[10px] text-slate-500">Zona</TableHead>
+                  <TableHead className="text-[10px] text-slate-500">Município</TableHead>
+                  <TableHead className="text-[10px] text-slate-500 text-right">Votos</TableHead>
+                  <TableHead className="text-[10px] text-slate-500 text-right">%</TableHead>
+                  <TableHead className="text-[10px] text-slate-500 w-[80px]"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(() => {
+                  const totalVotos = votacaoTerritorial.reduce((s: number, r: AnyRow) => s + Number(r.total_votos || 0), 0);
+                  return votacaoTerritorial.map((z: AnyRow, i: number) => {
+                    const zv = Number(z.total_votos || 0);
+                    const pct = totalVotos > 0 ? (zv / totalVotos) * 100 : 0;
+                    return (
+                      <TableRow key={i} className="border-border/20">
+                        <TableCell className="text-xs font-mono text-slate-900">Zona {z.zona}</TableCell>
+                        <TableCell className="text-xs text-slate-600">{z.municipio}</TableCell>
+                        <TableCell className="text-xs font-mono font-bold text-slate-900 text-right">{zv.toLocaleString('pt-BR')}</TableCell>
+                        <TableCell className="text-xs font-mono text-slate-500 text-right">{pct.toFixed(1)}%</TableCell>
+                        <TableCell>
+                          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(pct * 2, 100)}%` }} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+                })()}
+              </TableBody>
+            </Table>
+          </div>
+        </section>
+      ) : null}
 
       {/* ══════ HISTÓRICO ELEITORAL ══════ */}
       <HistoricoEleitoral historico={historico} currentAno={ano} />
