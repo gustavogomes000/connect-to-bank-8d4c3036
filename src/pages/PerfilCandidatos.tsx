@@ -157,11 +157,11 @@ function PerfilCandidatosList() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-lg font-bold text-foreground">Painel de Candidatos</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-base sm:text-lg font-bold text-foreground">Painel de Candidatos</h1>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
             {geral ? 'Goiás (eleição geral)' : municipio === '_todos' ? 'Goiás (todos os municípios)' : municipio} — {ano} • Fonte: TSE / MotherDuck
           </p>
         </div>
@@ -170,11 +170,11 @@ function PerfilCandidatosList() {
         </Badge>
       </div>
 
-      <div className="bg-card text-card-foreground p-3 rounded-xl border shadow-sm flex flex-col md:flex-row gap-3 items-end">
+      <div className="bg-card text-card-foreground p-3 rounded-xl border shadow-sm flex flex-col gap-3 sm:flex-row sm:items-end">
         <div className="space-y-1 w-full md:w-auto">
           <Label htmlFor="perfil-ano" className="text-xs">Ano</Label>
           <Select value={String(ano)} onValueChange={handleAnoChange}>
-            <SelectTrigger id="perfil-ano" className="h-9 text-sm w-full md:w-[100px]">
+            <SelectTrigger id="perfil-ano" className="h-9 text-sm w-full sm:w-[100px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -242,7 +242,7 @@ function PerfilCandidatosList() {
                 <h2 className="text-sm font-bold text-foreground">{cargo}</h2>
                 <Badge variant="outline" className="text-[9px] h-4">{lista.length}</Badge>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {lista.map((c: any) => (
                   <CandidatoCard key={`${c.id}-${c.ano_eleicao}`} c={c} />
                 ))}
