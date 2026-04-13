@@ -125,7 +125,6 @@ export type Database = {
           capa_url: string | null
           criado_em: string
           descricao: string | null
-          fixado_home: boolean
           id: string
           nome: string
           ordem: number | null
@@ -135,7 +134,6 @@ export type Database = {
           capa_url?: string | null
           criado_em?: string
           descricao?: string | null
-          fixado_home?: boolean
           id?: string
           nome: string
           ordem?: number | null
@@ -145,7 +143,6 @@ export type Database = {
           capa_url?: string | null
           criado_em?: string
           descricao?: string | null
-          fixado_home?: boolean
           id?: string
           nome?: string
           ordem?: number | null

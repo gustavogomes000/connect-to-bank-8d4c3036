@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  Hash, Search, School, X, GitCompareArrows, Plus, MapPin,
+  Hash, Search, School, X, GitCompareArrows, Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { mdQuery, getTableName, getAnosDisponiveis, sqlComposicaoVotosCandidato, sqlSafe } from '@/lib/motherduck';
@@ -30,10 +30,9 @@ interface CandidatoOption {
 
 interface ComparativoRow {
   zona: number;
-  municipio?: string;
   escola?: string;
   bairro?: string;
-  [key: string]: any;
+  [key: string]: any; // votos_CANDIDATO_ANO
 }
 
 interface ComparativoCandidato {
@@ -48,19 +47,23 @@ interface CandidatoSelecionado extends ComparativoCandidato {
   partido: string;
 }
 
-/** Hook: search candidates across ALL available years — searches ALL cities in GO */
-function useBuscarCandidatos(search: string) {
+/** Hook: search candidates across ALL available years — same logic as Dashboard (LEFT JOIN) */
+function useBuscarCandidatos(municipio: string, search: string) {
   const anosDisponiveis = getAnosDisponiveis('candidatos');
   return useQuery({
-    queryKey: ['busca-candidatos-comparativo-all', search],
+    queryKey: ['busca-candidatos-comparativo-multi', municipio, search],
     queryFn: async () => {
       if (!search || search.length < 3) return [];
       const searchUpper = sqlSafe(search.toUpperCase());
+      const munSafe = sqlSafe(municipio);
 
       const subqueries = anosDisponiveis.map(a => {
         const cand = getTableName('candidatos', a);
+        const isGeral = [2014, 2018, 2022].includes(a);
+        const munFilterCand = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
         const nameFilter = `(UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%' OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')`;
 
+        // Direct candidate search - no JOIN needed (votes fetched only after selection)
         return `
           SELECT
             CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
@@ -72,110 +75,96 @@ function useBuscarCandidatos(search: string) {
             ${a} AS ano,
             c.NM_UE AS municipio
           FROM ${cand} c
-          WHERE ${nameFilter}
+          WHERE ${nameFilter} ${munFilterCand}
         `;
       });
 
       const sql = `SELECT DISTINCT * FROM (${subqueries.join('\nUNION ALL\n')}) sub ORDER BY candidato, ano DESC LIMIT 80`;
       return await mdQuery<CandidatoOption>(sql);
     },
-    enabled: search.length >= 3,
+    enabled: !!municipio && search.length >= 3,
     staleTime: 60_000,
   });
 }
 
-/** Hook: compare votes by municipio+zona for selected candidates — ALL cities */
-function useComparativoZona(selecionados: ComparativoCandidato[]) {
+/** Hook: compare votes by zona for selected candidates */
+function useComparativoZona(
+  municipio: string,
+  selecionados: ComparativoCandidato[]
+) {
   return useQuery({
-    queryKey: ['comparativo-zona-all', selecionados.map(s => `${s.sq}_${s.ano}`)],
+    queryKey: ['comparativo-zona', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
     queryFn: async () => {
       if (selecionados.length === 0) return [];
+      const municipioSafe = sqlSafe(municipio);
       const subqueries = selecionados.map((s, i) => {
         const vot = getTableName('votacao', s.ano);
         const sqSafe = sqlSafe(s.sq);
         return `
           SELECT
-            v.NM_MUNICIPIO AS municipio,
             v.NR_ZONA AS zona,
             SUM(v.QT_VOTOS_NOMINAIS) AS votos,
             '${sqlSafe(s.label)}' AS candidato_label,
             ${i} AS idx
           FROM ${vot} v
           WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${sqSafe}'
-          GROUP BY v.NM_MUNICIPIO, v.NR_ZONA
+            AND v.NM_MUNICIPIO = '${municipioSafe}'
+          GROUP BY v.NR_ZONA
         `;
       });
-      const sql = subqueries.join('\nUNION ALL\n') + '\nORDER BY municipio, zona, idx';
-      const rows = await mdQuery<{ municipio: string; zona: number; votos: number; candidato_label: string; idx: number }>(sql);
+      const sql = subqueries.join('\nUNION ALL\n') + '\nORDER BY zona, idx';
+      const rows = await mdQuery<{ zona: number; votos: number; candidato_label: string; idx: number }>(sql);
 
-      const map = new Map<string, any>();
+      const map = new Map<number, any>();
       for (const r of rows) {
-        const key = `${r.municipio}_${r.zona}`;
-        if (!map.has(key)) map.set(key, { municipio: r.municipio, zona: r.zona });
-        const entry = map.get(key)!;
+        if (!map.has(r.zona)) map.set(r.zona, { zona: r.zona });
+        const entry = map.get(r.zona)!;
         entry[`votos_${r.idx}`] = Number(r.votos);
       }
-      return Array.from(map.values()).sort((a, b) => {
-        const cmp = (a.municipio || '').localeCompare(b.municipio || '');
-        return cmp !== 0 ? cmp : a.zona - b.zona;
-      });
+      return Array.from(map.values()).sort((a, b) => a.zona - b.zona);
     },
-    enabled: selecionados.length > 0,
+    enabled: selecionados.length > 0 && !!municipio,
     staleTime: 5 * 60_000,
   });
 }
 
-/** Hook: compare votes by escola for selected candidates — ALL cities */
-function useComparativoEscola(selecionados: ComparativoCandidato[]) {
+/** Hook: compare votes by escola for selected candidates */
+function useComparativoEscola(
+  municipio: string,
+  selecionados: ComparativoCandidato[]
+) {
   return useQuery({
-    queryKey: ['comparativo-escola-all', selecionados.map(s => `${s.sq}_${s.ano}`)],
+    queryKey: ['comparativo-escola', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
     queryFn: async () => {
       if (selecionados.length === 0) return [];
-      // For escola we need votacao_secao joined with eleitorado_local
-      // Since sqlComposicaoVotosCandidato requires municipio, we query all municipios that have votes for each candidate first
-      const subqueries = selecionados.map((s, i) => {
-        const vot = getTableName('votacao_secao', s.ano);
-        const anosLocal = getAnosDisponiveis('eleitorado_local');
-        const anoLocal = anosLocal.includes(s.ano) ? s.ano : ([...anosLocal].sort((a, b) => Math.abs(a - s.ano) - Math.abs(b - s.ano))[0] || null);
-        if (!anoLocal) return null;
-        const loc = getTableName('eleitorado_local', anoLocal);
-        const sqSafe = sqlSafe(s.sq);
-
-        return `
-          SELECT
-            loc.NM_MUNICIPIO AS municipio,
-            loc.NM_LOCAL_VOTACAO AS escola,
-            loc.NM_BAIRRO AS bairro,
-            v.NR_ZONA AS zona,
-            SUM(v.QT_VOTOS_NOMINAIS) AS votos,
-            ${i} AS idx
-          FROM ${vot} v
-          INNER JOIN ${loc} loc ON v.NR_ZONA = loc.NR_ZONA AND v.NR_SECAO = loc.NR_SECAO AND loc.SG_UF = 'GO'
-          WHERE v.NR_VOTAVEL = ${s.numero}
-          GROUP BY loc.NM_MUNICIPIO, loc.NM_LOCAL_VOTACAO, loc.NM_BAIRRO, v.NR_ZONA
-        `;
-      }).filter(Boolean);
-
-      if (subqueries.length === 0) return [];
-      const sql = subqueries.join('\nUNION ALL\n') + '\nORDER BY municipio, escola, idx';
-      const rows = await mdQuery<{ municipio: string; escola: string; bairro: string; zona: number; votos: number; idx: number }>(sql);
+      const municipioSafe = municipio.replace(/'/g, "''");
+      const subqueries = selecionados.map((s, i) => `
+        SELECT
+          base.escola,
+          base.bairro,
+          base.zona,
+          base.total_votos AS votos,
+          ${i} AS idx
+        FROM (${sqlComposicaoVotosCandidato(s.ano, s.numero, municipio, s.cargo)}) base
+        WHERE base.municipio = '${municipioSafe}'
+      `);
+      const sql = subqueries.join('\nUNION ALL\n') + '\nORDER BY escola, idx';
+      const rows = await mdQuery<{ escola: string; bairro: string; zona: number; votos: number; idx: number }>(sql);
 
       const map = new Map<string, any>();
       for (const r of rows) {
-        const key = `${r.municipio}_${r.escola}_${r.bairro}_${r.zona}`;
-        if (!map.has(key)) map.set(key, { municipio: r.municipio, escola: r.escola, bairro: r.bairro, zona: Number(r.zona) });
+        const key = `${r.escola}_${r.bairro}_${r.zona}`;
+        if (!map.has(key)) map.set(key, { escola: r.escola, bairro: r.bairro, zona: Number(r.zona) });
         const entry = map.get(key)!;
         entry[`votos_${r.idx}`] = Number(r.votos);
       }
       return Array.from(map.values()).sort((a, b) => {
-        const cmp = (a.municipio || '').localeCompare(b.municipio || '');
-        if (cmp !== 0) return cmp;
         const totalA = selecionados.reduce((s, _, i) => s + (a[`votos_${i}`] || 0), 0);
         const totalB = selecionados.reduce((s, _, i) => s + (b[`votos_${i}`] || 0), 0);
         return totalB - totalA;
       });
     },
-    enabled: selecionados.length > 0,
+    enabled: selecionados.length > 0 && !!municipio,
     staleTime: 5 * 60_000,
   });
 }
@@ -193,10 +182,11 @@ const CORES_COMPARATIVO = [
 ];
 
 export default function ZonasEleitorais() {
+  const { municipio, ano } = useFilterStore();
   const [searchCandidato, setSearchCandidato] = useState('');
   const [selecionados, setSelecionados] = useState<CandidatoSelecionado[]>([]);
 
-  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(searchCandidato);
+  const { data: resultadosBusca, isLoading: buscando } = useBuscarCandidatos(municipio, searchCandidato);
 
   const comparativoItems = useMemo(() =>
     selecionados.map(s => ({
@@ -209,8 +199,8 @@ export default function ZonasEleitorais() {
     [selecionados]
   );
 
-  const { data: dadosZona, isLoading: loadingZona, error: erroZona } = useComparativoZona(comparativoItems);
-  const { data: dadosEscola, isLoading: loadingEscola, error: erroEscola } = useComparativoEscola(comparativoItems);
+  const { data: dadosZona, isLoading: loadingZona, error: erroZona } = useComparativoZona(municipio, comparativoItems);
+  const { data: dadosEscola, isLoading: loadingEscola, error: erroEscola } = useComparativoEscola(municipio, comparativoItems);
 
   const adicionarCandidato = useCallback((c: CandidatoOption) => {
     const key = `${c.sq_candidato}_${c.ano}`;
@@ -231,16 +221,14 @@ export default function ZonasEleitorais() {
     setSelecionados(prev => prev.filter((_, i) => i !== idx));
   }, []);
 
-  // Get unique municipalities from zona data for section headers
-  const municipiosZona = useMemo(() => {
-    if (!dadosZona) return [];
-    return [...new Set(dadosZona.map((r: any) => r.municipio))].sort();
-  }, [dadosZona]);
-
-  const municipiosEscola = useMemo(() => {
-    if (!dadosEscola) return [];
-    return [...new Set(dadosEscola.map((r: any) => r.municipio))].sort();
-  }, [dadosEscola]);
+  if (!municipio) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-2">
+        <Hash className="w-10 h-10 opacity-30" />
+        <p className="text-sm">Selecione um município nos filtros para comparar.</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3 sm:space-y-4 max-w-[1800px] mx-auto">
@@ -251,7 +239,7 @@ export default function ZonasEleitorais() {
           Comparativo Eleitoral
         </h1>
         <p className="text-[10px] sm:text-xs text-muted-foreground">
-          Compare candidatos por zona e escola em todas as cidades
+          {municipio} — Compare candidatos por zona e escola
         </p>
       </div>
 
@@ -303,9 +291,6 @@ export default function ZonasEleitorais() {
                           style={{ backgroundColor: getPartidoCor(c.partido) + '20', color: getPartidoCor(c.partido) }}>
                           {c.partido}
                         </span>
-                        <span className="text-[9px] text-muted-foreground hidden sm:inline">
-                          <MapPin className="w-3 h-3 inline mr-0.5" />{c.municipio}
-                        </span>
                       </div>
                       <Badge variant="outline" className="text-[10px] h-5 shrink-0 ml-1">{c.numero}</Badge>
                     </div>
@@ -353,14 +338,13 @@ export default function ZonasEleitorais() {
             <Card className="border-border/50 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border/30">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Comparativo de votos por Zona Eleitoral — Todas as cidades
+                  Comparativo de votos por Zona Eleitoral — {municipio}
                 </h3>
               </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-[10px] font-semibold w-[140px]">Município</TableHead>
                       <TableHead className="text-[10px] font-semibold w-[80px]">Zona</TableHead>
                        {selecionados.map((s, i) => (
                         <TableHead key={i} className="text-[10px] font-semibold text-right min-w-[120px]">
@@ -378,69 +362,57 @@ export default function ZonasEleitorais() {
                     {loadingZona ? (
                       Array.from({ length: 8 }).map((_, i) => (
                         <TableRow key={i}>
-                          {Array.from({ length: selecionados.length + 3 }).map((_, j) => (
+                          {Array.from({ length: selecionados.length + 2 }).map((_, j) => (
                             <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                           ))}
                         </TableRow>
                       ))
                     ) : erroZona ? (
                       <TableRow>
-                        <TableCell colSpan={selecionados.length + 3} className="text-center text-destructive text-sm py-8">
+                        <TableCell colSpan={selecionados.length + 2} className="text-center text-destructive text-sm py-8">
                           Erro ao carregar dados: {erroZona.message}
                         </TableCell>
                       </TableRow>
                     ) : !dadosZona?.length ? (
                       <TableRow>
-                        <TableCell colSpan={selecionados.length + 3} className="text-center text-muted-foreground text-sm py-8">
+                        <TableCell colSpan={selecionados.length + 2} className="text-center text-muted-foreground text-sm py-8">
                           Sem dados de votação por zona para os candidatos selecionados.
                         </TableCell>
                       </TableRow>
                     ) : (
                       <>
-                        {/* Group by municipality */}
-                        {municipiosZona.map((mun: string) => {
-                          const rows = dadosZona.filter((r: any) => r.municipio === mun);
-                          return rows.map((row: any, ri: number) => {
-                            const votos = selecionados.map((_, i) => Number(row[`votos_${i}`] || 0));
-                            const max = votos.length > 0 ? Math.max(...votos) : 0;
-                            const positivos = votos.filter(v => v > 0);
-                            const min = positivos.length > 0 ? Math.min(...positivos) : 0;
-                            const diff = selecionados.length === 2 ? votos[0] - votos[1] : max - min;
-                            return (
-                              <TableRow key={`${mun}_${row.zona}`} className="border-border/20 hover:bg-muted/20">
-                                {ri === 0 ? (
-                                  <TableCell className="text-xs font-bold text-primary" rowSpan={rows.length}>
-                                    <div className="flex items-center gap-1">
-                                      <MapPin className="w-3 h-3" />
-                                      {mun}
-                                    </div>
+                        {dadosZona.map((row: any) => {
+                          const votos = selecionados.map((_, i) => Number(row[`votos_${i}`] || 0));
+                          const max = votos.length > 0 ? Math.max(...votos) : 0;
+                          const positivos = votos.filter(v => v > 0);
+                          const min = positivos.length > 0 ? Math.min(...positivos) : 0;
+                          const diff = selecionados.length === 2 ? votos[0] - votos[1] : max - min;
+                          return (
+                            <TableRow key={row.zona} className="border-border/20 hover:bg-muted/20">
+                              <TableCell className="text-sm font-bold">Zona {row.zona}</TableCell>
+                              {selecionados.map((_, i) => {
+                                const v = votos[i];
+                                const isMax = v === max && v > 0;
+                                return (
+                                  <TableCell key={i} className="text-right">
+                                    <span className={cn('text-sm font-mono', isMax ? 'font-bold' : 'text-muted-foreground')}
+                                      style={isMax ? { color: CORES_COMPARATIVO[i] } : undefined}>
+                                      {v > 0 ? formatNumber(v) : '—'}
+                                    </span>
                                   </TableCell>
-                                ) : null}
-                                <TableCell className="text-sm font-bold">Zona {row.zona}</TableCell>
-                                {selecionados.map((_, i) => {
-                                  const v = votos[i];
-                                  const isMax = v === max && v > 0;
-                                  return (
-                                    <TableCell key={i} className="text-right">
-                                      <span className={cn('text-sm font-mono', isMax ? 'font-bold' : 'text-muted-foreground')}
-                                        style={isMax ? { color: CORES_COMPARATIVO[i] } : undefined}>
-                                        {v > 0 ? formatNumber(v) : '—'}
-                                      </span>
-                                    </TableCell>
-                                  );
-                                })}
-                                <TableCell className="text-right">
-                                  <span className={cn('text-xs font-bold', diff > 0 ? 'text-green-500' : diff < 0 ? 'text-red-500' : 'text-muted-foreground')}>
-                                    {diff > 0 ? '+' : ''}{formatNumber(diff)}
-                                  </span>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          });
+                                );
+                              })}
+                              <TableCell className="text-right">
+                                <span className={cn('text-xs font-bold', diff > 0 ? 'text-green-500' : diff < 0 ? 'text-red-500' : 'text-muted-foreground')}>
+                                  {diff > 0 ? '+' : ''}{formatNumber(diff)}
+                                </span>
+                              </TableCell>
+                            </TableRow>
+                          );
                         })}
                         {/* Totals row */}
                         <TableRow className="bg-muted/20 border-t-2 border-border font-bold">
-                          <TableCell className="text-xs font-bold uppercase" colSpan={2}>Total</TableCell>
+                          <TableCell className="text-xs font-bold uppercase">Total</TableCell>
                           {selecionados.map((_, i) => {
                             const total = dadosZona.reduce((s: number, r: any) => s + Number(r[`votos_${i}`] || 0), 0);
                             return (
@@ -477,14 +449,13 @@ export default function ZonasEleitorais() {
             <Card className="border-border/50 overflow-hidden">
               <div className="px-4 py-2.5 border-b border-border/30">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Comparativo de votos por Escola — Todas as cidades
+                  Comparativo de votos por Escola — {municipio}
                 </h3>
               </div>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-muted/30 hover:bg-muted/30">
-                      <TableHead className="text-[10px] font-semibold w-[140px]">Município</TableHead>
                       <TableHead className="text-[10px] font-semibold">Escola</TableHead>
                       <TableHead className="text-[10px] font-semibold w-[80px]">Zona</TableHead>
                       <TableHead className="text-[10px] font-semibold">Bairro</TableHead>
@@ -503,20 +474,20 @@ export default function ZonasEleitorais() {
                     {loadingEscola ? (
                       Array.from({ length: 8 }).map((_, i) => (
                         <TableRow key={i}>
-                          {Array.from({ length: selecionados.length + 4 }).map((_, j) => (
+                          {Array.from({ length: selecionados.length + 3 }).map((_, j) => (
                             <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                           ))}
                         </TableRow>
                       ))
                     ) : erroEscola ? (
                       <TableRow>
-                        <TableCell colSpan={selecionados.length + 4} className="text-center text-destructive text-sm py-8">
+                        <TableCell colSpan={selecionados.length + 3} className="text-center text-destructive text-sm py-8">
                           Erro ao carregar dados: {erroEscola.message}
                         </TableCell>
                       </TableRow>
                     ) : !dadosEscola?.length ? (
                       <TableRow>
-                        <TableCell colSpan={selecionados.length + 4} className="text-center text-muted-foreground text-sm py-8">
+                        <TableCell colSpan={selecionados.length + 3} className="text-center text-muted-foreground text-sm py-8">
                           Sem dados de votação por escola para os candidatos selecionados.
                         </TableCell>
                       </TableRow>
@@ -527,7 +498,6 @@ export default function ZonasEleitorais() {
                           const max = votos.length > 0 ? Math.max(...votos) : 0;
                           return (
                             <TableRow key={ri} className="border-border/20 hover:bg-muted/20">
-                              <TableCell className="text-xs font-medium text-primary">{row.municipio}</TableCell>
                               <TableCell className="text-xs font-medium max-w-[250px] truncate">{row.escola}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">{row.zona}</TableCell>
                               <TableCell className="text-xs text-muted-foreground">{row.bairro}</TableCell>
@@ -548,7 +518,7 @@ export default function ZonasEleitorais() {
                         })}
                         {/* Totals */}
                         <TableRow className="bg-muted/20 border-t-2 border-border font-bold">
-                          <TableCell className="text-xs font-bold uppercase" colSpan={4}>Total</TableCell>
+                          <TableCell className="text-xs font-bold uppercase" colSpan={3}>Total</TableCell>
                           {selecionados.map((_, i) => {
                             const total = dadosEscola.reduce((s: number, r: any) => s + Number(r[`votos_${i}`] || 0), 0);
                             return (
@@ -575,7 +545,7 @@ export default function ZonasEleitorais() {
           <CardContent className="py-16 flex flex-col items-center gap-3 text-muted-foreground">
             <GitCompareArrows className="w-12 h-12 opacity-20" />
             <p className="text-sm font-medium">Selecione candidatos acima para gerar o comparativo</p>
-            <p className="text-xs">Busque candidatos pelo nome e adicione-os à comparação — os votos de todas as cidades serão exibidos</p>
+            <p className="text-xs">Escolha os anos, busque candidatos pelo nome e adicione-os à comparação</p>
           </CardContent>
         </Card>
       )}
