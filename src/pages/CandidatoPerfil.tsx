@@ -689,10 +689,21 @@ export default function CandidatoPerfil() {
   const cargoAtual = candidatoQ.data?.cargo || candidatoQ.data?.DS_CARGO || null;
   const mun = municipio || candidatoQ.data?.municipio || candidatoQ.data?.NM_UE || null;
 
-  // ── Votação territorial da eleição atual ──
+  // ── Composição de votos (bairro + escola + zona + município) ──
+  const composicaoQ = useQuery({
+    queryKey: ['md', 'composicao_votos', ano, nrCandidato, mun, cargoAtual],
+    enabled: !!nrCandidato && !!candidatoQ.data,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun, cargoAtual));
+      return rows as AnyRow[];
+    },
+  });
+
+  // ── Votação territorial da eleição atual (fallback simples por zona) ──
   const votacaoTerritorialQ = useQuery({
     queryKey: ['md', 'votacao_territorial', ano, sq],
-    enabled: !!sq && !!candidatoQ.data,
+    enabled: !!sq && !!candidatoQ.data && !nrCandidato,
     staleTime: 5 * 60 * 1000,
     queryFn: async () => {
       const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
