@@ -365,13 +365,13 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
 
     // ── VOTOS POR CANDIDATO ──
     case "votos_candidato": {
-      const nome = e.nomes[0] ? sqlSafe(e.nomes[0]) : '';
+      const nome = e.nomes[0] || '';
       if (nome) {
         const munCond = mun ? `AND v.NM_MUNICIPIO='${mun}'` : '';
         const cargoCond = e.cargos.length ? `AND c.DS_CARGO ILIKE '%${sqlSafe(e.cargos[0])}%'` : '';
         const turnoCond = e.turnos.length ? `AND v.NR_TURNO=${Number(e.turnos[0])}` : '';
         return {
-          sql: `SELECT c.NM_URNA_CANDIDATO AS candidato, c.SG_PARTIDO AS partido, c.DS_CARGO AS cargo, c.NM_UE AS municipio, c.DS_SIT_TOT_TURNO AS situacao, c.NR_CANDIDATO AS numero, SUM(v.QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} v JOIN ${T('candidatos', ano)} c ON v.SQ_CANDIDATO=c.SQ_CANDIDATO WHERE (c.NM_URNA_CANDIDATO ILIKE '%${nome}%' OR c.NM_CANDIDATO ILIKE '%${nome}%') ${munCond} ${cargoCond} ${turnoCond} GROUP BY c.NM_URNA_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO, c.NM_UE, c.DS_SIT_TOT_TURNO, c.NR_CANDIDATO ORDER BY total_votos DESC LIMIT 20`,
+          sql: `SELECT c.NM_URNA_CANDIDATO AS candidato, c.SG_PARTIDO AS partido, c.DS_CARGO AS cargo, c.NM_UE AS municipio, c.DS_SIT_TOT_TURNO AS situacao, c.NR_CANDIDATO AS numero, SUM(v.QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} v JOIN ${T('candidatos', ano)} c ON v.SQ_CANDIDATO=c.SQ_CANDIDATO WHERE ${nameSearch(nome)} ${munCond} ${cargoCond} ${turnoCond} GROUP BY c.NM_URNA_CANDIDATO, c.SG_PARTIDO, c.DS_CARGO, c.NM_UE, c.DS_SIT_TOT_TURNO, c.NR_CANDIDATO ORDER BY total_votos DESC LIMIT 20`,
           config_visual: { tipo_grafico: "table", titulo: `Votos de ${e.nomes[0]} — ${ano}`, descricao: `Resultado eleitoral de ${e.nomes[0]}`, mapping: { axis: "candidato", dataKeys: ["total_votos"] } },
         };
       }
