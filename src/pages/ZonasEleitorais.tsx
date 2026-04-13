@@ -96,15 +96,15 @@ function useComparativoZona(
     queryKey: ['comparativo-zona', municipio, selecionados.map(s => `${s.sq}_${s.ano}`)],
     queryFn: async () => {
       if (selecionados.length === 0) return [];
-      const municipioSafe = municipio.replace(/'/g, "''");
+      const municipioSafe = sqlSafe(municipio);
       const subqueries = selecionados.map((s, i) => {
         const vot = getTableName('votacao', s.ano);
-        const sqSafe = s.sq.replace(/'/g, "''");
+        const sqSafe = sqlSafe(s.sq);
         return `
           SELECT
             v.NR_ZONA AS zona,
             SUM(v.QT_VOTOS_NOMINAIS) AS votos,
-            '${s.label.replace(/'/g, "''")}' AS candidato_label,
+            '${sqlSafe(s.label)}' AS candidato_label,
             ${i} AS idx
           FROM ${vot} v
           WHERE CAST(v.SQ_CANDIDATO AS VARCHAR) = '${sqSafe}'
