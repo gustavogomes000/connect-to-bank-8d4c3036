@@ -3,6 +3,7 @@ import { useFilterStore } from '@/stores/filterStore';
 import { Send, Bot, User, Sparkles } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { supabase } from '@/integrations/supabase/client';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -14,7 +15,7 @@ export default function ChatEleicoes() {
   const [messages, setMessages] = useState<Message[]>([
     {
       role: 'assistant',
-      content: 'Olá! Sou seu **Assistente Sarelli Inteligência**. \nEstou integrado à base de dados de **Logística e Finanças**.\n\nComo posso ajudar? Exemplos:\n- *Quais são as lideranças da escola X?*\n- *Quais são os maiores doadores neste setor?*'
+      content: 'Olá! Sou seu **Assistente Sarelli Inteligência**. \nEstou integrado à base de dados eleitorais de **Goiás**.\n\nComo posso ajudar? Exemplos:\n- *Quem foi o candidato mais votado em Goiânia em 2024?*\n- *Quantos votos o PL teve em 2020?*'
     }
   ]);
   const [input, setInput] = useState('');
@@ -36,17 +37,15 @@ export default function ChatEleicoes() {
     setLoading(true);
 
     try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pergunta: userMessage, ano })
+      const { data, error } = await supabase.functions.invoke('bd-eleicoes-chat', {
+        body: { pergunta: userMessage, ano },
       });
 
-      if (!res.ok) throw new Error('Falha na comunicação com nosso Data Warehouse.');
-      
-      const data = await res.json();
-      
-      setMessages(prev => [...prev, { role: 'assistant', content: data.resposta }]);
+      if (error) throw new Error(error.message || 'Falha na comunicação com a IA.');
+      if (data?.erro && !data?.sucesso) throw new Error(data.erro);
+
+      const resposta = data?.resposta_texto || data?.config_visual?.descricao || 'Consulta realizada com sucesso.';
+      setMessages(prev => [...prev, { role: 'assistant', content: resposta }]);
     } catch (e: any) {
       setMessages(prev => [...prev, { role: 'assistant', content: `**Falha técnica:** ${e.message}` }]);
     } finally {
