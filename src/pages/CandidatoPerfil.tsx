@@ -90,13 +90,27 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+const PAGE_SIZE = 20;
+
 function VoteTable({ title, columns, rows }: { title: string; columns: string[]; rows: any[][] }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+  const paged = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const startIdx = page * PAGE_SIZE;
+
   return (
     <div className="rounded-lg border border-border overflow-hidden">
-      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border">
-        {title}
+      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border flex items-center justify-between">
+        <span>{title} <span className="text-slate-400">({rows.length})</span></span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1 text-[10px]">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronLeft className="w-3.5 h-3.5" /></button>
+            <span className="font-mono px-1">{page + 1}/{totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
       </div>
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-border/60">
@@ -108,12 +122,12 @@ function VoteTable({ title, columns, rows }: { title: string; columns: string[];
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((cells, i) => {
+            {paged.map((cells, i) => {
               const pct = cells[cells.length - 1] as number;
               const displayCells = cells.slice(0, -1);
               return (
-                <TableRow key={i} className="border-border/20">
-                  <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
+                <TableRow key={startIdx + i} className="border-border/20">
+                  <TableCell className="text-xs text-slate-400 font-mono">{startIdx + i + 1}</TableCell>
                   {displayCells.map((c, j) => (
                     <TableCell key={j} className={cn("text-sm", j === displayCells.length - 2 ? "font-bold font-mono" : "")}>{c}</TableCell>
                   ))}
