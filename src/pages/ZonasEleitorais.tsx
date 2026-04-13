@@ -63,7 +63,7 @@ function useBuscarCandidatos(municipio: string, search: string) {
         const isGeral = [2014, 2018, 2022].includes(a);
         const munFilter = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
         return `
-          SELECT
+          SELECT DISTINCT
             CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
             c.NM_URNA_CANDIDATO AS candidato,
             c.NM_CANDIDATO AS nome_completo,
@@ -73,16 +73,24 @@ function useBuscarCandidatos(municipio: string, search: string) {
             ${a} AS ano,
             c.NM_UE AS municipio
           FROM ${cand} c
-          INNER JOIN (
+          LEFT JOIN (
             SELECT SQ_CANDIDATO, SUM(QT_VOTOS_NOMINAIS) AS tv
             FROM ${vot}
             WHERE NM_MUNICIPIO = '${munSafe}'
             GROUP BY SQ_CANDIDATO
             HAVING SUM(QT_VOTOS_NOMINAIS) > 0
           ) vv ON c.SQ_CANDIDATO = vv.SQ_CANDIDATO
+          LEFT JOIN (
+            SELECT NR_CANDIDATO, DS_CARGO, SUM(QT_VOTOS_NOMINAIS) AS tv
+            FROM ${vot}
+            WHERE NM_MUNICIPIO = '${munSafe}'
+            GROUP BY NR_CANDIDATO, DS_CARGO
+            HAVING SUM(QT_VOTOS_NOMINAIS) > 0
+          ) vn ON c.NR_CANDIDATO = vn.NR_CANDIDATO AND UPPER(c.DS_CARGO) = UPPER(vn.DS_CARGO)
           WHERE (UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%'
               OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')
             ${munFilter}
+            AND (vv.tv IS NOT NULL OR vn.tv IS NOT NULL)
         `;
       });
 
