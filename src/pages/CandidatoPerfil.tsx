@@ -379,7 +379,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                           <TableBody>
                             {zonas.map((z, i) => {
                               const zv = Number(z.total_votos || 0);
-                              const pct = votos > 0 ? (zv / votos) * 100 : 0;
+                              const pct = votosEfetivos > 0 ? (zv / votosEfetivos) * 100 : 0;
                               const zonaKey = `${ano}-${z.zona}`;
                               const isZonaExpanded = expandedZona === zonaKey;
                               const locais = locaisData[zonaKey] || [];
