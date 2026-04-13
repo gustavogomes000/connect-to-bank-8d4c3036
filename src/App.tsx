@@ -53,18 +53,18 @@ function Layout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="min-h-screen min-h-[100dvh] flex w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-11 flex items-center border-b border-border/50 bg-card/50 backdrop-blur-sm px-4 shrink-0">
+          <header className="h-11 flex items-center border-b border-border/50 bg-card/50 backdrop-blur-sm px-3 sm:px-4 shrink-0 pwa-safe-top">
             <SidebarTrigger />
             <div className="ml-3 flex items-center gap-2">
               <span className="text-xs font-semibold text-foreground">EleiçõesGO</span>
-              <span className="text-[10px] text-muted-foreground">Inteligência Eleitoral</span>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline">Inteligência Eleitoral</span>
             </div>
           </header>
           {!hideFilters && <GlobalFilters visibleFilters={visibleFilters} />}
-          <main className="flex-1 p-3 md:p-4 overflow-auto">
+          <main className="flex-1 p-2 sm:p-3 md:p-4 overflow-auto pwa-safe-bottom">
             <Suspense fallback={<PageLoader label="Carregando módulo…" />}>
               <Routes>
                 <Route path="/" element={<Ranking />} />
