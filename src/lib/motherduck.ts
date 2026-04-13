@@ -133,11 +133,11 @@ function buildGeoJoin(f: FiltrosPainel, votAlias = 'v', locAlias = 'loc'): { joi
   const anosLocal = getAnosDisponiveis('eleitorado_local');
   const anoLocal = anosLocal.includes(ano) ? ano : [...anosLocal].sort((a, b) => Math.abs(a - ano) - Math.abs(b - ano))[0] || 2024;
   const loc = getTableName('eleitorado_local', anoLocal);
-  const join = `INNER JOIN ${loc} ${locAlias} ON ${votAlias}.NR_ZONA = ${locAlias}.NR_ZONA AND ${votAlias}.NR_SECAO = ${locAlias}.NR_SECAO AND ${locAlias}.SG_UF = 'GO' AND ${locAlias}.NM_MUNICIPIO = '${f.municipio}'`;
+  const join = `INNER JOIN ${loc} ${locAlias} ON ${votAlias}.NR_ZONA = ${locAlias}.NR_ZONA AND ${votAlias}.NR_SECAO = ${locAlias}.NR_SECAO AND ${locAlias}.SG_UF = 'GO' AND ${locAlias}.NM_MUNICIPIO = '${sqlSafe(f.municipio || '')}'`;
   const conds: string[] = [];
-  if (f.zona) conds.push(`${votAlias}.NR_ZONA = ${f.zona}`);
-  if (f.bairro) conds.push(`${locAlias}.NM_BAIRRO = '${f.bairro}'`);
-  if (f.escola) conds.push(`${locAlias}.NM_LOCAL_VOTACAO = '${f.escola}'`);
+  if (f.zona) conds.push(`${votAlias}.NR_ZONA = ${Number(f.zona)}`);
+  if (f.bairro) conds.push(`${locAlias}.NM_BAIRRO = '${sqlSafe(f.bairro)}'`);
+  if (f.escola) conds.push(`${locAlias}.NM_LOCAL_VOTACAO = '${sqlSafe(f.escola)}'`);
   return { join, conds };
 }
 
