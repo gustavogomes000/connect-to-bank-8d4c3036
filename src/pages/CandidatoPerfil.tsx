@@ -825,9 +825,15 @@ export default function CandidatoPerfil() {
     queryKey: ['md', 'composicao_votos', ano, nrCandidato, mun, cargoAtual],
     enabled: !!nrCandidato && !!candidatoQ.data,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
     queryFn: async () => {
-      const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun, cargoAtual));
-      return rows as AnyRow[];
+      try {
+        const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun, cargoAtual));
+        return rows as AnyRow[];
+      } catch (e) {
+        console.warn('Composição de votos falhou, tentando fallback territorial:', e);
+        return [] as AnyRow[];
+      }
     },
   });
 
