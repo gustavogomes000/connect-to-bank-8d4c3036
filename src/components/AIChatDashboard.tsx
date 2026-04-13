@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { supabase } from '@/integrations/supabase/client';
 
 export const AIChatDashboard = ({ sqCandidato, nomeCandidato }: { sqCandidato?: string, nomeCandidato?: string }) => {
   const [messages, setMessages] = useState<{role: 'user'|'assistant', content: string}[]>([
@@ -27,21 +28,19 @@ export const AIChatDashboard = ({ sqCandidato, nomeCandidato }: { sqCandidato?: 
     setIsLoading(true);
 
     try {
-      // Concatenando um contexto da UI antes de mandar para a API, para focar no candidato
       const promptContextual = sqCandidato 
         ? `[CONTEXTO: O usuário está visualizando o dossiê do candidato ${nomeCandidato} (SQ: ${sqCandidato}). Responda a pergunta com foco neste candidato.] ${userMsg}`
         : userMsg;
 
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pergunta: promptContextual }),
+      const { data, error } = await supabase.functions.invoke('bd-eleicoes-chat', {
+        body: { pergunta: promptContextual },
       });
 
-      if (!response.ok) throw new Error('Erro na comunicação com a Inteligência Artificial');
-      
-      const data = await response.json();
-      setMessages(prev => [...prev, { role: 'assistant', content: data.resposta }]);
+      if (error) throw new Error(error.message || 'Erro na comunicação com a IA');
+      if (data?.erro && !data?.sucesso) throw new Error(data.erro);
+
+      const resposta = data?.resposta_texto || data?.config_visual?.descricao || 'Consulta realizada.';
+      setMessages(prev => [...prev, { role: 'assistant', content: resposta }]);
     } catch (error) {
       setMessages(prev => [...prev, { role: 'assistant', content: '⚠️ Ocorreu um erro ao consultar os dados. Por favor, tente novamente.' }]);
     } finally {

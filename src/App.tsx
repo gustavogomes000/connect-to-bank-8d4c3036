@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect } from 'react';
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { BrowserRouter, Route, Routes, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -8,6 +9,7 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/eleicoes/AppSidebar";
 import { GlobalFilters, FilterField } from "@/components/eleicoes/GlobalFilters";
 import { PageLoader } from "@/components/eleicoes/PageLoader";
+import { queryClient, persister } from "@/lib/queryCache";
 
 // Lazy-load all page components for faster initial load
 const Ranking = lazy(() => import('./pages/Ranking'));
@@ -17,21 +19,10 @@ const Mesarios = lazy(() => import('./pages/Mesarios'));
 const PerfilCandidatos = lazy(() => import('./pages/PerfilCandidatos'));
 const Configuracoes = lazy(() => import('./pages/Configuracoes'));
 const Ajuda = lazy(() => import('./pages/Ajuda'));
+const ChatEleicoes = lazy(() => import('./pages/ChatEleicoes'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      staleTime: 10 * 60 * 1000,
-      gcTime: 30 * 60 * 1000,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      retry: 1,
-    },
-  },
-});
-
-const HIDE_FILTERS = ['/ajuda', '/config', '/candidatos', '/candidato', '/perfil-candidatos'];
+const HIDE_FILTERS = ['/ajuda', '/config', '/candidatos', '/candidato', '/perfil-candidatos', '/chat'];
 
 const ROUTE_FILTERS: Record<string, FilterField[]> = {
   '/zonas': ['ano', 'municipio', 'cargo', 'turno'],
@@ -86,6 +77,7 @@ function Layout() {
                 <Route path="/candidatos/:id/:ano" element={<PerfilCandidatos />} />
                 <Route path="/config" element={<Configuracoes />} />
                 <Route path="/ajuda" element={<Ajuda />} />
+                <Route path="/chat" element={<ChatEleicoes />} />
                 {/* Legacy redirects */}
                 <Route path="/resultado" element={<Ranking />} />
                 <Route path="/explorador" element={<Ranking />} />
@@ -110,7 +102,7 @@ function Layout() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 24 * 60 * 60 * 1000 }}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -118,7 +110,7 @@ const App = () => (
         <Layout />
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;
