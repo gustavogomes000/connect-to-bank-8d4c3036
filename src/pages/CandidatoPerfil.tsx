@@ -458,6 +458,9 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
 
 function PatrimonioSection({ bens, patrimonioTotal }: { bens: AnyRow[]; patrimonioTotal: number }) {
   const [aberto, setAberto] = useState(false);
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(bens.length / PAGE_SIZE);
+  const paged = bens.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <section className="bg-white rounded-xl border border-border p-4">
@@ -483,30 +486,39 @@ function PatrimonioSection({ bens, patrimonioTotal }: { bens: AnyRow[]; patrimon
           {!bens.length ? (
             <p className="text-sm text-muted-foreground">Nenhum bem declarado.</p>
           ) : (
-            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-[10px] text-slate-500">#</TableHead>
-                    <TableHead className="text-[10px] text-slate-500">Tipo</TableHead>
-                    <TableHead className="text-[10px] text-slate-500">Descrição</TableHead>
-                    <TableHead className="text-[10px] text-slate-500 text-right">Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bens.map((r, i) => (
-                    <TableRow key={i} className="border-border/30">
-                      <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
-                      <TableCell className="text-xs text-slate-600">{r.tipo || '—'}</TableCell>
-                      <TableCell className="text-sm text-slate-900 max-w-[300px] truncate" title={r.descricao}>{r.descricao || '—'}</TableCell>
-                      <TableCell className="text-sm text-slate-900 text-right font-mono font-semibold">
-                        {r.valor ? formatBRL(Number(r.valor)) : '—'}
-                      </TableCell>
+            <>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-end gap-1 text-[10px] mb-2">
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                  <span className="font-mono px-1">{page + 1}/{totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-[10px] text-slate-500">#</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Tipo</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Descrição</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right">Valor</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paged.map((r, i) => (
+                      <TableRow key={page * PAGE_SIZE + i} className="border-border/30">
+                        <TableCell className="text-xs text-slate-400 font-mono">{page * PAGE_SIZE + i + 1}</TableCell>
+                        <TableCell className="text-xs text-slate-600">{r.tipo || '—'}</TableCell>
+                        <TableCell className="text-sm text-slate-900 max-w-[300px] truncate" title={r.descricao}>{r.descricao || '—'}</TableCell>
+                        <TableCell className="text-sm text-slate-900 text-right font-mono font-semibold">
+                          {r.valor ? formatBRL(Number(r.valor)) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </div>
       )}
