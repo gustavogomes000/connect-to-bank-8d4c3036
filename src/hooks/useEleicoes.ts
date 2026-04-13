@@ -411,9 +411,9 @@ export function useExplorador(page: number, pageSize: number, sortBy: string, so
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
-      if (f.partido) conds.push(`SG_PARTIDO = '${f.partido}'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
+      if (f.partido) conds.push(`SG_PARTIDO = '${sqlSafe(f.partido)}'`);
       if (f.turno) conds.push(`NR_TURNO = ${f.turno}`);
       if (f.searchText) conds.push(`(NM_URNA_CANDIDATO ILIKE '%${f.searchText}%' OR NM_CANDIDATO ILIKE '%${f.searchText}%')`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
@@ -454,9 +454,9 @@ export function useRanking(search: string, page: number, sortBy: string, sortAsc
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
-      if (f.partido) conds.push(`SG_PARTIDO = '${f.partido}'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
+      if (f.partido) conds.push(`SG_PARTIDO = '${sqlSafe(f.partido)}'`);
       if (f.turno) conds.push(`NR_TURNO = ${f.turno}`);
       if (search) conds.push(`(NM_URNA_CANDIDATO ILIKE '%${search}%' OR NM_CANDIDATO ILIKE '%${search}%')`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
@@ -740,8 +740,8 @@ export function useMunicipiosRanking() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
-      if (f.partido) conds.push(`SG_PARTIDO = '${f.partido}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
+      if (f.partido) conds.push(`SG_PARTIDO = '${sqlSafe(f.partido)}'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return mdQuery<{ municipio: string; total: string; eleitos: string; mulheres: string }>(
         `SELECT NM_UE AS municipio, count(*) AS total,
@@ -765,8 +765,8 @@ export function usePartidoResumo() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       const candidatos = await mdQuery<{ partido: string; candidatos: string; eleitos: string; mulheres: string }>(
         `SELECT SG_PARTIDO AS partido, count(*) AS candidatos,
@@ -790,8 +790,8 @@ export function usePartidoDetalhe(partido: string | null) {
     queryFn: async () => {
       if (!partido) return [];
       const cand = getTableName('candidatos', f.ano);
-      const conds = [`SG_PARTIDO = '${partido}'`];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
+      const conds = [`SG_PARTIDO = '${sqlSafe(partido)}'`];
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
       const where = `WHERE ${conds.join(' AND ')}`;
       return mdQuery(
         `SELECT SQ_CANDIDATO AS id, NM_URNA_CANDIDATO AS nome_urna, DS_CARGO AS cargo,
@@ -991,8 +991,8 @@ export function usePatrimonioPorPartido() {
       const bens = getTableName('bens', f.ano);
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`c.NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`c.DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`c.NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`c.DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return mdQuery<{ partido: string; total: string; media: string }>(
         `SELECT c.SG_PARTIDO AS partido,
@@ -1076,8 +1076,8 @@ export function useFaixaEtaria() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = ["DT_NASCIMENTO IS NOT NULL", "DT_NASCIMENTO != ''"];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = `WHERE ${conds.join(' AND ')}`;
       return mdQuery<{ faixa: string; total: string }>(
         `SELECT CASE
@@ -1110,8 +1110,8 @@ export function usePerfilCandidatos() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
       const [total, generos, instrucoes, ocupacoes] = await Promise.all([
@@ -1194,7 +1194,7 @@ export function useUfNascimento() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = ["SG_UF_NASCIMENTO IS NOT NULL", "SG_UF_NASCIMENTO != ''"];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
       const where = `WHERE ${conds.join(' AND ')}`;
       return mdQuery<{ uf: string; total: string }>(
         `SELECT SG_UF_NASCIMENTO AS uf, count(*) AS total FROM ${cand} ${where} GROUP BY SG_UF_NASCIMENTO ORDER BY total DESC`
@@ -1260,7 +1260,7 @@ export function usePatrimonioVsVotos() {
       const cand = getTableName('candidatos', f.ano);
       const vot = getTableName('votacao', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`c.NM_UE = '${f.municipio}'`);
+      if (f.municipio) conds.push(`c.NM_UE = '${sqlSafe(f.municipio)}'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       try {
         return await mdQuery(
