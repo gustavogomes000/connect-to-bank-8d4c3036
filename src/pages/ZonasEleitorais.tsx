@@ -47,7 +47,7 @@ interface CandidatoSelecionado extends ComparativoCandidato {
   partido: string;
 }
 
-/** Hook: search candidates across ALL available years */
+/** Hook: search candidates across ALL available years — same logic as Dashboard (LEFT JOIN) */
 function useBuscarCandidatos(municipio: string, search: string) {
   const anosDisponiveis = getAnosDisponiveis('candidatos');
   return useQuery({
@@ -61,10 +61,11 @@ function useBuscarCandidatos(municipio: string, search: string) {
         const cand = getTableName('candidatos', a);
         const vot = getTableName('votacao', a);
         const isGeral = [2014, 2018, 2022].includes(a);
-        const munFilter = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
+        const munFilterCand = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
         const nameFilter = `(UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%' OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')`;
-        // Match by SQ_CANDIDATO first
-        const bySQ = `
+
+        // Same approach as sqlPainelCandidatos: LEFT JOIN from candidates to votes
+        return `
           SELECT
             CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
             c.NM_URNA_CANDIDATO AS candidato,
@@ -75,37 +76,14 @@ function useBuscarCandidatos(municipio: string, search: string) {
             ${a} AS ano,
             c.NM_UE AS municipio
           FROM ${cand} c
-          INNER JOIN (
-            SELECT SQ_CANDIDATO
+          LEFT JOIN (
+            SELECT SQ_CANDIDATO, SUM(QT_VOTOS_NOMINAIS) AS tv
             FROM ${vot}
             WHERE NM_MUNICIPIO = '${munSafe}'
             GROUP BY SQ_CANDIDATO
-            HAVING SUM(QT_VOTOS_NOMINAIS) > 0
           ) vv ON c.SQ_CANDIDATO = vv.SQ_CANDIDATO
-          WHERE ${nameFilter} ${munFilter}
+          WHERE ${nameFilter} ${munFilterCand}
         `;
-        // Fallback by NR_CANDIDATO + DS_CARGO
-        const byNR = `
-          SELECT
-            CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
-            c.NM_URNA_CANDIDATO AS candidato,
-            c.NM_CANDIDATO AS nome_completo,
-            c.SG_PARTIDO AS partido,
-            c.DS_CARGO AS cargo,
-            c.NR_CANDIDATO AS numero,
-            ${a} AS ano,
-            c.NM_UE AS municipio
-          FROM ${cand} c
-          INNER JOIN (
-            SELECT NR_CANDIDATO, DS_CARGO
-            FROM ${vot}
-            WHERE NM_MUNICIPIO = '${munSafe}'
-            GROUP BY NR_CANDIDATO, DS_CARGO
-            HAVING SUM(QT_VOTOS_NOMINAIS) > 0
-          ) vn ON c.NR_CANDIDATO = vn.NR_CANDIDATO AND UPPER(c.DS_CARGO) = UPPER(vn.DS_CARGO)
-          WHERE ${nameFilter} ${munFilter}
-        `;
-        return `${bySQ} UNION ${byNR}`;
       });
 
       const sql = `SELECT DISTINCT * FROM (${subqueries.join('\nUNION ALL\n')}) sub ORDER BY candidato, ano DESC LIMIT 80`;
