@@ -650,13 +650,15 @@ export function sqlHistoricoComVotos(identificador: HistoricoIdentificador): str
   return `SELECT * FROM (${unions.join(' UNION ALL ')}) ORDER BY ano DESC`;
 }
 
-/** Votos por zona de uma eleição específica. Usa boletim normalizado quando disponível. */
+/** Votos por zona de uma eleição específica. Usa boletim normalizado quando disponível.
+ *  Por padrão NÃO filtra por município — mostra todas as cidades onde o candidato teve votos.
+ */
 export function sqlVotosHistoricoPorZona(
   ano: number,
   sqCandidato: string | null,
   nrCandidato?: number | string | null,
   cargo?: string | null,
-  municipio?: string | null,
+  _municipio?: string | null, // ignorado — sempre mostra todas as cidades
 ): string {
   const boletimSubquery = buildBoletimNormalizadoSubquery(ano);
 
@@ -670,7 +672,6 @@ export function sqlVotosHistoricoPorZona(
       WHERE b.nr_votavel = ${nrCandidato}
         AND b.ds_tipo_votavel = 'Nominal'
         ${buildBoletimCargoCondition('b', cargo)}
-        ${buildBoletimMunicipioCondition('b', ano, municipio)}
       GROUP BY b.nr_zona, b.nm_municipio
       ORDER BY total_votos DESC
     `.trim();
@@ -681,16 +682,6 @@ export function sqlVotosHistoricoPorZona(
 
   if (sqCandidato) conds.push(`v.SQ_CANDIDATO = '${sqCandidato}'`);
   else if (nrCandidato) conds.push(`v.NR_CANDIDATO = ${nrCandidato}`);
-
-  if (municipio) {
-    conds.push(`v.NM_MUNICIPIO = '${municipio.replace(/'/g, "''")}'`);
-  }
-
-  // First try with SQ_CANDIDATO, if no results fallback will happen at the component level
-  // For vice-candidates, also try NR_CANDIDATO as they share the ticket number
-  const fallbackConds: string[] = [];
-  if (nrCandidato) fallbackConds.push(`v.NR_CANDIDATO = ${nrCandidato}`);
-  if (municipio) fallbackConds.push(`v.NM_MUNICIPIO = '${municipio.replace(/'/g, "''")}'`);
 
   const primaryQuery = `
     SELECT
@@ -704,7 +695,7 @@ export function sqlVotosHistoricoPorZona(
   `.trim();
 
   // If we have both sqCandidato AND nrCandidato, provide a UNION fallback
-  if (sqCandidato && nrCandidato && fallbackConds.length) {
+  if (sqCandidato && nrCandidato) {
     return `
       WITH primary_result AS (${primaryQuery})
       SELECT * FROM primary_result
@@ -715,7 +706,7 @@ export function sqlVotosHistoricoPorZona(
         v.NM_MUNICIPIO AS municipio,
         SUM(v.QT_VOTOS_NOMINAIS) AS total_votos
       FROM ${vot} v
-      WHERE ${fallbackConds.join(' AND ')}
+      WHERE v.NR_CANDIDATO = ${nrCandidato}
         AND (SELECT COUNT(*) FROM primary_result) = 0
       GROUP BY v.NR_ZONA, v.NM_MUNICIPIO
       ORDER BY total_votos DESC
