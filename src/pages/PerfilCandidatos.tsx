@@ -4,7 +4,6 @@ import { useQuery } from '@tanstack/react-query';
 import { mdQuery, getTableName, getAnosDisponiveis, isEleicaoGeral } from '@/lib/motherduck';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
 import { Search, User, Landmark, GraduationCap, ChevronRight } from 'lucide-react';
 import { Label } from '@/components/ui/label';
@@ -20,83 +19,93 @@ import { traduzirSituacao } from '@/lib/eleicoes';
 import CandidatoPerfil from './CandidatoPerfil';
 
 /**
- * Busca candidatos de TODOS os anos (2014-2024) via UNION ALL.
- * Filtros locais: município, cargo, partido (sem ano).
+ * Busca candidatos de UM ano específico (rápido).
+ * Para eleições gerais: mostra todos de GO.
+ * Para municipais: filtra pelo município selecionado.
  */
-function useCandidatos(municipio: string, cargo: string | null, partido: string | null) {
+function useCandidatos(ano: number, municipio: string, cargo: string | null, partido: string | null) {
   return useQuery({
-    queryKey: ['candidatos-md-todos', municipio, cargo, partido],
+    queryKey: ['candidatos-md', ano, municipio, cargo, partido],
     queryFn: async () => {
-      const anos = getAnosDisponiveis('candidatos');
-      const unions: string[] = [];
+      const tab = getTableName('candidatos', ano);
+      const geral = isEleicaoGeral(ano);
+      const conds: string[] = [`SG_UF = 'GO'`, `NR_TURNO = 1`];
 
-      for (const ano of anos) {
-        const tab = getTableName('candidatos', ano);
-        const geral = isEleicaoGeral(ano);
-        const conds: string[] = [`SG_UF = 'GO'`];
-
-        // Municipal elections: filter by municipality. General elections: show ALL from GO state
-        if (!geral && municipio !== '_todos') conds.push(`NM_UE = '${municipio}'`);
-        conds.push(`NR_TURNO = 1`);
-        if (cargo) conds.push(`DS_CARGO = '${cargo}'`);
-        if (partido) conds.push(`SG_PARTIDO = '${partido}'`);
-
-        unions.push(`
-          SELECT
-            SQ_CANDIDATO AS id,
-            NM_CANDIDATO AS nome_completo,
-            NM_URNA_CANDIDATO AS nome_urna,
-            DS_CARGO AS cargo,
-            NR_CANDIDATO AS numero_urna,
-            SG_PARTIDO AS sigla_partido,
-            DS_SIT_TOT_TURNO AS situacao_final,
-            DS_GRAU_INSTRUCAO AS grau_instrucao,
-            DS_GENERO AS genero,
-            DS_COR_RACA AS cor_raca,
-            DS_OCUPACAO AS ocupacao,
-            DT_NASCIMENTO AS data_nascimento,
-            NM_PARTIDO AS nome_partido,
-            ${ano} AS ano_eleicao
-          FROM ${tab}
-          WHERE ${conds.join(' AND ')}
-        `);
-      }
+      if (!geral && municipio !== '_todos') conds.push(`NM_UE = '${municipio}'`);
+      if (cargo) conds.push(`DS_CARGO = '${cargo}'`);
+      if (partido) conds.push(`SG_PARTIDO = '${partido}'`);
 
       const sql = `
-        SELECT * FROM (
-          SELECT *, ROW_NUMBER() OVER (PARTITION BY nome_completo ORDER BY ano_eleicao DESC) AS rn
-          FROM (${unions.join(' UNION ALL ')})
-        )
-        WHERE rn = 1
-        ORDER BY nome_urna
+        SELECT
+          SQ_CANDIDATO AS id,
+          NM_CANDIDATO AS nome_completo,
+          NM_URNA_CANDIDATO AS nome_urna,
+          DS_CARGO AS cargo,
+          NR_CANDIDATO AS numero_urna,
+          SG_PARTIDO AS sigla_partido,
+          DS_SIT_TOT_TURNO AS situacao_final,
+          DS_GRAU_INSTRUCAO AS grau_instrucao,
+          DS_GENERO AS genero,
+          DS_COR_RACA AS cor_raca,
+          DS_OCUPACAO AS ocupacao,
+          DT_NASCIMENTO AS data_nascimento,
+          NM_PARTIDO AS nome_partido,
+          NM_UE AS municipio_candidato,
+          ${ano} AS ano_eleicao
+        FROM ${tab}
+        WHERE ${conds.join(' AND ')}
+        ORDER BY NM_URNA_CANDIDATO
       `;
 
-      const rows = await mdQuery<any>(sql);
-      return rows;
+      return await mdQuery<any>(sql);
     },
     enabled: !!municipio,
     staleTime: 5 * 60_000,
   });
 }
 
+// Anos disponíveis para candidatos, do mais recente ao mais antigo
+const ANOS_CANDIDATOS = [2024, 2022, 2020, 2018, 2016, 2014];
+
+// Cargos por tipo de eleição
+const CARGOS_MUNICIPAIS = ['PREFEITO', 'VICE-PREFEITO', 'VEREADOR'];
+const CARGOS_GERAIS = ['GOVERNADOR', 'VICE-GOVERNADOR', 'SENADOR', 'DEPUTADO FEDERAL', 'DEPUTADO ESTADUAL'];
+
 function PerfilCandidatosList() {
-  const [municipio, setMunicipio] = useState('_todos');
+  const [ano, setAno] = useState(2024);
+  const [municipio, setMunicipio] = useState('APARECIDA DE GOIÂNIA');
   const [cargo, setCargo] = useState<string | null>(null);
   const [partido, setPartido] = useState<string | null>(null);
-  const { data: candidatos, isLoading, isError } = useCandidatos(municipio, cargo, partido);
+  const { data: candidatos, isLoading, isError } = useCandidatos(ano, municipio, cargo, partido);
   const [busca, setBusca] = useState('');
+
+  const geral = isEleicaoGeral(ano);
+  const cargosDisponiveis = geral ? CARGOS_GERAIS : CARGOS_MUNICIPAIS;
+
+  // Reset cargo when switching year type
+  const handleAnoChange = (novoAno: string) => {
+    const a = Number(novoAno);
+    const eraGeral = isEleicaoGeral(ano);
+    const seraGeral = isEleicaoGeral(a);
+    if (eraGeral !== seraGeral) setCargo(null);
+    setAno(a);
+  };
 
   const filtered = useMemo(() => {
     if (!candidatos) return [];
     if (!busca) return candidatos;
-    const q = busca.toLowerCase();
-    return candidatos.filter((c: any) =>
-      c.nome_completo?.toLowerCase().includes(q) ||
-      c.nome_urna?.toLowerCase().includes(q) ||
-      c.sigla_partido?.toLowerCase().includes(q) ||
-      c.cargo?.toLowerCase().includes(q) ||
-      c.numero_urna?.toString().includes(q)
-    );
+    const q = busca.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    return candidatos.filter((c: any) => {
+      const normalize = (s: string | null) =>
+        s ? s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : '';
+      return (
+        normalize(c.nome_completo).includes(q) ||
+        normalize(c.nome_urna).includes(q) ||
+        normalize(c.sigla_partido).includes(q) ||
+        normalize(c.cargo).includes(q) ||
+        c.numero_urna?.toString().includes(busca)
+      );
+    });
   }, [candidatos, busca]);
 
   const porCargo = useMemo(() => {
@@ -106,7 +115,7 @@ function PerfilCandidatosList() {
       if (!map.has(cargo)) map.set(cargo, []);
       map.get(cargo)!.push(c);
     }
-    const order = ['PREFEITO', 'VICE-PREFEITO', 'VEREADOR', 'DEPUTADO ESTADUAL', 'DEPUTADO FEDERAL', 'SENADOR', 'GOVERNADOR'];
+    const order = ['PREFEITO', 'VICE-PREFEITO', 'VEREADOR', 'GOVERNADOR', 'VICE-GOVERNADOR', 'SENADOR', 'DEPUTADO FEDERAL', 'DEPUTADO ESTADUAL'];
     return Array.from(map.entries()).sort((a, b) => {
       const ia = order.indexOf(a[0].toUpperCase());
       const ib = order.indexOf(b[0].toUpperCase());
@@ -152,7 +161,9 @@ function PerfilCandidatosList() {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-lg font-bold text-foreground">Painel de Candidatos</h1>
-          <p className="text-xs text-muted-foreground">{municipio === '_todos' ? 'Goiás (todos)' : municipio} — 2014 a 2024 • Fonte: TSE / MotherDuck</p>
+          <p className="text-xs text-muted-foreground">
+            {geral ? 'Goiás (eleição geral)' : municipio === '_todos' ? 'Goiás (todos os municípios)' : municipio} — {ano} • Fonte: TSE / MotherDuck
+          </p>
         </div>
         <Badge variant="secondary" className="text-[10px]">
           {filtered.length} candidatos
@@ -160,19 +171,34 @@ function PerfilCandidatosList() {
       </div>
 
       <div className="bg-card text-card-foreground p-3 rounded-xl border shadow-sm flex flex-col md:flex-row gap-3 items-end">
-        <div className="space-y-1 flex-1">
-          <Label htmlFor="perfil-municipio" className="text-xs">Município</Label>
-          <Select value={municipio} onValueChange={setMunicipio}>
-            <SelectTrigger id="perfil-municipio" className="h-9 text-sm">
+        <div className="space-y-1 w-full md:w-auto">
+          <Label htmlFor="perfil-ano" className="text-xs">Ano</Label>
+          <Select value={String(ano)} onValueChange={handleAnoChange}>
+            <SelectTrigger id="perfil-ano" className="h-9 text-sm w-full md:w-[100px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="_todos">Todos de Goiás</SelectItem>
-              <SelectItem value="APARECIDA DE GOIÂNIA">Aparecida de Goiânia</SelectItem>
-              <SelectItem value="GOIÂNIA">Goiânia</SelectItem>
+              {ANOS_CANDIDATOS.filter(a => getAnosDisponiveis('candidatos').includes(a)).map(a => (
+                <SelectItem key={a} value={String(a)}>{a}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
+        {!geral && (
+          <div className="space-y-1 flex-1">
+            <Label htmlFor="perfil-municipio" className="text-xs">Município</Label>
+            <Select value={municipio} onValueChange={setMunicipio}>
+              <SelectTrigger id="perfil-municipio" className="h-9 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_todos">Todos de Goiás</SelectItem>
+                <SelectItem value="APARECIDA DE GOIÂNIA">Aparecida de Goiânia</SelectItem>
+                <SelectItem value="GOIÂNIA">Goiânia</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
         <div className="space-y-1 flex-1">
           <Label htmlFor="perfil-cargo" className="text-xs">Cargo</Label>
           <Select value={cargo || 'todos'} onValueChange={(v) => setCargo(v === 'todos' ? null : v)}>
@@ -181,13 +207,9 @@ function PerfilCandidatosList() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="todos">Todos</SelectItem>
-              <SelectItem value="PREFEITO">Prefeito</SelectItem>
-              <SelectItem value="VICE-PREFEITO">Vice-Prefeito</SelectItem>
-              <SelectItem value="VEREADOR">Vereador</SelectItem>
-              <SelectItem value="GOVERNADOR">Governador</SelectItem>
-              <SelectItem value="DEPUTADO FEDERAL">Dep. Federal</SelectItem>
-              <SelectItem value="DEPUTADO ESTADUAL">Dep. Estadual</SelectItem>
-              <SelectItem value="SENADOR">Senador</SelectItem>
+              {cargosDisponiveis.map(c => (
+                <SelectItem key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -284,8 +306,8 @@ function CandidatoCard({ c }: { c: any }) {
               <div className="flex items-center gap-2 mt-1 flex-wrap">
                 <Badge variant="outline" className="text-[9px] h-4 font-bold">{c.sigla_partido}</Badge>
                 <span className="text-[10px] text-muted-foreground font-mono">Nº {c.numero_urna}</span>
-                {c.ano_eleicao && (
-                  <Badge variant="outline" className="text-[8px] h-4 font-mono">{c.ano_eleicao}</Badge>
+                {c.municipio_candidato && (
+                  <span className="text-[9px] text-muted-foreground truncate max-w-[100px]">{c.municipio_candidato}</span>
                 )}
                 {c.situacao_final && (
                   <Badge className={cn("text-[8px] h-4 border", getSitColor(c.situacao_final))}>
