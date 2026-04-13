@@ -2,7 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Send, Bot, User, Loader2, Sparkles, BrainCircuit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
 
 export const AIChatDashboard = ({ sqCandidato, nomeCandidato }: { sqCandidato?: string, nomeCandidato?: string }) => {
   const [messages, setMessages] = useState<{role: 'user'|'assistant', content: string}[]>([
