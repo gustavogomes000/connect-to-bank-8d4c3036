@@ -286,6 +286,11 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
           const votos = data ? Number(data.total_votos || 0) : 0;
           const zonas = zonasData[ano] || [];
 
+          // Compute effective total: use zone sum if main total is 0
+          const zonasDoAno = zonasData[ano] || [];
+          const totalFromZonas = zonasDoAno.reduce((s, z) => s + Number(z.total_votos || 0), 0);
+          const votosEfetivos = votos > 0 ? votos : totalFromZonas;
+
           return (
             <div key={ano} className="rounded-lg border transition-colors overflow-hidden"
               style={{
@@ -318,9 +323,9 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                       </div>
                     </div>
                     <div className="text-right">
-                      {votos > 0 ? (
+                      {votosEfetivos > 0 ? (
                         <div>
-                          <div className="text-sm font-bold text-slate-900 font-mono">{votos.toLocaleString('pt-BR')}</div>
+                          <div className="text-sm font-bold text-slate-900 font-mono">{votosEfetivos.toLocaleString('pt-BR')}</div>
                           <div className="text-[10px] text-muted-foreground">votos</div>
                         </div>
                       ) : (
@@ -374,7 +379,7 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
                           <TableBody>
                             {zonas.map((z, i) => {
                               const zv = Number(z.total_votos || 0);
-                              const pct = votos > 0 ? (zv / votos) * 100 : 0;
+                              const pct = votosEfetivos > 0 ? (zv / votosEfetivos) * 100 : 0;
                               const zonaKey = `${ano}-${z.zona}`;
                               const isZonaExpanded = expandedZona === zonaKey;
                               const locais = locaisData[zonaKey] || [];
