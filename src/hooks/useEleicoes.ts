@@ -2,6 +2,7 @@ import { useFilterStore } from '@/stores/filterStore';
 import { useQuery } from '@tanstack/react-query';
 import {
   mdQuery,
+  sqlSafe,
   getTableName,
   getAnosDisponiveis,
   sqlPainelCandidatos,
