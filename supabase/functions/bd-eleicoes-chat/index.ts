@@ -380,74 +380,54 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
 
     // ── VOTOS POR SEÇÃO (NEW) ──
     case "votos_candidato_secao": {
-      const nome = e.nomes[0] ? sqlSafe(e.nomes[0]) : '';
+      const nome = e.nomes[0] || '';
       const m = mun || 'GOIÂNIA';
-      const nameCond = nome ? `AND v.NM_VOTAVEL ILIKE '%${nome}%'` : '';
+      const nameCond = nome ? `AND ${ilike('v.NM_VOTAVEL', nome)}` : '';
       const zonaCond = e.zonas.length ? `AND v.NR_ZONA=${Number(e.zonas[0])}` : '';
       const secaoCond = e.secoes.length ? `AND v.NR_SECAO=${Number(e.secoes[0])}` : '';
 
       if (hasTable('detalhe_secao', ano)) {
         return {
           sql: `SELECT v.NR_ZONA AS zona, v.NR_SECAO AS secao, v.NM_VOTAVEL AS candidato, v.SG_PARTIDO AS partido, SUM(v.QT_VOTOS) AS total_votos FROM ${T('detalhe_secao', ano)} v WHERE v.NM_MUNICIPIO='${sqlSafe(m)}' ${nameCond} ${zonaCond} ${secaoCond} AND v.NM_VOTAVEL IS NOT NULL AND v.NM_VOTAVEL NOT IN ('BRANCO','NULO') GROUP BY v.NR_ZONA, v.NR_SECAO, v.NM_VOTAVEL, v.SG_PARTIDO ORDER BY total_votos DESC LIMIT ${e.limite}`,
-          config_visual: {
-            tipo_grafico: "table",
-            titulo: nome ? `Votos de ${e.nomes[0]} por seção — ${m} ${ano}` : `Votos por seção — ${m} ${ano}`,
-            descricao: "Detalhamento por seção eleitoral",
-            mapping: { axis: "secao", dataKeys: ["total_votos"] },
-          },
+          config_visual: { tipo_grafico: "table", titulo: nome ? `Votos de ${e.nomes[0]} por seção — ${m} ${ano}` : `Votos por seção — ${m} ${ano}`, descricao: "Detalhamento por seção eleitoral", mapping: { axis: "secao", dataKeys: ["total_votos"] } },
         };
       }
-      // Fallback to zone-level
       return buildQuery("votos_candidato_zona", e);
     }
 
-    // ── VOTOS POR LOCAL/ESCOLA ──
     case "votos_candidato_local": {
-      const nome = e.nomes[0] ? sqlSafe(e.nomes[0]) : '';
+      const nome = e.nomes[0] || '';
       const m = mun || 'GOIÂNIA';
-      const nameCond = nome ? `AND v.NM_VOTAVEL ILIKE '%${nome}%'` : '';
-      const localCond = e.locais.length ? `AND e.NM_LOCAL_VOTACAO ILIKE '%${sqlSafe(e.locais[0])}%'` : '';
+      const nameCond = nome ? `AND ${ilike('v.NM_VOTAVEL', nome)}` : '';
+      const localCond = e.locais.length ? `AND ${ilike('e.NM_LOCAL_VOTACAO', e.locais[0])}` : '';
 
       if (hasTable('detalhe_secao', ano)) {
         return {
           sql: `SELECT e.NM_LOCAL_VOTACAO AS local_votacao, e.NM_BAIRRO AS bairro, v.NM_VOTAVEL AS candidato, SUM(v.QT_VOTOS) AS total_votos FROM ${T('detalhe_secao', ano)} v JOIN ${T('eleitorado_local', Math.min(ano, 2024))} e ON v.NR_ZONA=e.NR_ZONA AND v.NR_SECAO=CAST(e.NR_SECAO AS INT) AND v.NM_MUNICIPIO=e.NM_MUNICIPIO WHERE v.NM_MUNICIPIO='${sqlSafe(m)}' AND e.SG_UF='GO' ${nameCond} ${localCond} AND v.NM_VOTAVEL IS NOT NULL AND v.NM_VOTAVEL NOT IN ('BRANCO','NULO') GROUP BY e.NM_LOCAL_VOTACAO, e.NM_BAIRRO, v.NM_VOTAVEL ORDER BY total_votos DESC LIMIT ${e.limite}`,
-          config_visual: {
-            tipo_grafico: "bar",
-            titulo: nome ? `Votos de ${e.nomes[0]} por escola — ${m} ${ano}` : `Votos por local — ${m} ${ano}`,
-            descricao: "Votação por local de votação",
-            mapping: { axis: "local_votacao", dataKeys: ["total_votos"] },
-          },
+          config_visual: { tipo_grafico: "bar", titulo: nome ? `Votos de ${e.nomes[0]} por escola — ${m} ${ano}` : `Votos por local — ${m} ${ano}`, descricao: "Votação por local de votação", mapping: { axis: "local_votacao", dataKeys: ["total_votos"] } },
         };
       }
-      // Fallback: use votacao + eleitorado_local at zone level
-      const cf = nome ? `AND v.NM_URNA_CANDIDATO ILIKE '%${nome}%'` : '';
+      const cf = nome ? `AND ${ilike('v.NM_URNA_CANDIDATO', nome)}` : '';
       return {
         sql: `SELECT e.NM_LOCAL_VOTACAO AS local_votacao, e.NM_BAIRRO AS bairro, v.NM_URNA_CANDIDATO AS candidato, SUM(v.QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} v JOIN ${T('eleitorado_local', Math.min(ano, 2024))} e ON v.NR_ZONA=e.NR_ZONA AND v.NM_MUNICIPIO=e.NM_MUNICIPIO WHERE v.NM_MUNICIPIO='${sqlSafe(m)}' ${cf} AND e.SG_UF='GO' ${localCond} GROUP BY e.NM_LOCAL_VOTACAO, e.NM_BAIRRO, v.NM_URNA_CANDIDATO ORDER BY total_votos DESC LIMIT ${e.limite}`,
-        config_visual: {
-          tipo_grafico: "bar",
-          titulo: nome ? `Votos de ${e.nomes[0]} por escola — ${m} ${ano}` : `Votos por local — ${m} ${ano}`,
-          descricao: "Votação por local de votação",
-          mapping: { axis: "local_votacao", dataKeys: ["total_votos"] },
-        },
+        config_visual: { tipo_grafico: "bar", titulo: nome ? `Votos de ${e.nomes[0]} por escola — ${m} ${ano}` : `Votos por local — ${m} ${ano}`, descricao: "Votação por local de votação", mapping: { axis: "local_votacao", dataKeys: ["total_votos"] } },
       };
     }
 
-    // ── VOTOS POR ZONA ──
     case "votos_candidato_zona": {
-      const nome = e.nomes[0] ? sqlSafe(e.nomes[0]) : '';
+      const nome = e.nomes[0] || '';
       const m = mun || 'GOIÂNIA';
       
       if (nome) {
-        // Multiple candidates for comparison by zone
         if (e.nomes.length >= 2) {
-          const nameCond = buildNameCondition(e.nomes, "v.NM_URNA_CANDIDATO", "v.NM_URNA_CANDIDATO");
+          const nameCond = buildNameCondition(e.nomes, "NM_URNA_CANDIDATO", "NM_URNA_CANDIDATO");
           return {
-            sql: `SELECT NR_ZONA AS zona, NM_URNA_CANDIDATO AS candidato, SUM(QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} WHERE ${nameCond.replace(/c\./g, '')} AND NM_MUNICIPIO='${sqlSafe(m)}' GROUP BY NR_ZONA, NM_URNA_CANDIDATO ORDER BY zona, total_votos DESC`,
+            sql: `SELECT NR_ZONA AS zona, NM_URNA_CANDIDATO AS candidato, SUM(QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} WHERE ${nameCond} AND NM_MUNICIPIO='${sqlSafe(m)}' GROUP BY NR_ZONA, NM_URNA_CANDIDATO ORDER BY zona, total_votos DESC`,
             config_visual: { tipo_grafico: "bar", titulo: `${e.nomes.join(' × ')} por zona — ${m} ${ano}`, descricao: "Comparativo por zona", mapping: { axis: "zona", dataKeys: ["total_votos"], pivotingColumn: "candidato" } },
           };
         }
         return {
-          sql: `SELECT NR_ZONA AS zona, NM_URNA_CANDIDATO AS candidato, SUM(QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} WHERE NM_URNA_CANDIDATO ILIKE '%${nome}%' AND NM_MUNICIPIO='${sqlSafe(m)}' GROUP BY NR_ZONA, NM_URNA_CANDIDATO ORDER BY zona`,
+          sql: `SELECT NR_ZONA AS zona, NM_URNA_CANDIDATO AS candidato, SUM(QT_VOTOS_NOMINAIS) AS total_votos FROM ${T('votacao', ano)} WHERE ${ilike('NM_URNA_CANDIDATO', nome)} AND NM_MUNICIPIO='${sqlSafe(m)}' GROUP BY NR_ZONA, NM_URNA_CANDIDATO ORDER BY zona`,
           config_visual: { tipo_grafico: "bar", titulo: `Votos de ${e.nomes[0]} por zona — ${m} ${ano}`, descricao: "Votação por zona", mapping: { axis: "zona", dataKeys: ["total_votos"] } },
         };
       }
@@ -457,13 +437,12 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
       };
     }
 
-    // ── EVOLUÇÃO DE CANDIDATO ENTRE ELEIÇÕES (NEW) ──
     case "evolucao_candidato": {
-      const nome = e.nomes[0] ? sqlSafe(e.nomes[0]) : '';
+      const nome = e.nomes[0] || '';
       if (!nome) return buildQuery("evolucao", e);
       const anosDisp = [2014,2016,2018,2020,2022,2024];
       const munCond = mun ? `AND v.NM_MUNICIPIO='${mun}'` : '';
-      const parts = anosDisp.map(a => `SELECT ${a} AS ano, c.NM_URNA_CANDIDATO AS candidato, c.DS_CARGO AS cargo, c.SG_PARTIDO AS partido, SUM(v.QT_VOTOS_NOMINAIS) AS total_votos, c.DS_SIT_TOT_TURNO AS situacao FROM ${T('votacao', a)} v JOIN ${T('candidatos', a)} c ON v.SQ_CANDIDATO=c.SQ_CANDIDATO WHERE (c.NM_URNA_CANDIDATO ILIKE '%${nome}%' OR c.NM_CANDIDATO ILIKE '%${nome}%') ${munCond} GROUP BY c.NM_URNA_CANDIDATO, c.DS_CARGO, c.SG_PARTIDO, c.DS_SIT_TOT_TURNO`);
+      const parts = anosDisp.map(a => `SELECT ${a} AS ano, c.NM_URNA_CANDIDATO AS candidato, c.DS_CARGO AS cargo, c.SG_PARTIDO AS partido, SUM(v.QT_VOTOS_NOMINAIS) AS total_votos, c.DS_SIT_TOT_TURNO AS situacao FROM ${T('votacao', a)} v JOIN ${T('candidatos', a)} c ON v.SQ_CANDIDATO=c.SQ_CANDIDATO WHERE ${nameSearch(nome)} ${munCond} GROUP BY c.NM_URNA_CANDIDATO, c.DS_CARGO, c.SG_PARTIDO, c.DS_SIT_TOT_TURNO`);
       return {
         sql: `SELECT * FROM (${parts.join(' UNION ALL ')}) ORDER BY ano`,
         config_visual: { tipo_grafico: "line", titulo: `Evolução de ${e.nomes[0]}`, descricao: "Desempenho ao longo das eleições", mapping: { axis: "ano", dataKeys: ["total_votos"] } },
