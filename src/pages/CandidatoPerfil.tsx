@@ -501,6 +501,137 @@ function PatrimonioSection({ bens, patrimonioTotal }: { bens: AnyRow[]; patrimon
 }
 
 // ═══════════════════════════════════════════════════════
+// COMPOSIÇÃO DE VOTOS — FULL BREAKDOWN (SCREENSHOT LAYOUT)
+// ═══════════════════════════════════════════════════════
+
+function ComposicaoVotos({ dados, ano }: { dados: AnyRow[]; ano: number }) {
+  const [busca, setBusca] = useState('');
+
+  const totalVotos = useMemo(() => dados.reduce((s, r) => s + Number(r.total_votos || 0), 0), [dados]);
+  const municipios = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of dados) {
+      const m = String(r.municipio || 'N/I');
+      map.set(m, (map.get(m) || 0) + Number(r.total_votos || 0));
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [dados]);
+  const zonas = useMemo(() => {
+    const map = new Map<string, { votos: number; municipio: string }>();
+    for (const r of dados) {
+      const z = String(r.zona || '');
+      const prev = map.get(z);
+      map.set(z, { votos: (prev?.votos || 0) + Number(r.total_votos || 0), municipio: String(r.municipio || '') });
+    }
+    return [...map.entries()].sort((a, b) => b[1].votos - a[1].votos);
+  }, [dados]);
+  const bairros = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of dados) {
+      const b = String(r.bairro || 'NÃO INFORMADO');
+      if (b === 'NÃO INFORMADO') continue;
+      map.set(b, (map.get(b) || 0) + Number(r.total_votos || 0));
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]);
+  }, [dados]);
+  const locais = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of dados) {
+      const e = String(r.escola || 'NÃO INFORMADO');
+      if (e === 'NÃO INFORMADO') continue;
+      map.set(e, (map.get(e) || 0) + Number(r.total_votos || 0));
+    }
+    return [...map.entries()];
+  }, [dados]);
+
+  const filteredBairros = useMemo(() => {
+    if (!busca) return bairros;
+    const l = busca.toLowerCase();
+    return bairros.filter(([b]) => b.toLowerCase().includes(l));
+  }, [bairros, busca]);
+
+  return (
+    <section className="bg-white rounded-xl border border-border p-4 space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        <Users className="w-4 h-4 text-primary" />
+        <h3 className="text-sm font-semibold text-slate-900">Composição de Votos</h3>
+        <Badge className="bg-primary text-primary-foreground text-[10px]">
+          {totalVotos.toLocaleString('pt-BR')} votos
+        </Badge>
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+        <Input
+          className="pl-9 h-9 text-sm"
+          placeholder="Buscar por zona, bairro ou escola..."
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+        />
+      </div>
+
+      {/* KPIs */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <KpiCard label="Total de Votos" value={totalVotos.toLocaleString('pt-BR')} />
+        <KpiCard label="Municípios" value={String(municipios.length)} />
+        <KpiCard label="Zonas Eleitorais" value={String(zonas.length)} />
+        <KpiCard label="Bairros" value={String(bairros.length)} />
+      </div>
+
+      {/* Votos por Município */}
+      {municipios.length > 0 && (
+        <VoteTable
+          title="VOTOS POR MUNICÍPIO"
+          columns={['Município', 'Votos', '%']}
+          rows={municipios.map(([m, v]) => [m, v.toLocaleString('pt-BR'), `${(totalVotos > 0 ? (v / totalVotos) * 100 : 0).toFixed(1)}%`, totalVotos > 0 ? (v / totalVotos) * 100 : 0])}
+        />
+      )}
+
+      {/* Votos por Bairro */}
+      {filteredBairros.length > 0 && (
+        <VoteTable
+          title="VOTOS POR BAIRRO"
+          columns={['Bairro', 'Votos', '%']}
+          rows={filteredBairros.map(([b, v]) => [b, v.toLocaleString('pt-BR'), `${(totalVotos > 0 ? (v / totalVotos) * 100 : 0).toFixed(1)}%`, totalVotos > 0 ? (v / totalVotos) * 100 : 0])}
+        />
+      )}
+
+      {/* Votos por Zona Eleitoral */}
+      {zonas.length > 0 && (
+        <VoteTable
+          title="VOTOS POR ZONA ELEITORAL"
+          columns={['Zona', 'Município', 'Votos', '%']}
+          rows={zonas.map(([z, d]) => [`Zona ${z}`, d.municipio, d.votos.toLocaleString('pt-BR'), `${(totalVotos > 0 ? (d.votos / totalVotos) * 100 : 0).toFixed(1)}%`, totalVotos > 0 ? (d.votos / totalVotos) * 100 : 0])}
+        />
+      )}
+    </section>
+  );
+}
+
+function ComposicaoVotosSimples({ dados, ano }: { dados: AnyRow[]; ano: number }) {
+  const totalVotos = useMemo(() => dados.reduce((s, r) => s + Number(r.total_votos || 0), 0), [dados]);
+  return (
+    <section className="bg-white rounded-xl border border-border p-4 space-y-3">
+      <div className="flex items-center gap-2 flex-wrap">
+        <MapPinned className="w-4 h-4 text-primary" />
+        <h3 className="text-sm font-semibold text-slate-900">Votação por Zona — {ano}</h3>
+        <Badge variant="outline" className="text-[10px]">{dados.length} zonas</Badge>
+        <Badge className="bg-primary/10 text-primary text-[10px]">{totalVotos.toLocaleString('pt-BR')} votos</Badge>
+      </div>
+      <VoteTable
+        title="VOTOS POR ZONA ELEITORAL"
+        columns={['Zona', 'Município', 'Votos', '%']}
+        rows={dados.map((z) => {
+          const zv = Number(z.total_votos || 0);
+          const pct = totalVotos > 0 ? (zv / totalVotos) * 100 : 0;
+          return [`Zona ${z.zona}`, z.municipio, zv.toLocaleString('pt-BR'), `${pct.toFixed(1)}%`, pct];
+        })}
+      />
+    </section>
+  );
+}
+
 // FINANCES
 // ═══════════════════════════════════════════════════════
 
