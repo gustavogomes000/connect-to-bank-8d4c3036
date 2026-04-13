@@ -209,20 +209,30 @@ function extractEntities(text: string): Entities {
 
   // ── MULTI-NAME EXTRACTION ──
   const nomes: string[] = [];
-  
-  // 1. Names separated by ||| (from Gemini)
-  const triplePipe = text.match(/([A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,})*)\|\|\|/g);
-  if (triplePipe) {
-    for (const tp of triplePipe) {
-      nomes.push(tp.replace(/\|\|\|/g, '').trim());
-    }
-    // Also get the last one after |||
-    const lastPart = text.match(/\|\|\|([A-ZÀ-Ú]{2,}(?:\s+[A-ZÀ-Ú]{2,})*)/g);
-    if (lastPart) {
-      for (const lp of lastPart) {
-        nomes.push(lp.replace(/\|\|\|/g, '').trim());
+  const stopWords = new Set(["VOTOS","VOTO","CANDIDATO","CANDIDATA","CANDIDATOS","CANDIDATAS","ELEIÇÃO","ELEICAO","PREFEITO","PREFEITA","VEREADOR","VEREADORA","PARTIDO","RANKING","GOIANIA","GOIÂNIA","TOTAL","COMPARE","COMPARAR","COMPARATIVO","ENTRE","TEVE","QUANTOS","RESULTADO","DESEMPENHO","NUMERO","ZONA","SECAO","SEÇÃO","LOCAL","ESCOLA","COLEGIO","COLÉGIO","EM","DE","DO","DA","NA","NO","QUAL","COMO","FOI","OS","AS","QUE","POR","PARA","COM","SEM","OU","MAIS","MENOS","TEVE","TEM","TIVERAM","FORAM","ERA","SÃO","TODOS","TODAS","PRIMEIRO","SEGUNDO","TURNO","ANO","MUNICIPAL","ESTADUAL","FEDERAL"]);
+
+  function cleanName(raw: string): string {
+    // Remove stop words from start and end, keep middle
+    const words = raw.trim().split(/\s+/).filter(w => w.length > 1);
+    // Trim leading stop words
+    while (words.length > 0 && stopWords.has(words[0].toUpperCase())) words.shift();
+    // Trim trailing stop words  
+    while (words.length > 0 && stopWords.has(words[words.length - 1].toUpperCase())) words.pop();
+    // Also remove municipality names from end
+    const result = words.join(' ');
+    for (const m of MUNICIPIOS) {
+      const mNorm = m.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+      if (result.toUpperCase().endsWith(mNorm) || result.toUpperCase().endsWith(m)) {
+        return result.slice(0, -(m.length)).trim();
       }
     }
+    return result;
+  }
+  
+  // 1. Names separated by ||| (from Gemini)
+  if (text.includes('|||')) {
+    const parts = text.split('|||').map(s => cleanName(s)).filter(s => s.length > 2);
+    nomes.push(...parts.map(s => s.toUpperCase()));
   }
   
   // 2. Quoted names
@@ -231,28 +241,34 @@ function extractEntities(text: string): Entities {
     if (quoted) nomes.push(...quoted.map(q => q.replace(/"/g, '').toUpperCase()));
   }
   
-  // 3. "candidato A e candidato B" or "A versus B" or "A e B"
+  // 3. "candidato A e candidato B" or "A versus B" or "A e B" - for comparisons
   if (nomes.length === 0) {
-    // Pattern: Name1 (e|versus|vs|x|,) Name2 (e|,) Name3
-    const comparePattern = text.match(/(?:comparar|compare|comparativo|votos?\s+(?:d[eoa]s?\s+)?)?([A-ZÀ-Úa-zà-ú]{2,}(?:\s+[A-ZÀ-Úa-zà-ú]{2,})*)\s+(?:e|versus|vs|x|,)\s+([A-ZÀ-Úa-zà-ú]{2,}(?:\s+[A-ZÀ-Úa-zà-ú]{2,})*)(?:\s+(?:e|,)\s+([A-ZÀ-Úa-zà-ú]{2,}(?:\s+[A-ZÀ-Úa-zà-ú]{2,})*))?/i);
-    if (comparePattern) {
-      if (comparePattern[1]) nomes.push(comparePattern[1].toUpperCase());
-      if (comparePattern[2]) nomes.push(comparePattern[2].toUpperCase());
-      if (comparePattern[3]) nomes.push(comparePattern[3].toUpperCase());
+    // First try with explicit separators: "Name1 e Name2 e Name3"
+    const parts = text.split(/\s+(?:e|versus|vs|x|,)\s+/i);
+    if (parts.length >= 2) {
+      for (const part of parts) {
+        const cleaned = cleanName(part);
+        if (cleaned.length > 2 && !stopWords.has(cleaned.toUpperCase())) {
+          nomes.push(cleaned.toUpperCase());
+        }
+      }
     }
   }
 
   // 4. "votos do/da/de [Name]" (single name)
   if (nomes.length === 0) {
     const p1 = text.match(/(?:votos?\s+(?:do|da|de|d[eo]s?)\s+)([A-ZÀ-Úa-zà-ú]+(?:\s+[A-ZÀ-Úa-zà-ú]+)*)/i);
-    if (p1) nomes.push(p1[1].toUpperCase());
+    if (p1) {
+      const cleaned = cleanName(p1[1]);
+      if (cleaned.length > 2) nomes.push(cleaned.toUpperCase());
+    }
   }
   
   // 5. "votos [Name] teve" or "votos [Name]"
   if (nomes.length === 0) {
     const p2 = text.match(/votos?\s+([A-ZÀ-Úa-zà-ú]{2,}(?:\s+[A-ZÀ-Úa-zà-ú]{2,})+)/i);
     if (p2) {
-      const cleaned = p2[1].replace(/\s+(teve|na|no|em|da|de|do|nas|nos|dos|das|eleicao|eleição)\b.*/i, '').trim();
+      const cleaned = cleanName(p2[1]);
       if (cleaned.length > 2) nomes.push(cleaned.toUpperCase());
     }
   }
@@ -260,12 +276,13 @@ function extractEntities(text: string): Entities {
   // 6. "candidato/perfil [Name]"
   if (nomes.length === 0) {
     const p3 = text.match(/(?:candidato|candidata|perfil\s+(?:do|da|de)\s+)([A-ZÀ-Úa-zà-ú]+(?:\s+[A-ZÀ-Úa-zà-ú]+)*)/i);
-    if (p3) nomes.push(p3[1].toUpperCase());
+    if (p3) {
+      const cleaned = cleanName(p3[1]);
+      if (cleaned.length > 2) nomes.push(cleaned.toUpperCase());
+    }
   }
 
-  // Remove names that are actually known keywords
-  const keywords = new Set(["VOTOS","VOTO","CANDIDATO","CANDIDATA","CANDIDATOS","CANDIDATAS","ELEIÇÃO","ELEICAO","PREFEITO","PREFEITA","VEREADOR","VEREADORA","PARTIDO","RANKING","GOIANIA","GOIÂNIA","TOTAL","COMPARE","COMPARAR","COMPARATIVO","ENTRE","TEVE","QUANTOS","RESULTADO","DESEMPENHO","NUMERO","ZONA","SECAO","SEÇÃO","LOCAL","ESCOLA","COLEGIO","COLÉGIO","EM","DE","DO","DA","NA","NO","QUAL","COMO","FOI"]);
-  const filteredNomes = nomes.filter(n => !keywords.has(n) && n.length > 2);
+  const filteredNomes = nomes.filter(n => !stopWords.has(n) && n.length > 2);
 
   return { anos: [...new Set(anos)], municipios: [...new Set(municipios)], partidos: [...new Set(partidos)], cargos: [...new Set(cargos)], situacoes: [...new Set(situacoes)], generos: [...new Set(generos)], limite, nomes: [...new Set(filteredNomes)], zonas: [...new Set(zonas)], turnos: [...new Set(turnos)], secoes: [...new Set(secoes)], locais: [...new Set(locais)] };
 }
