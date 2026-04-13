@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Award, Building2, Calendar, ChevronDown, ChevronUp, Coins, ExternalLink, GraduationCap, Landmark, MapPinned, Search, Shield, TrendingUp, User, Users, Vote, XCircle } from 'lucide-react';
+import { ArrowLeft, Award, Building2, Calendar, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, Coins, ExternalLink, GraduationCap, Landmark, MapPinned, Search, Shield, TrendingUp, User, Users, Vote, XCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   mdQuery,
@@ -90,13 +90,27 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   );
 }
 
+const PAGE_SIZE = 20;
+
 function VoteTable({ title, columns, rows }: { title: string; columns: string[]; rows: any[][] }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(rows.length / PAGE_SIZE);
+  const paged = rows.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+  const startIdx = page * PAGE_SIZE;
+
   return (
     <div className="rounded-lg border border-border overflow-hidden">
-      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border">
-        {title}
+      <div className="px-3 py-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500 bg-slate-50 border-b border-border flex items-center justify-between">
+        <span>{title} <span className="text-slate-400">({rows.length})</span></span>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1 text-[10px]">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronLeft className="w-3.5 h-3.5" /></button>
+            <span className="font-mono px-1">{page + 1}/{totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
       </div>
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-border/60">
@@ -108,12 +122,12 @@ function VoteTable({ title, columns, rows }: { title: string; columns: string[];
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((cells, i) => {
+            {paged.map((cells, i) => {
               const pct = cells[cells.length - 1] as number;
               const displayCells = cells.slice(0, -1);
               return (
-                <TableRow key={i} className="border-border/20">
-                  <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
+                <TableRow key={startIdx + i} className="border-border/20">
+                  <TableCell className="text-xs text-slate-400 font-mono">{startIdx + i + 1}</TableCell>
                   {displayCells.map((c, j) => (
                     <TableCell key={j} className={cn("text-sm", j === displayCells.length - 2 ? "font-bold font-mono" : "")}>{c}</TableCell>
                   ))}
@@ -444,6 +458,9 @@ function HistoricoEleitoral({ historico, currentAno }: { historico: AnyRow[]; cu
 
 function PatrimonioSection({ bens, patrimonioTotal }: { bens: AnyRow[]; patrimonioTotal: number }) {
   const [aberto, setAberto] = useState(false);
+  const [page, setPage] = useState(0);
+  const totalPages = Math.ceil(bens.length / PAGE_SIZE);
+  const paged = bens.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   return (
     <section className="bg-white rounded-xl border border-border p-4">
@@ -469,30 +486,39 @@ function PatrimonioSection({ bens, patrimonioTotal }: { bens: AnyRow[]; patrimon
           {!bens.length ? (
             <p className="text-sm text-muted-foreground">Nenhum bem declarado.</p>
           ) : (
-            <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="text-[10px] text-slate-500">#</TableHead>
-                    <TableHead className="text-[10px] text-slate-500">Tipo</TableHead>
-                    <TableHead className="text-[10px] text-slate-500">Descrição</TableHead>
-                    <TableHead className="text-[10px] text-slate-500 text-right">Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {bens.map((r, i) => (
-                    <TableRow key={i} className="border-border/30">
-                      <TableCell className="text-xs text-slate-400 font-mono">{i + 1}</TableCell>
-                      <TableCell className="text-xs text-slate-600">{r.tipo || '—'}</TableCell>
-                      <TableCell className="text-sm text-slate-900 max-w-[300px] truncate" title={r.descricao}>{r.descricao || '—'}</TableCell>
-                      <TableCell className="text-sm text-slate-900 text-right font-mono font-semibold">
-                        {r.valor ? formatBRL(Number(r.valor)) : '—'}
-                      </TableCell>
+            <>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-end gap-1 text-[10px] mb-2">
+                  <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronLeft className="w-3.5 h-3.5" /></button>
+                  <span className="font-mono px-1">{page + 1}/{totalPages}</span>
+                  <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button>
+                </div>
+              )}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-[10px] text-slate-500">#</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Tipo</TableHead>
+                      <TableHead className="text-[10px] text-slate-500">Descrição</TableHead>
+                      <TableHead className="text-[10px] text-slate-500 text-right">Valor</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {paged.map((r, i) => (
+                      <TableRow key={page * PAGE_SIZE + i} className="border-border/30">
+                        <TableCell className="text-xs text-slate-400 font-mono">{page * PAGE_SIZE + i + 1}</TableCell>
+                        <TableCell className="text-xs text-slate-600">{r.tipo || '—'}</TableCell>
+                        <TableCell className="text-sm text-slate-900 max-w-[300px] truncate" title={r.descricao}>{r.descricao || '—'}</TableCell>
+                        <TableCell className="text-sm text-slate-900 text-right font-mono font-semibold">
+                          {r.valor ? formatBRL(Number(r.valor)) : '—'}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -636,6 +662,7 @@ function ComposicaoVotosSimples({ dados, ano }: { dados: AnyRow[]; ano: number }
 // ═══════════════════════════════════════════════════════
 
 function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
+  const [page, setPage] = useState(0);
   if (!receitas.length) return null;
 
   const totalReceitas = useMemo(
@@ -647,6 +674,9 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
     [receitas],
   );
 
+  const totalPages = Math.ceil(receitas.length / PAGE_SIZE);
+  const paged = receitas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   return (
     <section className="bg-white rounded-xl border border-border p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -656,8 +686,15 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
           {formatBRL(totalReceitas)} total
         </Badge>
         <Badge variant="outline" className="text-[10px]">{receitas.length} doações</Badge>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1 text-[10px] ml-auto">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronLeft className="w-3.5 h-3.5" /></button>
+            <span className="font-mono px-1">{page + 1}/{totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
       </div>
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -667,13 +704,13 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {receitas.slice(0, 100).map((r, i) => {
+            {paged.map((r, i) => {
               const dk = pickKey(r, ['nm_doador', 'doador', 'nome_doador', 'NM_DOADOR']);
               const ok = pickKey(r, ['ds_origem_receita', 'origem', 'DS_ORIGEM_RECEITA']);
               const vk = pickKey(r, ['vr_receita', 'valor_receita', 'valor', 'VR_RECEITA']);
               const val = vk ? Number(String(r[vk]).replace(',', '.')) : 0;
               return (
-                <TableRow key={i} className="border-border/30">
+                <TableRow key={page * PAGE_SIZE + i} className="border-border/30">
                   <TableCell className="text-sm text-slate-900">{dk ? r[dk] : '—'}</TableCell>
                   <TableCell className="text-xs text-slate-500">{ok ? r[ok] : '—'}</TableCell>
                   <TableCell className="text-sm text-slate-900 text-right font-mono font-semibold">
