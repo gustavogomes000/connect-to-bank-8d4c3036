@@ -22,7 +22,7 @@ const Ajuda = lazy(() => import('./pages/Ajuda'));
 const ChatEleicoes = lazy(() => import('./pages/ChatEleicoes'));
 const NotFound = lazy(() => import('./pages/NotFound'));
 
-const HIDE_FILTERS = ['/ajuda', '/config', '/candidatos', '/candidato', '/perfil-candidatos'];
+const HIDE_FILTERS = ['/ajuda', '/config', '/candidatos', '/candidato', '/perfil-candidatos', '/chat'];
 
 const ROUTE_FILTERS: Record<string, FilterField[]> = {
   '/zonas': ['ano', 'municipio', 'cargo', 'turno'],
@@ -77,6 +77,7 @@ function Layout() {
                 <Route path="/candidatos/:id/:ano" element={<PerfilCandidatos />} />
                 <Route path="/config" element={<Configuracoes />} />
                 <Route path="/ajuda" element={<Ajuda />} />
+                <Route path="/chat" element={<ChatEleicoes />} />
                 {/* Legacy redirects */}
                 <Route path="/resultado" element={<Ranking />} />
                 <Route path="/explorador" element={<Ranking />} />
@@ -101,7 +102,7 @@ function Layout() {
 }
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
+  <PersistQueryClientProvider client={queryClient} persistOptions={{ persister, maxAge: 24 * 60 * 60 * 1000 }}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -109,7 +110,7 @@ const App = () => (
         <Layout />
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
+  </PersistQueryClientProvider>
 );
 
 export default App;

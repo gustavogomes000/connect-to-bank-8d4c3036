@@ -14,6 +14,7 @@ const mainItems = [
   { title: 'Zonas Eleitorais', url: '/zonas', icon: Hash },
   { title: 'Escolas Eleitorais', url: '/escolas', icon: School },
   { title: 'Mesários', url: '/mesarios', icon: Users },
+  { title: 'Chat IA', url: '/chat', icon: Sparkles },
 ];
 
 
