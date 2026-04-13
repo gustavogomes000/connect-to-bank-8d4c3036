@@ -1147,7 +1147,7 @@ export function useEvolucaoPatrimonio(nomeUrna: string) {
             `SELECT SUM(CAST(REPLACE(b.VR_BEM_CANDIDATO, ',', '.') AS DOUBLE)) AS patrimonio
             FROM ${getTableName('bens', ano)} b
             JOIN ${getTableName('candidatos', ano)} c ON b.SQ_CANDIDATO = c.SQ_CANDIDATO
-            WHERE c.NM_URNA_CANDIDATO = '${nomeUrna.replace(/'/g, "''")}'`
+            WHERE c.NM_URNA_CANDIDATO = '${sqlSafe(nomeUrna)}'`
           );
           const p = Number(r?.patrimonio || 0);
           return p > 0 ? { ano, patrimonio: p } : null;
@@ -1173,7 +1173,7 @@ export function useCandidatoVotos(nomeUrna: string, ano: number) {
         return await mdQuery(
           `SELECT NM_MUNICIPIO AS municipio, NR_ZONA AS zona, QT_VOTOS_NOMINAIS AS total_votos, DS_CARGO AS cargo
           FROM ${getTableName('votacao', ano)}
-          WHERE NM_URNA_CANDIDATO = '${nomeUrna.replace(/'/g, "''")}'
+          WHERE NM_URNA_CANDIDATO = '${sqlSafe(nomeUrna)}'
           ORDER BY total_votos DESC LIMIT 500`
         );
       } catch { return []; }
