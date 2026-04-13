@@ -1228,7 +1228,7 @@ export function useVotosBrancosNulos() {
       const anos = getAnosDisponiveis('detalhe_munzona');
       const targetAnos = [f.ano];
       const results = await Promise.all(targetAnos.map(async ano => {
-        const munFilter = f.municipio ? `AND NM_MUNICIPIO = '${f.municipio}'` : '';
+        const munFilter = f.municipio ? `AND NM_MUNICIPIO = '${sqlSafe(f.municipio)}'` : '';
         try {
           const [r] = await mdQuery<{ brancos: string; nulos: string; comp: string }>(
             `SELECT SUM(QT_VOTOS_BRANCOS) AS brancos, SUM(QT_VOTOS_NULOS) AS nulos, SUM(QT_COMPARECIMENTO) AS comp
