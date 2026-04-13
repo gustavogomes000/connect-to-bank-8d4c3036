@@ -212,21 +212,19 @@ function extractEntities(text: string): Entities {
   const stopWords = new Set(["VOTOS","VOTO","CANDIDATO","CANDIDATA","CANDIDATOS","CANDIDATAS","ELEIÇÃO","ELEICAO","PREFEITO","PREFEITA","VEREADOR","VEREADORA","PARTIDO","RANKING","GOIANIA","GOIÂNIA","TOTAL","COMPARE","COMPARAR","COMPARATIVO","ENTRE","TEVE","QUANTOS","RESULTADO","DESEMPENHO","NUMERO","ZONA","SECAO","SEÇÃO","LOCAL","ESCOLA","COLEGIO","COLÉGIO","EM","DE","DO","DA","NA","NO","QUAL","COMO","FOI","OS","AS","QUE","POR","PARA","COM","SEM","OU","MAIS","MENOS","TEVE","TEM","TIVERAM","FORAM","ERA","SÃO","TODOS","TODAS","PRIMEIRO","SEGUNDO","TURNO","ANO","MUNICIPAL","ESTADUAL","FEDERAL"]);
 
   function cleanName(raw: string): string {
-    // Remove stop words from start and end, keep middle
-    const words = raw.trim().split(/\s+/).filter(w => w.length > 1);
-    // Trim leading stop words
-    while (words.length > 0 && stopWords.has(words[0].toUpperCase())) words.shift();
-    // Trim trailing stop words  
-    while (words.length > 0 && stopWords.has(words[words.length - 1].toUpperCase())) words.pop();
-    // Also remove municipality names from end
-    const result = words.join(' ');
+    let result = raw.trim();
+    // Remove years
+    result = result.replace(/\b20\d{2}\b/g, '').trim();
+    // Remove municipality names
     for (const m of MUNICIPIOS) {
-      const mNorm = m.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-      if (result.toUpperCase().endsWith(mNorm) || result.toUpperCase().endsWith(m)) {
-        return result.slice(0, -(m.length)).trim();
-      }
+      const mNorm = m.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+      result = result.replace(new RegExp(`\\b${m.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '').trim();
+      if (mNorm !== m) result = result.replace(new RegExp(`\\b${mNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi'), '').trim();
     }
-    return result;
+    const words = result.split(/\s+/).filter(w => w.length > 1);
+    while (words.length > 0 && stopWords.has(words[0].toUpperCase())) words.shift();
+    while (words.length > 0 && stopWords.has(words[words.length - 1].toUpperCase())) words.pop();
+    return words.join(' ');
   }
   
   // 1. Names separated by ||| (from Gemini)
@@ -241,9 +239,8 @@ function extractEntities(text: string): Entities {
     if (quoted) nomes.push(...quoted.map(q => q.replace(/"/g, '').toUpperCase()));
   }
   
-  // 3. "candidato A e candidato B" or "A versus B" or "A e B" - for comparisons
+  // 3. Split on "e/versus/vs/x/," for comparisons
   if (nomes.length === 0) {
-    // First try with explicit separators: "Name1 e Name2 e Name3"
     const parts = text.split(/\s+(?:e|versus|vs|x|,)\s+/i);
     if (parts.length >= 2) {
       for (const part of parts) {
