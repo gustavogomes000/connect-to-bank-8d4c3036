@@ -650,6 +650,7 @@ function ComposicaoVotosSimples({ dados, ano }: { dados: AnyRow[]; ano: number }
 // ═══════════════════════════════════════════════════════
 
 function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
+  const [page, setPage] = useState(0);
   if (!receitas.length) return null;
 
   const totalReceitas = useMemo(
@@ -661,6 +662,9 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
     [receitas],
   );
 
+  const totalPages = Math.ceil(receitas.length / PAGE_SIZE);
+  const paged = receitas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   return (
     <section className="bg-white rounded-xl border border-border p-4 space-y-3">
       <div className="flex items-center gap-2 flex-wrap">
@@ -670,8 +674,15 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
           {formatBRL(totalReceitas)} total
         </Badge>
         <Badge variant="outline" className="text-[10px]">{receitas.length} doações</Badge>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-1 text-[10px] ml-auto">
+            <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronLeft className="w-3.5 h-3.5" /></button>
+            <span className="font-mono px-1">{page + 1}/{totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className="p-0.5 rounded hover:bg-slate-200 disabled:opacity-30"><ChevronRight className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
       </div>
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -681,13 +692,13 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {receitas.slice(0, 100).map((r, i) => {
+            {paged.map((r, i) => {
               const dk = pickKey(r, ['nm_doador', 'doador', 'nome_doador', 'NM_DOADOR']);
               const ok = pickKey(r, ['ds_origem_receita', 'origem', 'DS_ORIGEM_RECEITA']);
               const vk = pickKey(r, ['vr_receita', 'valor_receita', 'valor', 'VR_RECEITA']);
               const val = vk ? Number(String(r[vk]).replace(',', '.')) : 0;
               return (
-                <TableRow key={i} className="border-border/30">
+                <TableRow key={page * PAGE_SIZE + i} className="border-border/30">
                   <TableCell className="text-sm text-slate-900">{dk ? r[dk] : '—'}</TableCell>
                   <TableCell className="text-xs text-slate-500">{ok ? r[ok] : '—'}</TableCell>
                   <TableCell className="text-sm text-slate-900 text-right font-mono font-semibold">
