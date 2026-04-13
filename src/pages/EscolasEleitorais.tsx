@@ -101,19 +101,19 @@ export default function EscolasEleitorais() {
   }
 
   return (
-    <div className="space-y-4 max-w-[1800px] mx-auto">
+    <div className="space-y-3 sm:space-y-4 max-w-[1800px] mx-auto">
       <div>
-        <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <School className="w-5 h-5 text-primary" />
+        <h1 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+          <School className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           Escolas Eleitorais
         </h1>
-        <p className="text-xs text-muted-foreground">{municipio} · {ano} — Locais de votação, seções e eleitores</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">{municipio} · {ano} — Locais de votação, seções e eleitores</p>
       </div>
 
       {isLoading ? (
         <LoadingKPIs count={5} />
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-5">
           <KPI icon={School} label="Escolas" value={fmt(totalEscolas)} />
           <KPI icon={Hash} label="Zonas" value={fmt(totalZonas)} />
           <KPI icon={Building2} label="Seções" value={fmt(totalSecoes)} />
@@ -123,7 +123,7 @@ export default function EscolasEleitorais() {
         </div>
       )}
 
-      <div className="relative max-w-xs">
+      <div className="relative w-full sm:max-w-xs">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
         <Input
           placeholder="Buscar escola, bairro, zona ou endereço..."
@@ -147,7 +147,7 @@ export default function EscolasEleitorais() {
           Nenhuma escola encontrada.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3">
           {filtered.map((escola, idx) => {
             const pct = totalEleitores > 0 ? (escola.eleitores / totalEleitores) * 100 : 0;
             return (
