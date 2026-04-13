@@ -663,8 +663,6 @@ function ComposicaoVotosSimples({ dados, ano }: { dados: AnyRow[]; ano: number }
 
 function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
   const [page, setPage] = useState(0);
-  if (!receitas.length) return null;
-
   const totalReceitas = useMemo(
     () => receitas.reduce((s, r) => {
       const vk = pickKey(r, ['vr_receita', 'valor_receita', 'valor', 'VR_RECEITA']);
@@ -676,6 +674,8 @@ function FinancesSection({ receitas }: { receitas: AnyRow[] }) {
 
   const totalPages = Math.ceil(receitas.length / PAGE_SIZE);
   const paged = receitas.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
+  if (!receitas.length) return null;
 
   return (
     <section className="bg-white rounded-xl border border-border p-4 space-y-3">
