@@ -25,10 +25,12 @@ export const useEscolas = () => {
   return useQuery<{ status: string; total: number; dados: EscolaItem[] }, Error>({
     queryKey: ['escolas-md', ano, municipio, zona],
     queryFn: async () => {
-      if (!getAnosDisponiveis('eleitorado_local').includes(ano)) {
+      const anosLocal = getAnosDisponiveis('eleitorado_local');
+      const anoLocal = anosLocal.includes(ano) ? ano : ([...anosLocal].sort((a, b) => Math.abs(a - ano) - Math.abs(b - ano))[0] || null);
+      if (!anoLocal) {
         return { status: 'ok', total: 0, dados: [] };
       }
-      const loc = getTableName('eleitorado_local', ano);
+      const loc = getTableName('eleitorado_local', anoLocal);
       const zonaCond = zona ? ` AND NR_ZONA = ${zona}` : '';
       const rows = await mdQuery<any>(`
         SELECT
