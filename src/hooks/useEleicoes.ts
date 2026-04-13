@@ -500,11 +500,26 @@ export function useCandidato(id: string) {
     queryKey: ['candidato', id],
     queryFn: async (): Promise<Record<string, any> | null> => {
       const anos = getAnosDisponiveis('candidatos');
-      for (const ano of [...anos].reverse()) {
-        try {
-          const rows = await mdQuery(sqlPerfilCandidato(ano, { sq: id }));
-          if (rows.length > 0) return { ...rows[0], ano } as Record<string, any>;
-        } catch { /* try next year */ }
+      const idSafe = sqlSafe(id);
+      // Single UNION ALL query instead of 6 sequential HTTP calls
+      const unions = [...anos].reverse().map(ano => {
+        const cand = getTableName('candidatos', ano);
+        return `SELECT ${ano} AS ano, ${sqlPerfilCandidato(ano, { sq: id }).replace(/SELECT/, 'SELECT').replace(/FROM.*/, '')}
+        FROM ${cand} WHERE SQ_CANDIDATO = '${idSafe}'`;
+      });
+      // Fallback: try each year individually if UNION fails (schema differences)
+      try {
+        const sql = `${unions.join('\nUNION ALL\n')} LIMIT 1`;
+        const rows = await mdQuery(sql);
+        if (rows.length > 0) return rows[0] as Record<string, any>;
+      } catch {
+        // Fallback to sequential if column schemas differ across years
+        for (const ano of [...anos].reverse()) {
+          try {
+            const rows = await mdQuery(sqlPerfilCandidato(ano, { sq: id }));
+            if (rows.length > 0) return { ...rows[0], ano } as Record<string, any>;
+          } catch { /* try next year */ }
+        }
       }
       return null;
     },
