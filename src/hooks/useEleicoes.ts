@@ -553,8 +553,8 @@ export function useCandidatosPorPartido() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return mdQuery<{ partido: string; total: string }>(
         `SELECT SG_PARTIDO AS partido, count(*) AS total FROM ${cand} ${where} GROUP BY SG_PARTIDO ORDER BY total DESC`
@@ -575,8 +575,8 @@ export function useSituacaoFinal() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return mdQuery<{ nome: string; total: string }>(
         `SELECT COALESCE(DS_SIT_TOT_TURNO, 'NÃO DEFINIDO') AS nome, count(*) AS total FROM ${cand} ${where} GROUP BY nome ORDER BY total DESC`
@@ -597,8 +597,8 @@ export function useTopOcupacoes() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return mdQuery<{ nome: string; total: string }>(
         `SELECT COALESCE(DS_OCUPACAO, 'NÃO INFORMADO') AS nome, count(*) AS total FROM ${cand} ${where} GROUP BY nome ORDER BY total DESC LIMIT 15`
@@ -619,8 +619,8 @@ export function useCandidatosPorCargo() {
     queryFn: async () => {
       const cand = getTableName('candidatos', f.ano);
       const conds: string[] = [];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.partido) conds.push(`SG_PARTIDO = '${f.partido}'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.partido) conds.push(`SG_PARTIDO = '${sqlSafe(f.partido)}'`);
       const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
       return mdQuery<{ cargo: string; total: string }>(
         `SELECT COALESCE(DS_CARGO, 'NÃO DEFINIDO') AS cargo, count(*) AS total FROM ${cand} ${where} GROUP BY cargo ORDER BY total DESC`
@@ -644,9 +644,9 @@ export function useEleitos() {
         "DS_SIT_TOT_TURNO ILIKE '%ELEITO%'",
         "DS_SIT_TOT_TURNO NOT ILIKE '%NÃO ELEITO%'",
       ];
-      if (f.municipio) conds.push(`NM_UE = '${f.municipio}'`);
-      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${f.cargo}%'`);
-      if (f.partido) conds.push(`SG_PARTIDO = '${f.partido}'`);
+      if (f.municipio) conds.push(`NM_UE = '${sqlSafe(f.municipio)}'`);
+      if (f.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(f.cargo)}%'`);
+      if (f.partido) conds.push(`SG_PARTIDO = '${sqlSafe(f.partido)}'`);
       const where = `WHERE ${conds.join(' AND ')}`;
       return mdQuery(
         `SELECT NM_URNA_CANDIDATO AS nome_urna, NM_CANDIDATO AS nome_completo, SG_PARTIDO AS sigla_partido,
