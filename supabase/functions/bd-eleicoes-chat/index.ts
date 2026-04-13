@@ -313,9 +313,23 @@ function buildWhere(e: Entities, munField = "NM_UE"): string {
   return c.length ? `WHERE ${c.join(' AND ')}` : '';
 }
 
+function removeAccents(s: string): string {
+  return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
 function buildNameCondition(nomes: string[], candidateField = "c.NM_URNA_CANDIDATO", fullNameField = "c.NM_CANDIDATO"): string {
   if (nomes.length === 0) return '';
-  const conds = nomes.map(n => `(${candidateField} ILIKE '%${sqlSafe(n)}%' OR ${fullNameField} ILIKE '%${sqlSafe(n)}%')`);
+  const conds = nomes.map(n => {
+    const safe = sqlSafe(n);
+    const noAccent = sqlSafe(removeAccents(n));
+    // Search both with and without accents for robustness
+    const parts = [`${candidateField} ILIKE '%${safe}%'`, `${fullNameField} ILIKE '%${safe}%'`];
+    if (safe !== noAccent) {
+      parts.push(`${candidateField} ILIKE '%${noAccent}%'`);
+      parts.push(`${fullNameField} ILIKE '%${noAccent}%'`);
+    }
+    return `(${parts.join(' OR ')})`;
+  });
   return `(${conds.join(' OR ')})`;
 }
 
