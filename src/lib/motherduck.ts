@@ -5,6 +5,11 @@ import { supabase } from '@/integrations/supabase/client';
 // Regra: ZERO IA para SQL. Tudo é TypeScript determinístico.
 // ═══════════════════════════════════════════════════════════════
 
+/** Sanitize a string for safe SQL interpolation (escape single quotes) */
+export function sqlSafe(value: string): string {
+  return value.replace(/'/g, "''").replace(/\\/g, '\\\\').replace(/;/g, '');
+}
+
 /**
  * Execute SQL against MotherDuck via the query-motherduck edge function.
  */
@@ -140,12 +145,12 @@ function buildWhereClause(filtros: FiltrosPainel, campoMunicipio = 'NM_UE'): str
   const conds: string[] = [];
   const ano = filtros.ano || 2024;
   // For general elections, don't filter candidate origin by municipality
-  if (filtros.municipio && !isEleicaoGeral(ano)) conds.push(`${campoMunicipio} = '${filtros.municipio}'`);
-  if (filtros.cargo) conds.push(`DS_CARGO ILIKE '%${filtros.cargo}%'`);
-  if (filtros.partido) conds.push(`SG_PARTIDO = '${filtros.partido}'`);
-  if (filtros.turno) conds.push(`NR_TURNO = ${filtros.turno}`);
-  if (filtros.genero) conds.push(`DS_GENERO = '${filtros.genero}'`);
-  if (filtros.situacao) conds.push(`DS_SIT_TOT_TURNO ILIKE '%${filtros.situacao}%'`);
+  if (filtros.municipio && !isEleicaoGeral(ano)) conds.push(`${campoMunicipio} = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros.cargo) conds.push(`DS_CARGO ILIKE '%${sqlSafe(filtros.cargo)}%'`);
+  if (filtros.partido) conds.push(`SG_PARTIDO = '${sqlSafe(filtros.partido)}'`);
+  if (filtros.turno) conds.push(`NR_TURNO = ${Number(filtros.turno)}`);
+  if (filtros.genero) conds.push(`DS_GENERO = '${sqlSafe(filtros.genero)}'`);
+  if (filtros.situacao) conds.push(`DS_SIT_TOT_TURNO ILIKE '%${sqlSafe(filtros.situacao)}%'`);
   return conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 }
 
@@ -165,13 +170,13 @@ export function sqlPainelCandidatos(filtros: FiltrosPainel = {}): string {
   const vot = getTableName('votacao', ano);
 
   const conds: string[] = [];
-  if (filtros.municipio && !geral) conds.push(`c.NM_UE = '${filtros.municipio}'`);
-  if (filtros.municipio && geral) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
-  if (filtros.cargo) conds.push(`c.DS_CARGO ILIKE '%${filtros.cargo}%'`);
-  if (filtros.partido) conds.push(`c.SG_PARTIDO = '${filtros.partido}'`);
-  if (filtros.turno) conds.push(`c.NR_TURNO = ${filtros.turno}`);
-  if (filtros.genero) conds.push(`c.DS_GENERO = '${filtros.genero}'`);
-  if (filtros.situacao) conds.push(`c.DS_SIT_TOT_TURNO ILIKE '%${filtros.situacao}%'`);
+  if (filtros.municipio && !geral) conds.push(`c.NM_UE = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros.municipio && geral) conds.push(`v.NM_MUNICIPIO = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros.cargo) conds.push(`c.DS_CARGO ILIKE '%${sqlSafe(filtros.cargo)}%'`);
+  if (filtros.partido) conds.push(`c.SG_PARTIDO = '${sqlSafe(filtros.partido)}'`);
+  if (filtros.turno) conds.push(`c.NR_TURNO = ${Number(filtros.turno)}`);
+  if (filtros.genero) conds.push(`c.DS_GENERO = '${sqlSafe(filtros.genero)}'`);
+  if (filtros.situacao) conds.push(`c.DS_SIT_TOT_TURNO ILIKE '%${sqlSafe(filtros.situacao)}%'`);
 
   // Geo filters: zone can be applied on votacao_candidato_munzona directly
   if (filtros.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
