@@ -231,15 +231,15 @@ export default function ZonasEleitorais() {
   }
 
   return (
-    <div className="space-y-4 max-w-[1800px] mx-auto">
+    <div className="space-y-3 sm:space-y-4 max-w-[1800px] mx-auto">
       {/* Header */}
       <div>
-        <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <GitCompareArrows className="w-5 h-5 text-primary" />
-          Comparativo Eleitoral por Zona e Escola
+        <h1 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+          <GitCompareArrows className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+          Comparativo Eleitoral
         </h1>
-        <p className="text-xs text-muted-foreground">
-          {municipio} — Compare candidatos do mesmo cargo em eleições diferentes (mesma cidade)
+        <p className="text-[10px] sm:text-xs text-muted-foreground">
+          {municipio} — Compare candidatos por zona e escola
         </p>
       </div>
 
@@ -250,7 +250,7 @@ export default function ZonasEleitorais() {
             Busque e adicione candidatos para comparar (máx. 8)
           </p>
 
-          <div className="relative max-w-md">
+          <div className="relative w-full sm:max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               placeholder="Digite o nome do candidato..."
@@ -277,22 +277,22 @@ export default function ZonasEleitorais() {
                     <div
                       key={`${key}_${i}`}
                       className={cn(
-                        'flex items-center justify-between px-3 py-2 hover:bg-muted/30 cursor-pointer border-b border-border/20 last:border-0',
+                        'flex items-center justify-between px-3 py-2.5 hover:bg-muted/30 cursor-pointer border-b border-border/20 last:border-0',
                         jaSelecionado && 'opacity-40 pointer-events-none'
                       )}
                       onClick={() => adicionarCandidato(c)}
                     >
-                      <div className="flex items-center gap-2">
-                        <Plus className="w-3.5 h-3.5 text-primary" />
-                        <span className="text-xs font-medium">{c.candidato}</span>
+                      <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap min-w-0">
+                        <Plus className="w-3.5 h-3.5 text-primary shrink-0" />
+                        <span className="text-xs font-medium truncate">{c.candidato}</span>
                         <Badge variant="secondary" className="text-[9px] h-5">{c.ano}</Badge>
-                        <Badge variant="outline" className="text-[9px] h-5">{c.cargo}</Badge>
+                        <Badge variant="outline" className="text-[9px] h-5 hidden sm:inline-flex">{c.cargo}</Badge>
                         <span className="text-[10px] font-bold px-1.5 py-0.5 rounded"
                           style={{ backgroundColor: getPartidoCor(c.partido) + '20', color: getPartidoCor(c.partido) }}>
                           {c.partido}
                         </span>
                       </div>
-                      <Badge variant="outline" className="text-[10px] h-5">{c.numero}</Badge>
+                      <Badge variant="outline" className="text-[10px] h-5 shrink-0 ml-1">{c.numero}</Badge>
                     </div>
                   );
                 })

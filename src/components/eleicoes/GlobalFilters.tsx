@@ -35,8 +35,8 @@ export function GlobalFilters({ visibleFilters = ALL_FILTERS }: GlobalFiltersPro
 
   return (
     <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-md border-b border-border/50">
-      <div className="px-2 sm:px-4 py-2">
-        <div className="flex flex-wrap gap-1.5 sm:gap-2 items-center max-w-[1800px] mx-auto">
+      <div className="px-2 sm:px-4 py-2 overflow-x-auto mobile-filter-scroll">
+        <div className="flex gap-1.5 sm:gap-2 items-center max-w-[1800px] mx-auto min-w-max sm:min-w-0 sm:flex-wrap">
           <div className="flex items-center gap-1.5 mr-1 shrink-0">
             <Filter className="w-3.5 h-3.5 text-primary" />
             <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Filtros</span>

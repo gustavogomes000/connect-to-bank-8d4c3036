@@ -167,12 +167,12 @@ export default function Mesarios() {
   const totalEleitores = cards.reduce((s, e) => s + e.eleitores, 0);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3 sm:space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 className="text-lg font-bold text-foreground">Mesários por Escola</h1>
-          <p className="text-xs text-muted-foreground">
+          <h1 className="text-base sm:text-lg font-bold text-foreground">Mesários por Escola</h1>
+          <p className="text-[10px] sm:text-xs text-muted-foreground">
             {municipio}{zonaFiltro ? ` • Zona ${zonaFiltro}` : ''} — {ano} • Fonte: TSE
           </p>
         </div>
@@ -192,7 +192,7 @@ export default function Mesarios() {
           placeholder="Buscar escola, bairro ou zona..."
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="pl-9 h-9 text-sm"
+          className="pl-9 h-9 text-sm w-full"
         />
       </div>
 

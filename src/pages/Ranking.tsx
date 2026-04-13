@@ -45,19 +45,19 @@ export default function Ranking() {
   }, [data]);
 
   return (
-    <div className="space-y-4 max-w-[1800px] mx-auto">
+    <div className="space-y-3 sm:space-y-4 max-w-[1800px] mx-auto">
       <div>
-        <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-          <Trophy className="w-5 h-5 text-primary" />
+        <h1 className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+          <Trophy className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
           Ranking de Candidatos
         </h1>
-        <p className="text-xs text-muted-foreground">{municipio} · {ano} — Ranking por votos com patrimônio e situação</p>
+        <p className="text-[10px] sm:text-xs text-muted-foreground">{municipio} · {ano} — Ranking por votos com patrimônio e situação</p>
       </div>
 
       {isLoading ? (
         <LoadingKPIs count={4} />
       ) : stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:gap-3 lg:grid-cols-4">
           <KPI icon={Users} label="Candidatos" value={formatNumber(stats.total)} sub={`${stats.partidos} partidos`} />
           <KPI icon={TrendingUp} label="Total de Votos" value={formatNumber(stats.totalVotos)} />
           <KPI icon={Landmark} label="Patrimônio Total" value={formatBRLCompact(stats.totalPatrimonio)} />
