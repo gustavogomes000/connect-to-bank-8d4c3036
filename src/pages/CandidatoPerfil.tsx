@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useCallback } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Award, Building2, Calendar, ChevronDown, ChevronUp, Coins, ExternalLink, GraduationCap, Landmark, MapPinned, Search, Shield, TrendingUp, User, Vote, XCircle } from 'lucide-react';
+import { ArrowLeft, Award, Building2, Calendar, ChevronDown, ChevronUp, Coins, ExternalLink, GraduationCap, Landmark, MapPinned, Search, Shield, TrendingUp, User, Users, Vote, XCircle } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import {
   mdQuery,
@@ -13,6 +13,7 @@ import {
   sqlVotosHistoricoPorZona,
   sqlVotosHistoricoPorLocal,
   sqlVotacaoTerritorialDetalhada,
+  sqlComposicaoVotosCandidato,
 } from '@/lib/motherduck';
 import { useFilterStore } from '@/stores/filterStore';
 import { Button } from '@/components/ui/button';
