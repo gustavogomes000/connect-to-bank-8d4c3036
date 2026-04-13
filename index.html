@@ -19,9 +19,66 @@
     <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <style>
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: #fff;
+        transition: opacity 0.4s ease-out;
+      }
+      #splash-screen.hide { opacity: 0; pointer-events: none; }
+      #splash-logo {
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1a1a2e;
+        margin-bottom: 1.5rem;
+        letter-spacing: -0.02em;
+      }
+      #splash-logo span { color: #EC4899; }
+      .splash-bar {
+        width: 200px;
+        height: 3px;
+        background: #f1f5f9;
+        border-radius: 4px;
+        overflow: hidden;
+        position: relative;
+      }
+      .splash-bar::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(90deg, #EC4899, #C8AA64);
+        border-radius: 4px;
+        animation: splash-progress 1.8s ease-in-out infinite;
+        transform-origin: left;
+      }
+      @keyframes splash-progress {
+        0% { transform: scaleX(0) translateX(0); }
+        50% { transform: scaleX(0.6) translateX(30%); }
+        100% { transform: scaleX(0) translateX(100%); }
+      }
+      .splash-text {
+        font-family: system-ui, -apple-system, sans-serif;
+        font-size: 0.75rem;
+        color: #94a3b8;
+        margin-top: 1rem;
+      }
+    </style>
   </head>
 
   <body>
+    <div id="splash-screen">
+      <div id="splash-logo">Eleições<span>GO</span></div>
+      <div class="splash-bar"></div>
+      <div class="splash-text">Carregando inteligência eleitoral…</div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
