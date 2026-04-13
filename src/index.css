@@ -142,3 +142,43 @@
   border: 1px solid hsl(var(--border));
   box-shadow: 0 4px 20px -2px hsl(0 0% 0% / 0.05);
 }
+
+/* ===== PWA / Mobile Optimizations ===== */
+
+/* Safe area insets for notched devices (iPhone X+) */
+@supports (padding: env(safe-area-inset-top)) {
+  .pwa-safe-top { padding-top: env(safe-area-inset-top); }
+  .pwa-safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+}
+
+/* Prevent pull-to-refresh interfering with scroll areas */
+@media (max-width: 768px) {
+  main {
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Mobile filter bar horizontal scroll */
+.mobile-filter-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.mobile-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Mobile table containers: momentum scrolling */
+@media (max-width: 768px) {
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Prevent text selection on interactive elements in mobile */
+@media (pointer: coarse) {
+  button, [role="button"], .cursor-pointer {
+    -webkit-tap-highlight-color: transparent;
+    user-select: none;
+  }
+}
