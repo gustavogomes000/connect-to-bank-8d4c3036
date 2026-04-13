@@ -726,6 +726,7 @@ export default function CandidatoPerfil() {
   const bens = bensQ.data || [];
   const receitas = receitasQ.data || [];
   const redes = redesQ.data || [];
+  const historico = (historicoQ.data || []) as AnyRow[];
   const votacaoTerritorial = votacaoTerritorialQ.data || [];
 
   const idade = calcIdade(candidato?.data_nascimento || candidato?.DT_NASCIMENTO);
