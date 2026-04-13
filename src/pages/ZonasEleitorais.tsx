@@ -12,7 +12,7 @@ import {
   Hash, Search, School, X, GitCompareArrows, Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { mdQuery, getTableName, getAnosDisponiveis, sqlComposicaoVotosCandidato } from '@/lib/motherduck';
+import { mdQuery, getTableName, getAnosDisponiveis, sqlComposicaoVotosCandidato, sqlSafe } from '@/lib/motherduck';
 import { useQuery } from '@tanstack/react-query';
 
 const fmt = (n: number | string) => Number(n || 0).toLocaleString('pt-BR');
@@ -54,17 +54,16 @@ function useBuscarCandidatos(municipio: string, search: string) {
     queryKey: ['busca-candidatos-comparativo-multi', municipio, search],
     queryFn: async () => {
       if (!search || search.length < 3) return [];
-      const searchUpper = search.toUpperCase().replace(/'/g, "''");
-      const munSafe = municipio.replace(/'/g, "''");
+      const searchUpper = sqlSafe(search.toUpperCase());
+      const munSafe = sqlSafe(municipio);
 
       const subqueries = anosDisponiveis.map(a => {
         const cand = getTableName('candidatos', a);
-        const vot = getTableName('votacao', a);
         const isGeral = [2014, 2018, 2022].includes(a);
         const munFilterCand = isGeral ? '' : `AND c.NM_UE = '${munSafe}'`;
         const nameFilter = `(UPPER(c.NM_URNA_CANDIDATO) LIKE '%${searchUpper}%' OR UPPER(c.NM_CANDIDATO) LIKE '%${searchUpper}%')`;
 
-        // Same approach as sqlPainelCandidatos: LEFT JOIN from candidates to votes
+        // Direct candidate search - no JOIN needed (votes fetched only after selection)
         return `
           SELECT
             CAST(c.SQ_CANDIDATO AS VARCHAR) AS sq_candidato,
@@ -76,12 +75,6 @@ function useBuscarCandidatos(municipio: string, search: string) {
             ${a} AS ano,
             c.NM_UE AS municipio
           FROM ${cand} c
-          LEFT JOIN (
-            SELECT SQ_CANDIDATO, SUM(QT_VOTOS_NOMINAIS) AS tv
-            FROM ${vot}
-            WHERE NM_MUNICIPIO = '${munSafe}'
-            GROUP BY SQ_CANDIDATO
-          ) vv ON c.SQ_CANDIDATO = vv.SQ_CANDIDATO
           WHERE ${nameFilter} ${munFilterCand}
         `;
       });
