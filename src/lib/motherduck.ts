@@ -849,8 +849,8 @@ export function sqlRankingPatrimonio(filtros: FiltrosPainel = {}): string {
   const limit = filtros.limite || 20;
 
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`c.NM_UE = '${filtros.municipio}'`);
-  if (filtros.cargo) conds.push(`c.DS_CARGO ILIKE '%${filtros.cargo}%'`);
+  if (filtros.municipio) conds.push(`c.NM_UE = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros.cargo) conds.push(`c.DS_CARGO ILIKE '%${sqlSafe(filtros.cargo)}%'`);
   const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
 
   return `
@@ -877,7 +877,7 @@ export function sqlComparecimento(filtros: FiltrosPainel = {}): string {
   const comp = geo ? getTableName('detalhe_secao', ano) : getTableName('detalhe_munzona', ano);
 
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`d.NM_MUNICIPIO = '${filtros.municipio}'`);
+  if (filtros.municipio) conds.push(`d.NM_MUNICIPIO = '${sqlSafe(filtros.municipio)}'`);
   if (filtros.turno) conds.push(`d.NR_TURNO = ${filtros.turno}`);
   if (filtros.zona) conds.push(`d.NR_ZONA = ${filtros.zona}`);
 
@@ -910,8 +910,8 @@ export function sqlRankingPartidos(filtros: FiltrosPainel = {}): string {
   const vp = geo ? getTableName('votacao_secao', ano) : getTableName('votacao_partido', ano);
 
   const conds: string[] = [];
-  if (filtros.municipio) conds.push(`v.NM_MUNICIPIO = '${filtros.municipio}'`);
-  if (filtros.cargo && !geo) conds.push(`v.DS_CARGO ILIKE '%${filtros.cargo}%'`);
+  if (filtros.municipio) conds.push(`v.NM_MUNICIPIO = '${sqlSafe(filtros.municipio)}'`);
+  if (filtros.cargo && !geo) conds.push(`v.DS_CARGO ILIKE '%${sqlSafe(filtros.cargo)}%'`);
   if (filtros.turno) conds.push(`v.NR_TURNO = ${filtros.turno}`);
   if (filtros.zona) conds.push(`v.NR_ZONA = ${filtros.zona}`);
 
@@ -989,7 +989,7 @@ export function sqlLocaisVotacao(ano: number, municipio: string): string {
       SUM(QT_ELEITOR_SECAO) AS eleitores
     FROM ${tab}
     WHERE SG_UF = 'GO'
-      AND NM_MUNICIPIO = '${municipio}'
+      AND NM_MUNICIPIO = '${sqlSafe(municipio)}'
       AND NM_LOCAL_VOTACAO IS NOT NULL AND NM_LOCAL_VOTACAO != ''
     GROUP BY NM_LOCAL_VOTACAO, NR_ZONA, NM_BAIRRO, DS_ENDERECO
     ORDER BY eleitores DESC
@@ -1006,8 +1006,8 @@ export function sqlSecoesLocal(ano: number, municipio: string, localVotacao: str
       SUM(QT_ELEITOR_SECAO) AS eleitores
     FROM ${tab}
     WHERE SG_UF = 'GO'
-      AND NM_MUNICIPIO = '${municipio}'
-      AND NM_LOCAL_VOTACAO = '${localVotacao}'
+      AND NM_MUNICIPIO = '${sqlSafe(municipio)}'
+      AND NM_LOCAL_VOTACAO = '${sqlSafe(localVotacao)}'
     GROUP BY NR_SECAO, NR_ZONA
     ORDER BY NR_SECAO
   `.trim();
@@ -1024,7 +1024,7 @@ export function sqlEleitoresPorBairro(ano: number, municipio: string): string {
       SUM(QT_ELEITOR_SECAO) AS eleitores
     FROM ${tab}
     WHERE SG_UF = 'GO'
-      AND NM_MUNICIPIO = '${municipio}'
+      AND NM_MUNICIPIO = '${sqlSafe(municipio)}'
       AND NM_BAIRRO IS NOT NULL AND NM_BAIRRO != ''
     GROUP BY NM_BAIRRO
     ORDER BY eleitores DESC
