@@ -747,11 +747,14 @@ export default function CandidatoPerfil() {
     queryKey: ['md', 'cand-auto', sq, anoFromUrl],
     enabled: !!sq,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
     queryFn: async (): Promise<AnyRow | null> => {
       // Se tem ano na URL, busca direto nesse ano
       if (anoFromUrl && canUseDataset('candidatos', anoFromUrl)) {
-        const rows = await mdQuery(sqlPerfilCandidato(anoFromUrl, { sq: String(sq) }));
-        if (rows[0]) return { ...(rows[0] as AnyRow), _ano_encontrado: anoFromUrl };
+        try {
+          const rows = await mdQuery(sqlPerfilCandidato(anoFromUrl, { sq: String(sq) }));
+          if (rows[0]) return { ...(rows[0] as AnyRow), _ano_encontrado: anoFromUrl };
+        } catch { /* continua para outros anos */ }
       }
       // Senão, tenta todos os anos do mais recente ao mais antigo
       const anos = [...getAnosDisponiveis('candidatos')].sort((a, b) => b - a);
@@ -825,20 +828,31 @@ export default function CandidatoPerfil() {
     queryKey: ['md', 'composicao_votos', ano, nrCandidato, mun, cargoAtual],
     enabled: !!nrCandidato && !!candidatoQ.data,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
     queryFn: async () => {
-      const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun, cargoAtual));
-      return rows as AnyRow[];
+      try {
+        const rows = await mdQuery(sqlComposicaoVotosCandidato(ano, nrCandidato!, mun, cargoAtual));
+        return rows as AnyRow[];
+      } catch (e) {
+        console.warn('Composição de votos falhou, tentando fallback territorial:', e);
+        return [] as AnyRow[];
+      }
     },
   });
 
   // ── Votação territorial da eleição atual (fallback simples por zona) ──
   const votacaoTerritorialQ = useQuery({
     queryKey: ['md', 'votacao_territorial', ano, sq],
-    enabled: !!sq && !!candidatoQ.data && !nrCandidato,
+    enabled: !!sq && !!candidatoQ.data,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
     queryFn: async () => {
-      const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
-      return rows as AnyRow[];
+      try {
+        const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
+        return rows as AnyRow[];
+      } catch {
+        return [] as AnyRow[];
+      }
     },
   });
 
