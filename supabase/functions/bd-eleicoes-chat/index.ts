@@ -479,9 +479,9 @@ function buildQuery(intent: Intent, e: Entities): QueryPlan | null {
             config_visual: { tipo_grafico: "bar", titulo: `Patrimônio: ${e.nomes.join(' × ')} — ${ano}`, descricao: "Comparativo de patrimônio", mapping: { axis: "candidato", dataKeys: ["patrimonio"] } },
           };
         }
-        const nome = sqlSafe(e.nomes[0]);
+        const nome = e.nomes[0];
         return {
-          sql: `SELECT DS_TIPO_BEM_CANDIDATO AS tipo, DS_BEM_CANDIDATO AS descricao, CAST(REPLACE(VR_BEM_CANDIDATO,',','.')AS DOUBLE) AS valor FROM ${T('bens', ano)} WHERE SQ_CANDIDATO IN (SELECT SQ_CANDIDATO FROM ${T('candidatos', ano)} WHERE NM_URNA_CANDIDATO ILIKE '%${nome}%') ORDER BY valor DESC LIMIT 50`,
+          sql: `SELECT DS_TIPO_BEM_CANDIDATO AS tipo, DS_BEM_CANDIDATO AS descricao, CAST(REPLACE(VR_BEM_CANDIDATO,',','.')AS DOUBLE) AS valor FROM ${T('bens', ano)} WHERE SQ_CANDIDATO IN (SELECT SQ_CANDIDATO FROM ${T('candidatos', ano)} WHERE ${ilike('NM_URNA_CANDIDATO', nome)}) ORDER BY valor DESC LIMIT 50`,
           config_visual: { tipo_grafico: "table", titulo: `Bens — ${e.nomes[0]}`, descricao: "Bens declarados", mapping: { axis: "tipo", dataKeys: ["valor"] } },
         };
       }
