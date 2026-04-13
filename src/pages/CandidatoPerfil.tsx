@@ -688,6 +688,17 @@ export default function CandidatoPerfil() {
   const cargoAtual = candidatoQ.data?.cargo || candidatoQ.data?.DS_CARGO || null;
   const mun = municipio || candidatoQ.data?.municipio || candidatoQ.data?.NM_UE || null;
 
+  // ── Votação territorial da eleição atual ──
+  const votacaoTerritorialQ = useQuery({
+    queryKey: ['md', 'votacao_territorial', ano, sq],
+    enabled: !!sq && !!candidatoQ.data,
+    staleTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
+      return rows as AnyRow[];
+    },
+  });
+
 
   // ── Histórico eleitoral (prioriza CPF, fallback para nome completo) ──
   const candidato = candidatoQ.data;
