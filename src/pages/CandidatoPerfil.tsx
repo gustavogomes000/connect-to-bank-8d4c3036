@@ -840,11 +840,16 @@ export default function CandidatoPerfil() {
   // ── Votação territorial da eleição atual (fallback simples por zona) ──
   const votacaoTerritorialQ = useQuery({
     queryKey: ['md', 'votacao_territorial', ano, sq],
-    enabled: !!sq && !!candidatoQ.data && !nrCandidato,
+    enabled: !!sq && !!candidatoQ.data,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
     queryFn: async () => {
-      const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
-      return rows as AnyRow[];
+      try {
+        const rows = await mdQuery(sqlVotacaoTerritorialDetalhada(ano, String(sq)));
+        return rows as AnyRow[];
+      } catch {
+        return [] as AnyRow[];
+      }
     },
   });
 
