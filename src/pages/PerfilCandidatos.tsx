@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { mdQuery, getTableName, getAnosDisponiveis, isEleicaoGeral } from '@/lib/motherduck';
@@ -23,7 +23,7 @@ import CandidatoPerfil from './CandidatoPerfil';
  * Para eleições gerais: mostra todos de GO.
  * Para municipais: filtra pelo município selecionado.
  */
-function useCandidatos(ano: number, municipio: string, cargo: string | null, partido: string | null) {
+function useCandidatos(ano: number, municipio: string, cargo: string | null, partido: string | null, busca: string) {
   return useQuery({
     queryKey: ['candidatos-md', ano, municipio, cargo, partido],
     queryFn: async () => {
@@ -34,6 +34,14 @@ function useCandidatos(ano: number, municipio: string, cargo: string | null, par
       if (!geral && municipio !== '_todos') conds.push(`NM_UE = '${municipio}'`);
       if (cargo) conds.push(`DS_CARGO = '${cargo}'`);
       if (partido) conds.push(`SG_PARTIDO = '${partido}'`);
+      
+      const b = busca.toLowerCase().trim();
+      if (b) {
+        // Remover acentos básicos para não falhar a busca (fallback simples no LIKE)
+        const normalizeSQL = (str: string) => str.replace(/['"]/g, '');
+        const val = normalizeSQL(b);
+        conds.push(`(NM_URNA_CANDIDATO ILIKE '%${val}%' OR NM_CANDIDATO ILIKE '%${val}%' OR NR_CANDIDATO::VARCHAR LIKE '%${val}%' OR SG_PARTIDO ILIKE '%${val}%')`);
+      }
 
       const sql = `
         SELECT
@@ -55,14 +63,16 @@ function useCandidatos(ano: number, municipio: string, cargo: string | null, par
         FROM ${tab}
         WHERE ${conds.join(' AND ')}
         ORDER BY NM_URNA_CANDIDATO
+        LIMIT 300
       `;
 
       return await mdQuery<any>(sql);
     },
     enabled: !!municipio,
-    staleTime: 5 * 60_000,
+    staleTime: 15 * 60 * 1000,
   });
 }
+
 
 // Anos disponíveis para candidatos, do mais recente ao mais antigo
 const ANOS_CANDIDATOS = [2024, 2022, 2020, 2018, 2016, 2014];
@@ -76,8 +86,16 @@ function PerfilCandidatosList() {
   const [municipio, setMunicipio] = useState('APARECIDA DE GOIÂNIA');
   const [cargo, setCargo] = useState<string | null>(null);
   const [partido, setPartido] = useState<string | null>(null);
-  const { data: candidatos, isLoading, isError } = useCandidatos(ano, municipio, cargo, partido);
   const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+
+  // Debounce manual do campo busca para a query no banco
+  useEffect(() => {
+    const handler = setTimeout(() => setBuscaDebounced(busca), 400);
+    return () => clearTimeout(handler);
+  }, [busca]);
+
+  const { data: candidatos, isLoading, isError } = useCandidatos(ano, municipio, cargo, partido, buscaDebounced);
 
   const geral = isEleicaoGeral(ano);
   const cargosDisponiveis = geral ? CARGOS_GERAIS : CARGOS_MUNICIPAIS;
@@ -166,7 +184,7 @@ function PerfilCandidatosList() {
           </p>
         </div>
         <Badge variant="secondary" className="text-[10px]">
-          {filtered.length} candidatos
+          {filtered.length >= 300 ? '+300 candidatos' : `${filtered.length} candidatos`}
         </Badge>
       </div>
 

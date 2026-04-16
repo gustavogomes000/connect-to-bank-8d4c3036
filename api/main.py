@@ -49,12 +49,16 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 # Conexão MotherDuck
 # ---------------------------------------------------------------------------
+_db_connection = None
+
 def get_db_connection() -> duckdb.DuckDBPyConnection:
     """
-    Retorna uma conexão DuckDB apontando para o MotherDuck.
-    O token é lido da variável de ambiente MOTHERDUCK_TOKEN.
-    Lança HTTPException 500 se o token não estiver configurado.
+    Retorna uma conexão DuckDB Singleton apontando para o MotherDuck.
     """
+    global _db_connection
+    if _db_connection is not None:
+        return _db_connection
+
     token = os.getenv("MOTHERDUCK_TOKEN")
     if not token:
         logger.error("Variável de ambiente MOTHERDUCK_TOKEN não definida.")
@@ -65,7 +69,8 @@ def get_db_connection() -> duckdb.DuckDBPyConnection:
     try:
         conn = duckdb.connect(f"md:?motherduck_token={token}")
         logger.info("Conexão ao MotherDuck estabelecida com sucesso.")
-        return conn
+        _db_connection = conn
+        return _db_connection
     except Exception as exc:
         logger.exception("Falha ao conectar ao MotherDuck.")
         raise HTTPException(
@@ -185,6 +190,7 @@ def ranking_candidatos(payload: RankingPayload):
     - **cargo**: Filtra por cargo disputado (opcional).
     """
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         query = _build_ranking_query(payload)
         params = _collect_params(payload)
@@ -196,8 +202,8 @@ def ranking_candidatos(payload: RankingPayload):
             payload.cargo,
         )
 
-        result = conn.execute(query, params).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, params).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
 
         rows = [dict(zip(col_names, row)) for row in result]
 
@@ -216,7 +222,7 @@ def ranking_candidatos(payload: RankingPayload):
             detail=f"Erro no Motor Analítico: falha na consulta. {exc}",
         ) from exc
     finally:
-        conn.close()
+        cursor.close()
 
 
 @app.get(
@@ -230,6 +236,7 @@ def territorio_candidato(
 ):
     """Retorna a distribuição de votos por zona, bairro e escola."""
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         query = f"""
             SELECT
@@ -245,15 +252,15 @@ def territorio_candidato(
             GROUP BY zona, bairro, escola
             ORDER BY votos DESC
         """
-        result = conn.execute(query, [sq_candidato]).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, [sq_candidato]).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, r)) for r in result]
         return {"status": "sucesso", "total": len(rows), "dados": rows}
     except Exception as exc:
         logger.exception("Erro ao consultar força territorial.")
         raise HTTPException(status_code=500, detail=f"Erro no Motor Analítico: {exc}")
     finally:
-        conn.close()
+        cursor.close()
 
 
 @app.get(
@@ -269,6 +276,7 @@ def bens_candidato(
     Retorna a lista de bens: DS_TIPO_BEM_CANDIDATO, DS_BEM_CANDIDATO e VR_BEM_CANDIDATO.
     """
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         query = f"""
             SELECT
@@ -279,15 +287,15 @@ def bens_candidato(
             WHERE SQ_CANDIDATO = ?
             ORDER BY VR_BEM_CANDIDATO DESC
         """
-        result = conn.execute(query, [sq_candidato]).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, [sq_candidato]).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, r)) for r in result]
         return {"status": "sucesso", "total": len(rows), "dados": rows}
     except Exception as exc:
         logger.exception("Erro ao consultar bens.")
         raise HTTPException(status_code=500, detail=f"Erro no Motor Analítico: {exc}")
     finally:
-        conn.close()
+        cursor.close()
 
 
 @app.get(
@@ -303,6 +311,7 @@ def receitas_candidato(
     Retorna doações e receitas: NM_DOADOR, VR_RECEITA, DS_ORIGEM_RECEITA.
     """
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         query = f"""
             SELECT
@@ -313,15 +322,15 @@ def receitas_candidato(
             WHERE SQ_CANDIDATO = ?
             ORDER BY VR_RECEITA DESC
         """
-        result = conn.execute(query, [sq_candidato]).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, [sq_candidato]).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, r)) for r in result]
         return {"status": "sucesso", "total": len(rows), "dados": rows}
     except Exception as exc:
         logger.exception("Erro ao consultar receitas.")
         raise HTTPException(status_code=500, detail=f"Erro no Motor Analítico: {exc}")
     finally:
-        conn.close()
+        cursor.close()
 
 # ---------------------------------------------------------------------------
 # MÓDULO LOGÍSTICA ELEITORAL (Escolas e Mesários)
@@ -338,6 +347,7 @@ def listar_escolas(
     zona: Optional[str] = Query(None, description="Zona Eleitoral"),
 ):
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         where_clauses = []
         params = []
@@ -363,15 +373,15 @@ def listar_escolas(
             GROUP BY NM_LOCVOT, NM_BAIRRO, NR_ZONA
             ORDER BY escola
         """
-        result = conn.execute(query, params).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, params).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, r)) for r in result]
         return {"status": "sucesso", "total": len(rows), "dados": rows}
     except Exception as exc:
         logger.exception("Erro ao listar escolas.")
         raise HTTPException(status_code=500, detail=f"Erro no Motor Analítico: {exc}")
     finally:
-        conn.close()
+        cursor.close()
 
 @app.get(
     "/api/dados/escolas/pessoal",
@@ -384,6 +394,7 @@ def listar_pessoal(
     secao: str = Query(..., description="Seção"),
 ):
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         query = f"""
             SELECT
@@ -393,15 +404,15 @@ def listar_pessoal(
             WHERE NR_ZONA = ? AND NR_SECAO = ?
             ORDER BY funcao, lideranca
         """
-        result = conn.execute(query, [zona, secao]).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, [zona, secao]).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, r)) for r in result]
         return {"status": "sucesso", "total": len(rows), "dados": rows}
     except Exception as exc:
         logger.exception("Erro ao listar lideranças de campo.")
         raise HTTPException(status_code=500, detail=f"Erro no Motor Analítico: {exc}")
     finally:
-        conn.close()
+        cursor.close()
 
 # ---------------------------------------------------------------------------
 # MÓDULO DE DEEP DRILL-DOWN (Central de Inteligência)
@@ -416,6 +427,7 @@ def mapa_votos(
     sq_candidato: int = Query(..., description="SQ_CANDIDATO"),
 ):
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
         # A CTE calcula o total da seção antes de filtrar pelo candidato
         query = f"""
@@ -443,15 +455,15 @@ def mapa_votos(
             WHERE v.SQ_CANDIDATO = ? AND v.QT_VOTOS_NOMINAIS > 0
             ORDER BY v.QT_VOTOS_NOMINAIS DESC
         """
-        result = conn.execute(query, [sq_candidato]).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(query, [sq_candidato]).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, r)) for r in result]
         return {"status": "sucesso", "total": len(rows), "dados": rows}
     except Exception as exc:
         logger.exception("Erro ao gerar Deep Drill-Down.")
         raise HTTPException(status_code=500, detail=f"Erro no Motor Analítico: {exc}")
     finally:
-        conn.close()
+        cursor.close()
 
 # ---------------------------------------------------------------------------
 # MÓDULO DE INTELIGÊNCIA ARTIFICIAL (Chat)

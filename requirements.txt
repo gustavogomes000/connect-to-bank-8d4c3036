@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+duckdb
+mangum
+python-dotenv
+supabase
+google-generativeai
+upstash-redis
+pydantic

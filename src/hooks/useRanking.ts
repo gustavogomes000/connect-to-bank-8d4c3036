@@ -125,6 +125,6 @@ export const useRankingMD = () => {
         tem_segundo_turno: Number(r.votos_turno2 || 0) > 0,
       }));
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 15 * 60 * 1000,
   });
 };

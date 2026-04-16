@@ -29,9 +29,15 @@ def get_redis_client() -> Optional[Redis]:
         return None
     return Redis(url=url, token=token)
 
+_db_connection = None
+
 def get_db_connection() -> duckdb.DuckDBPyConnection:
+    global _db_connection
+    if _db_connection is not None:
+        return _db_connection
     token = os.getenv("MOTHERDUCK_TOKEN")
-    return duckdb.connect(f"md:?motherduck_token={token}")
+    _db_connection = duckdb.connect(f"md:?motherduck_token={token}")
+    return _db_connection
 
 def configure_gemini():
     api_key = os.getenv("GEMINI_API_KEY")
@@ -104,16 +110,17 @@ Se for impossível, retorne a palara `VAZIO`.
 
     # ETAPA C: Execução Analítica (DuckDB)
     conn = get_db_connection()
+    cursor = conn.cursor()
     try:
-        result = conn.execute(sql_query).fetchall()
-        col_names = [desc[0] for desc in conn.description]
+        result = cursor.execute(sql_query).fetchall()
+        col_names = [desc[0] for desc in cursor.description]
         rows = [dict(zip(col_names, row)) for row in result[:25]] # max 25 rows pro LLM payload limit
         dados_json = json.dumps(rows, ensure_ascii=False)
     except Exception as e:
         logger.error(f"Erro MotherDuck ao rodar SQL gerado ({sql_query}): {e}")
         return ChatResponse(resposta="Falha técnica na consulta analítica. Nossa equipe foi notificada.", sql_gerado=sql_query)
     finally:
-        conn.close()
+        cursor.close()
 
     # ETAPA D: Formatação e Response final
     model_chat = genai.GenerativeModel("gemini-1.5-flash")

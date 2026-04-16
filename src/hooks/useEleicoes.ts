@@ -26,12 +26,21 @@ import {
 } from '@/lib/motherduck';
 
 // ═══════════════════════════════════════════════════════════════
-// HELPER: lê filtros do Zustand
+// HELPER: lê filtros do Zustand com seletores GRANULARES
+// (evita re-renders e invalidação de cache em cascata)
 // ═══════════════════════════════════════════════════════════════
 
 function useFilters() {
-  const s = useFilterStore();
-  return { ano: s.ano, municipio: s.municipio, cargo: s.cargo, turno: s.turno, partido: s.partido, zona: s.zona, bairro: s.bairro, escola: s.escola, searchText: s.searchText };
+  const ano = useFilterStore((s) => s.ano);
+  const municipio = useFilterStore((s) => s.municipio);
+  const cargo = useFilterStore((s) => s.cargo);
+  const turno = useFilterStore((s) => s.turno);
+  const partido = useFilterStore((s) => s.partido);
+  const zona = useFilterStore((s) => s.zona);
+  const bairro = useFilterStore((s) => s.bairro);
+  const escola = useFilterStore((s) => s.escola);
+  const searchText = useFilterStore((s) => s.searchText);
+  return { ano, municipio, cargo, turno, partido, zona, bairro, escola, searchText };
 }
 
 type Filtros = ReturnType<typeof useFilters>;
@@ -56,9 +65,9 @@ function toFiltrosPainel(f: Filtros) {
 export function usePainelGeral(limite = 100) {
   const f = useFilters();
   return useQuery({
-    queryKey: ['painelGeral', f, limite],
+    queryKey: ['painelGeral', f.ano, f.municipio, f.cargo, f.partido, f.turno, f.zona, f.bairro, f.escola, limite],
     queryFn: () => mdQuery(sqlPainelCandidatos({ ...toFiltrosPainel(f), limite })),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 15 * 60 * 1000,
   });
 }
 

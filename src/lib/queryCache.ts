@@ -4,10 +4,11 @@ import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persist
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 10 * 60 * 1000,      // 10 min
-      gcTime: 24 * 60 * 60 * 1000,     // 24h (persist longer for cache)
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
+      staleTime: 15 * 60 * 1000,       // 15 min — dados eleitorais não mudam
+      gcTime: 24 * 60 * 60 * 1000,     // 24h em memória
+      refetchOnWindowFocus: false,     // não re-busca ao focar janela
+      refetchOnReconnect: false,       // não re-busca ao reconectar
+      refetchOnMount: false,           // FIX PRINCIPAL: não re-faz query ao trocar de página se cache válido
       retry: 1,
     },
   },
